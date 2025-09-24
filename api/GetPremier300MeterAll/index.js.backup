@@ -1,0 +1,100 @@
+﻿// api/GetPremier300MeterAll/index.js
+const { TableClient } = require("@azure/data-tables");
+const { DefaultAzureCredential } = require("@azure/identity");
+
+const devBypass = process.env.BYPASS_AUTH === "1";
+
+// Parse SWA principal, if present
+function getPrincipal(req){
+  const b64 = req.headers["x-ms-client-principal"];
+  if (!b64) return null;
+  try { return JSON.parse(Buffer.from(b64,"base64").toString("utf8")); }
+  catch { return null; }
+}
+
+// Safe date extraction for "YYYY-MM-DD"
+function entityDate(e){
+  if (typeof e.Date === "string" && e.Date.length>=10) return e.Date.slice(0,10);
+  if (typeof e.Date_Time === "string" && e.Date_Time.length>=10) return e.Date_Time.slice(0,10);
+  return null;
+}
+
+async function getTableClient(tableName){
+  const isAzure = !!process.env.WEBSITE_SITE_NAME; // true when running in Azure
+  if (isAzure){
+    // Managed Identity in Azure
+    const endpoint = process.env.TABLES_ENDPOINT || `https://${process.env.STORAGE_ACCOUNT_NAME}.table.core.windows.net`;
+    const cred = new DefaultAzureCredential();
+    return new TableClient(endpoint, tableName, cred);
+  }
+  // local: connection string
+  const conn = process.env.STORAGE_CONNECTION_STRING || process.env.AzureWebJobsStorage;
+  return TableClient.fromConnectionString(conn, tableName);
+}
+
+module.exports = async function (context, req) {
+  try {
+    // ---------- Auth / RLS gate ----------
+    const principal = getPrincipal(req);
+    if (!devBypass && !principal){
+      context.res = {status:401, headers:{'content-type':'application/json'}, body:{error:'Not authenticated'}};
+      return;
+    }
+
+    // Inputs
+    const start = (req.query.start||"").slice(0,10), end=(req.query.end||"").slice(0,10);
+    const top = Math.min(parseInt(req.query.top||"2000",10)||2000, 5000);
+    const plantIdsReq = (req.query.plantIds||"").split(",").map(s=>s.trim()).filter(Boolean);
+
+    const premier = await getTableClient(process.env.PREMIER300_TABLE || "Premier300Meter");
+
+    // RLS (Azure only): user→allowed plant list from UserPlantAccess
+    let allowed = null;
+    if (!devBypass){
+      const access = await getTableClient("UserPlantAccess");
+      const email = principal?.userDetails || "";
+      const filter = `PartitionKey eq '${email.replace(/'/g,"''")}'`;
+      allowed = [];
+      for await (const ent of access.listEntities({queryOptions:{filter}})){
+        if (ent.Plant_ID!=null) allowed.push(String(ent.Plant_ID));
+      }
+      // No access → empty result
+      if (allowed.length===0){ context.res={status:200, body:{items:[]}}; return; }
+    }
+
+    // Final plant filter to apply
+    const finalPlants =
+      plantIdsReq.length ? plantIdsReq :
+      (allowed && allowed.length ? allowed : null);
+
+    // Gather rows
+    const items=[]; let count=0;
+    for await (const e of premier.listEntities()){
+      if (finalPlants && !finalPlants.includes(String(e.Plant_ID||""))) continue;
+      const d=entityDate(e);
+      if (start && d && d<start) continue;
+      if (end   && d && d>end)   continue;
+
+      // Project exactly what the UI needs (+ safe defaults)
+      items.push({
+        Meter_ID: e.Meter_ID ?? e.partitionKey ?? "",
+        Meter_Serial_No: e.Meter_Serial_No ?? "",
+        Meter_Make: e.Meter_Make ?? "Secure",
+        Meter_Model: e.Meter_Model ?? "Premier300",
+        Meter_Type: e.Meter_Type ?? "DLMS",
+        Total_Yield: Number(e.Total_Yield ?? 0),
+        Yield_Unit: e.Yield_Unit ?? (e.Total_Yield_Unit || "MWh"),
+        Incremental_Daily_Yield_KWH: Number(e.Incremental_Daily_Yield_KWH ?? 0),
+        Date_Time: e.Date_Time ?? "",
+        Plant_ID: e.Plant_ID ?? null
+      });
+
+      count++; if (count>=top) break;
+    }
+
+    context.res = {status:200, headers:{'content-type':'application/json'}, body:{items}};
+  } catch (err){
+    context.log.error("GetPremier300MeterAll error:", err);
+    context.res = {status:500, headers:{'content-type':'application/json'}, body:{error:String(err.message||err)}};
+  }
+};

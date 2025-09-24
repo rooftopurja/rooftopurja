@@ -1,0 +1,130 @@
+﻿<!doctype html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <title>Inverter Faults — Solar Monitoring</title>
+    <style>
+      body{font-family:system-ui,Segoe UI,Arial,sans-serif}
+      main{padding:24px}
+      .row{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:12px 0}
+      label{font-size:12px;color:#444;display:block;margin-bottom:4px}
+      input,button,select{padding:8px 10px;border:1px solid #ccc;border-radius:8px}
+      button{cursor:pointer}
+      table{border-collapse:collapse;width:100%;margin-top:16px}
+      th,td{border:1px solid #e5e5e5;padding:8px;text-align:left;font-size:14px}
+      th{background:#fafafa}
+      .muted{color:#666;font-size:13px}
+      .pill{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12px}
+      .sev-Critical{background:#ffd6d6}
+      .sev-Major{background:#ffe7cc}
+      .sev-Minor{background:#fff2cc}
+      .sev-Warning{background:#e9f3ff}
+      .sev-Info{background:#eef7ee}
+      .err{color:#b00020}
+    </style>
+  </head>
+  <body>
+    <div id='nav-holder'></div>
+    <script>
+      fetch('/nav.html').then(r => r.text()).then(html => {
+        document.getElementById('nav-holder').outerHTML = html;
+      });
+    </script>
+
+    <main>
+      <h1>Inverter Faults</h1>
+      <p class='muted'>Lists alarms from <code>/api/inverter/faults</code> (mock for now; SQL later).</p>
+
+      <div class='row'>
+        <div>
+          <label for='plantId'>Plant ID</label>
+          <input id='plantId' value='DEMO'/>
+        </div>
+        <div>
+          <label for='topN'>Rows (max 200)</label>
+          <input id='topN' type='number' min='1' max='200' value='20'/>
+        </div>
+        <div>
+          <label for='activeOnly'>Active only</label>
+          <select id='activeOnly'>
+            <option value='true' selected>Yes</option>
+            <option value='false'>No</option>
+          </select>
+        </div>
+        <div>
+          <button id='btnLoad'>Load</button>
+        </div>
+        <div class='muted' id='status' style='margin-left:8px'></div>
+      </div>
+
+      <div id='error' class='err'></div>
+
+      <table id='grid' style='display:none'>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Inverter</th>
+            <th>Code</th>
+            <th>Severity</th>
+            <th>Message</th>
+            <th>Active</th>
+            <th>Ack</th>
+          </tr>
+        </thead>
+        <tbody id='gridBody'></tbody>
+      </table>
+    </main>
+
+    <script>
+      const btn = document.getElementById('btnLoad');
+      const grid = document.getElementById('grid');
+      const body = document.getElementById('gridBody');
+      const status = document.getElementById('status');
+      const errorBox = document.getElementById('error');
+
+      function sevClass(s){ return 'pill sev-' + (s||'').replace(/[^A-Za-z]/g,''); }
+
+      async function loadData() {
+        const plantId = document.getElementById('plantId').value.trim();
+        const top = Math.max(1, Math.min(200, parseInt(document.getElementById('topN').value || '20', 10)));
+        const activeOnly = document.getElementById('activeOnly').value;
+        errorBox.textContent = '';
+        status.textContent = 'Loading...';
+        grid.style.display = 'none';
+        body.innerHTML = '';
+
+        if (!plantId) { errorBox.textContent = 'Please enter Plant ID'; status.textContent=''; return; }
+
+        try {
+          const url = \/api/inverter/faults?plantId=\&top=\&active=\\;
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('API error ' + res.status);
+          const json = await res.json();
+          const rows = json.data || [];
+          rows.forEach(r => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = \
+              <td>\</td>
+              <td>\</td>
+              <td>\</td>
+              <td><span class="\">\</span></td>
+              <td>\</td>
+              <td>\</td>
+              <td>\</td>\;
+            body.appendChild(tr);
+          });
+          status.textContent = \\ rows\;
+          grid.style.display = rows.length ? '' : 'none';
+          if (!rows.length) errorBox.textContent = 'No data';
+        } catch (e) {
+          errorBox.textContent = e.message || String(e);
+          status.textContent = '';
+        }
+      }
+
+      btn.addEventListener('click', loadData);
+      window.addEventListener('DOMContentLoaded', loadData);
+    </script>
+  </body>
+</html>

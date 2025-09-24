@@ -1,0 +1,20 @@
+﻿<!doctype html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <title>About — Solar Monitoring</title>
+  </head>
+  <body style='font-family:system-ui,Segoe UI,Arial,sans-serif'>
+    <div id='nav-holder'></div>
+    <script>
+      fetch('/nav.html').then(r => r.text()).then(html => {
+        document.getElementById('nav-holder').outerHTML = html;
+      });
+    </script>
+    <main style='padding:24px'>
+      <h1>About</h1>
+      <p>Placeholder page. This will later show About data.</p>
+    </main>
+  </body>
+</html>

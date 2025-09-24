@@ -1,0 +1,7 @@
+{
+  "users": [
+    { "email": "demo@rooftopurja.in", "plants": ["DEMO"] },
+    { "email": "ops@rooftopurja.in",  "plants": ["DEMO","PLANT2"] }
+  ],
+  "defaultPlants": ["DEMO"]
+}

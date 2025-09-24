@@ -1,0 +1,220 @@
+﻿<!doctype html>
+<html>
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Meter — Solar Monitoring</title>
+<style>
+  :root{ --gap:12px; --card-radius:12px; --shadow:0 2px 10px rgba(0,0,0,.06); }
+  body{ font-family:system-ui,Segoe UI,Arial,sans-serif; margin:0; background:#f6f7fb; }
+  header{ background:#0b6ef3; color:#fff; padding:10px 16px; }
+  main{ padding:12px; max-width:1200px; margin:0 auto; }
+
+  .card{ background:#fff; border-radius:var(--card-radius); box-shadow:var(--shadow); padding:12px; }
+  .muted{ color:#667; font-size:12px }
+
+  /* Filters */
+  .filters{ display:flex; gap:8px; align-items:end; flex-wrap:wrap }
+  label{ font-size:11px; color:#555; margin-bottom:4px; display:block }
+  input,select,button{ padding:6px 9px; border:1px solid #ddd; border-radius:10px; background:#fff; font-size:13px }
+  button{ background:#0b6ef3; color:#fff; border:none; cursor:pointer }
+  button:disabled{ opacity:.6; cursor:default }
+
+  /* --- Strict grid to force symmetry (1080p fits w/o scroll) --- */
+  .grid-areas{
+    display:grid; gap:var(--gap);
+    grid-template-columns: 2fr 1fr;         /* left wider than right */
+    grid-template-rows: 240px 260px;        /* row 1: table+KPI | row 2: charts */
+    grid-template-areas:
+      "table kpi"
+      "trend pie";
+  }
+  .area-table{ grid-area:table }
+  .area-kpi{ grid-area:kpi }
+  .area-trend{ grid-area:trend }
+  .area-pie{ grid-area:pie }
+
+  /* Row 1 cards equal height */
+  .row1{ height:240px; display:flex; flex-direction:column }
+  .table-wrap{ overflow:auto; border-radius:10px }
+  table{ width:100%; border-collapse:collapse; font-size:12.5px }
+  th,td{ text-align:left; padding:6px 8px; border-bottom:1px solid #eee; white-space:nowrap }
+  th{ background:#fafafa; position:sticky; top:0; z-index:1; color:#555; font-weight:600 }
+
+  .kpi-wrap{ height:100%; display:flex; align-items:center; justify-content:center }
+  .kpi{ font-weight:800; font-size:34px; line-height:1 }
+
+  /* Row 2 charts equal height */
+  .chart-card{ height:260px; display:flex; flex-direction:column }
+  .chart-card canvas{ flex:1; }
+
+  /* Compact legends to save vertical space */
+  .legend-bottom{ padding-top:6px }
+
+  /* Mobile fallback */
+  @media (max-width: 1100px){
+    .grid-areas{
+      grid-template-columns:1fr;
+      grid-template-rows: 160px auto auto auto;
+      grid-template-areas:
+        "kpi"
+        "table"
+        "trend"
+        "pie";
+    }
+    .row1{ height:160px }
+    .chart-card{ height:220px }
+    .kpi{ font-size:28px }
+  }
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+  <div id="nav-holder"></div>
+  <script>
+    fetch('/nav.html').then(r=>r.text()).then(html=>{document.getElementById('nav-holder').outerHTML=html;});
+  </script>
+
+  <header>
+    <div style="display:flex;justify-content:space-between;align-items:center;gap:10px">
+      <div style="font-weight:600">Meter Dashboard</div>
+      <div id="status" class="muted"></div>
+    </div>
+  </header>
+
+  <main>
+    <!-- Filters -->
+    <section class="card" style="margin-bottom:12px">
+      <div class="filters">
+        <div><label>Plant Name</label><select id="plant"><option>Demo Plant</option></select></div>
+        <div><label>Start date</label><input id="start" type="date"/></div>
+        <div><label>End date</label><input id="end" type="date"/></div>
+        <div><button id="applyBtn">Apply</button></div>
+      </div>
+    </section>
+
+    <!-- 2x2 strict grid -->
+    <section class="grid-areas">
+      <!-- TABLE (left) -->
+      <div class="card area-table row1">
+        <div class="muted" style="margin-bottom:6px">Latest Readings</div>
+        <div class="table-wrap">
+          <table id="grid">
+            <thead>
+              <tr>
+                <th>Plant_Name</th><th>Meter_Make</th><th>Meter_Type</th>
+                <th>Meter_Model</th><th>Meter_Serial_No</th>
+                <th>Total_Yield_Unit</th><th>Date_Time</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- KPI (right) -->
+      <div class="card area-kpi row1">
+        <div class="muted" style="margin-bottom:6px">Total Yield</div>
+        <div class="kpi-wrap"><div id="kpi" class="kpi">—</div></div>
+      </div>
+
+      <!-- Trend -->
+      <div class="card area-trend chart-card">
+        <div class="muted" style="margin-bottom:6px">Total Yield (bar) & Incremental Daily Yield (line)</div>
+        <canvas id="trendChart"></canvas>
+        <div class="legend-bottom" id="trendLegend"></div>
+      </div>
+
+      <!-- Pie -->
+      <div class="card area-pie chart-card">
+        <div class="muted" style="margin-bottom:6px">Contribution</div>
+        <canvas id="pieChart"></canvas>
+        <div class="legend-bottom" id="pieLegend"></div>
+      </div>
+    </section>
+  </main>
+
+  <script>
+    const $=s=>document.querySelector(s);
+    const statusEl=$('#status'), plantEl=$('#plant'), startEl=$('#start'), endEl=$('#end'), applyBtn=$('#applyBtn'), gridBody=$('#grid tbody'), kpiEl=$('#kpi');
+    let trendChart,pieChart;
+
+    const fmtISO=d=>d.toISOString().slice(0,10);
+    const todayISO=()=>{const d=new Date(); d.setHours(0,0,0,0); return fmtISO(d);};
+    const daysAgoISO=n=>{const d=new Date(); d.setDate(d.getDate()-n); d.setHours(0,0,0,0); return fmtISO(d);};
+    endEl.value=todayISO(); startEl.value=daysAgoISO(8);
+
+    function htmlLegend(chart, el){
+      const items = chart.options.plugins.legend.labels.generateLabels(chart);
+      el.innerHTML = items.map(i=>`<span style="display:inline-flex;align-items:center;margin-right:8px;font-size:12px">
+        <span style="width:10px;height:10px;background:${i.fillStyle};display:inline-block;border-radius:2px;margin-right:6px;border:1px solid #ccc"></span>${i.text}
+      </span>`).join('');
+    }
+
+    async function fetchDashboard(){
+      try{
+        statusEl.textContent='Loading…'; applyBtn.disabled=true;
+        const q=new URLSearchParams({plantName:plantEl.value||'Demo Plant', start:startEl.value, end:endEl.value});
+        const res=await fetch('/api/meter/dashboard?'+q.toString());
+        if(!res.ok) throw new Error('API '+res.status);
+        const data=await res.json();
+
+        if(data?.filters?.plants?.length){
+          const cur=plantEl.value; plantEl.innerHTML='';
+          for(const name of data.filters.plants){ const o=document.createElement('option'); o.textContent=name; plantEl.appendChild(o); }
+          plantEl.value=data.plant||cur;
+        }
+
+        kpiEl.textContent=data?.kpi?.display||'—';
+
+        gridBody.innerHTML='';
+        (data?.table?.rows||[]).forEach(r=>{
+          const tr=document.createElement('tr');
+          tr.innerHTML=`
+            <td>${r.Plant_Name||''}</td>
+            <td>${r.Meter_Make||''}</td>
+            <td>${r.Meter_Type||''}</td>
+            <td>${r.Meter_Model||''}</td>
+            <td>${r.Meter_Serial_No||''}</td>
+            <td>${r.Total_Yield_Unit||''}</td>
+            <td>${new Date(r.Date_Time||'').toLocaleString()||''}</td>`;
+          gridBody.appendChild(tr);
+        });
+
+        const dates=data?.series?.daily?.dates||[];
+        const bar=data?.series?.daily?.bar?.values||[];
+        const barUnit=data?.series?.daily?.bar?.unit||'';
+        const line=data?.series?.daily?.line?.values||[];
+
+        if(trendChart) trendChart.destroy();
+        trendChart=new Chart(document.getElementById('trendChart').getContext('2d'),{
+          type:'bar',
+          data:{ labels:dates, datasets:[
+            { type:'bar', label:`Total Yield (${barUnit})`, data:bar, order:2 },
+            { type:'line', label:'Incremental Daily Yield (kWh)', data:line, tension:.3, order:1 }
+          ]},
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false } }, scales:{ x:{ ticks:{ maxRotation:0 } } } }
+        });
+        htmlLegend(trendChart, document.getElementById('trendLegend'));
+
+        const labels=data?.pie?.labels||[], values=data?.pie?.values||[], pieUnit=data?.pie?.unit||'';
+        if(pieChart) pieChart.destroy();
+        pieChart=new Chart(document.getElementById('pieChart').getContext('2d'),{
+          type:'pie',
+          data:{ labels, datasets:[{ data:values }]},
+          options:{ responsive:true, maintainAspectRatio:false, plugins:{ legend:{ display:false }, tooltip:{ callbacks:{ label:(c)=>`${c.label}: ${c.parsed} ${pieUnit}` } } } }
+        });
+        htmlLegend(pieChart, document.getElementById('pieLegend'));
+
+        statusEl.textContent=`Showing ${data?.plant||''} | ${startEl.value} → ${endEl.value}`;
+      }catch(e){
+        console.error(e); statusEl.textContent='Failed to load data';
+      }finally{
+        applyBtn.disabled=false;
+      }
+    }
+    applyBtn.addEventListener('click', fetchDashboard);
+    fetchDashboard();
+  </script>
+</body>
+</html>

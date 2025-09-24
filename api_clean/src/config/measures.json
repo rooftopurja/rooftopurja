@@ -1,0 +1,10 @@
+﻿{
+  "meter": {
+    "kW": { "desc": "Instantaneous active power" },
+    "kWh_Export": { "desc": "Cumulative energy export" }
+  },
+  "inverter": {
+    "PR": { "desc": "Performance Ratio = Actual / Theoretical" },
+    "CUF": { "desc": "Capacity Utilization Factor" }
+  }
+}

@@ -1,0 +1,326 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Meter — Solar Monitoring</title>
+<style>
+  :root{--header-h:45px;--band-h:40px;--filters-h:50px;--row-gap:10px;--h-row1:180px;--gap:12px;--pad:10px;--chart-pad:10px;--card-bg:#fff;--card-br:#e5e7eb;--muted:#64748b;--ink:#0f172a}
+  *{box-sizing:border-box} html,body{height:100%} body{margin:0;background:#f6f7fb;color:var(--ink);font-family:system-ui,Segoe UI,Arial,sans-serif}
+  header{height:var(--header-h);display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:#0b233f;color:#fff}
+  nav a{color:#fff;text-decoration:none;margin-right:12px;opacity:.85} nav a.active,nav a:hover{opacity:1;text-decoration:underline}
+  .band{height:var(--band-h);display:flex;align-items:center;padding:0 18px;background:#135ce6;color:#fff;font-weight:600}
+  .wrap{padding:12px 18px}
+  .filters{height:var(--filters-h);display:flex;align-items:end;gap:10px;flex-wrap:wrap}
+  .field{display:flex;flex-direction:column;gap:4px} .filters small{color:var(--muted);font-size:11px}
+  .filters input,.filters select,.filters button{height:30px;padding:4px 8px;border:1px solid var(--card-br);border-radius:8px;background:#fff;font-size:13px}
+  .filters button{background:#135ce6;color:#fff;border:none;padding:0 12px;cursor:pointer}
+  .rightNote{margin-left:auto;color:var(--muted);font-size:12px}
+  .grid{display:grid;gap:var(--gap);grid-template-columns:1.3fr 1fr;grid-template-rows:var(--h-row1) calc(100vh - var(--header-h) - var(--band-h) - var(--filters-h) - (3*var(--row-gap)) - var(--h-row1));grid-auto-flow:row dense}
+  .card{background:var(--card-bg);border:1px solid var(--card-br);border-radius:12px;padding:var(--pad);box-shadow:0 1px 1px rgba(0,0,0,.02);height:100%;display:flex;flex-direction:column;min-height:0}
+  .card h3{margin:0 0 8px 0;font-size:13px;font-weight:700;color:#334155}
+  .table-wrap{flex:1;min-height:0;overflow:auto}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th,td{padding:6px 6px;border-bottom:1px solid var(--card-br);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  th{text-align:left;color:#475569;background:#fafafa;position:sticky;top:0;z-index:1}
+  .kpi{flex:1;display:flex;align-items:center;justify-content:center}
+  .kpi .value{font-size:40px;font-weight:800;letter-spacing:.4px}
+  .chart-shell{flex:1;min-height:0;padding:var(--chart-pad)} canvas{width:100%;height:100%}
+  .footnote{margin-top:4px;color:#64748b;font-size:11px;text-align:right}
+  @media (max-width:1100px){.grid{grid-template-columns:1fr;grid-template-rows:auto auto auto auto}}
+  .error{color:#b91c1c;background:#fee2e2;border:1px solid #fecaca;padding:8px;border-radius:8px;font-size:12px}
+</style>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3"></script>
+</head>
+<body>
+<header>
+  <div>Solar Monitor</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="meter.html" class="active">Meter</a>
+    <a href="inverter_analytics.html">Inverter Analytics</a>
+    <a href="inverter_data_overview.html">Inverter Data Overview</a>
+    <a href="inverter_faults.html">Inverter Faults</a>
+    <a href="maintenance.html">Maintenance</a>
+    <a href="about.html">About</a>
+  </nav>
+</header>
+
+<div class="band">Meter Dashboard</div>
+
+<div class="wrap">
+  <div class="filters">
+    <div class="field">
+      <small>Plant</small>
+      <select id="plant"></select>
+    </div>
+    <div class="field">
+      <small>Start date</small>
+      <input id="start" type="date" />
+    </div>
+    <div class="field">
+      <small>End date</small>
+      <input id="end" type="date" />
+    </div>
+    <div class="field" style="align-self:flex-end">
+      <button id="applyBtn">Apply</button>
+    </div>
+    <div id="note" class="rightNote"></div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h3>Latest Readings</h3>
+      <div id="errBox" class="error" style="display:none"></div>
+      <div class="table-wrap">
+        <table>
+          <thead>
+          <tr>
+            <th style="width:110px">Meter_ID</th>
+            <th style="width:80px">Meter_Make</th>
+            <th style="width:70px">Meter_Type</th>
+            <th style="width:90px">Meter_Model</th>
+            <th style="width:110px">Meter_Serial_No</th>
+            <th style="width:90px">Total_Yield</th>
+            <th style="width:85px">Yield_Unit</th>
+            <th style="width:145px">Date_Time</th>
+          </tr>
+          </thead>
+          <tbody id="tblBody"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Total Yield</h3>
+      <div class="kpi"><div id="kpiValue" class="value">–</div></div>
+    </div>
+
+    <div class="card">
+      <h3>Total Yield (bar) & Incremental Daily Yield (line)</h3>
+      <div class="chart-shell"><canvas id="barLineCanvas"></canvas></div>
+      <div class="footnote">Bars: latest Total_Yield per day. Line: Sum of Incremental_Daily_Yield_KWH.</div>
+    </div>
+
+    <div class="card">
+      <h3>Contribution</h3>
+      <div class="chart-shell"><canvas id="pieCanvas"></canvas></div>
+      <div class="footnote">Share by Meter_ID (sum of Incremental_Daily_Yield_KWH).</div>
+    </div>
+  </div>
+</div>
+
+<script>
+/* ===== Helpers ===== */
+const $ = s => document.querySelector(s);
+const fmt = (n, d=3) => isFinite(+n) ? (+n).toFixed(d) : '-';
+let barLineChart, pieChart;
+
+/* Default dates: last 7 days */
+(function initDates(){
+  const today = new Date();
+  const endStr = today.toISOString().slice(0,10);
+  const startDt = new Date(today.getTime() - 6*24*3600*1000);
+  const startStr = startDt.toISOString().slice(0,10);
+  $('#start').value = startStr;
+  $('#end').value   = endStr;
+})();
+
+/* On load: fill plant dropdown (with "All Plants" at top) and fetch data */
+document.addEventListener('DOMContentLoaded', async () => {
+  const sel = $('#plant');
+  sel.innerHTML = '';
+
+  // “All Plants” default option
+  const optAll = document.createElement('option');
+  optAll.value = 'all';
+  optAll.textContent = 'All Plants';
+  sel.appendChild(optAll);
+
+  try {
+    const r = await fetch('/api/GetPlantMapping');
+    const j = await r.json();
+    (j.items || []).forEach(x=>{
+      const opt = document.createElement('option');
+      opt.value = x.Plant_ID;
+      opt.textContent = x.Plant_Name || `Plant ${x.Plant_ID}`;
+      sel.appendChild(opt);
+    });
+  } catch {}
+
+  $('#applyBtn')?.addEventListener('click', loadMeter);
+  loadMeter();
+});
+
+async function tryFetch(url){
+  const res = await fetch(url);
+  if(!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);
+  return res.json();
+}
+
+async function loadMeter(){
+  const plantSel = $('#plant').value || 'all';
+  const isAll  = plantSel === 'all';
+  const start  = $('#start').value;
+  const end    = $('#end').value;
+  const top    = 2000;
+
+  $('#errBox').style.display = 'none';
+  $('#note').textContent = isAll
+    ? `Showing All Plants | ${start} → ${end}`
+    : `Showing Plant ${plantSel} | ${start} → ${end}`;
+
+  try {
+    let rows = [];
+    // *** THIS IS THE IMPORTANT SWITCH ***
+    const url = isAll
+      ? `/api/GetPremier300MeterAll?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&top=${top}`
+      : `/api/GetPremier300Meter?plantId=${encodeURIComponent(plantSel)}&start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&top=${top}`;
+
+    const payload = await tryFetch(url);
+    rows = payload.items || [];
+
+    // auto-retry "latest available" if the chosen range is empty
+    if (!rows.length) {
+      const url2 = isAll
+        ? `/api/GetPremier300MeterAll?top=${top}`
+        : `/api/GetPremier300Meter?plantId=${encodeURIComponent(plantSel)}&top=${top}`;
+      try{
+        const p2 = await tryFetch(url2);
+        rows = p2.items || [];
+        if (rows.length) {
+          const newest = rows.reduce((a,b)=> (b.Date_Time||'') > (a.Date_Time||'') ? b : a, rows[0]);
+          const newestDate = (newest?.Date_Time||'').slice(0,10);
+          $('#note').textContent = isAll
+            ? `Auto-picked latest available data (ending ${newestDate}) for All Plants`
+            : `Auto-picked latest available data (ending ${newestDate}) for Plant ${plantSel}`;
+        }
+      }catch{}
+    }
+
+    renderAll(rows, isAll);
+  } catch(e){
+    showErr(e);
+    renderAll([], false);
+  }
+}
+
+function showErr(err){
+  console.error(err);
+  $('#errBox').textContent = (''+err).slice(0, 800);
+  $('#errBox').style.display = 'block';
+}
+
+/* ===== Render ===== */
+function renderAll(rows, isAll){
+  // table
+  const tbody = $('#tblBody');
+  if(rows.length === 0){
+    tbody.innerHTML = `<tr><td colspan="8">No rows available yet.</td></tr>`;
+    $('#kpiValue').textContent = '–';
+    renderBarLine([],[],[]); renderPie(new Map()); return;
+  }
+
+  // Sort by Date_Time desc for presentation
+  rows.sort((a,b)=> String(b.Date_Time||'').localeCompare(String(a.Date_Time||'')));
+
+  tbody.innerHTML = rows.slice(0, 200).map(r => {
+    const dt = r.Date_Time || '';
+    const unit = r.Yield_Unit || 'kWh';
+    const tot  = fmt(+r.Total_Yield || 0, 3);
+    return `<tr>
+      <td>${r.Meter_ID || ''}</td>
+      <td>${r.Meter_Make || 'Secure'}</td>
+      <td>${'DLMS'}</td>
+      <td>${r.Meter_Model || 'Premier300'}</td>
+      <td>${r.Meter_Serial_No || ''}</td>
+      <td>${tot}</td>
+      <td>${unit}</td>
+      <td>${dt}</td>
+    </tr>`;
+  }).join('');
+
+  // KPI — for All Plants, sum newest date’s Total_Yield
+  if (rows.length){
+    const newestDate = (rows[0].Date_Time||'').slice(0,10);
+    if (isAll && newestDate){
+      const sumLatest = rows
+        .filter(r => (r.Date_Time||'').slice(0,10) === newestDate)
+        .reduce((s,r)=> s + (+r.Total_Yield || 0), 0);
+      const u = rows[0].Yield_Unit || 'kWh';
+      $('#kpiValue').textContent = `${fmt(sumLatest, 3)} ${u}`;
+    } else {
+      const v = +rows[0].Total_Yield || 0;
+      const u = rows[0].Yield_Unit || 'kWh';
+      $('#kpiValue').textContent = `${fmt(v,3)} ${u}`;
+    }
+  } else {
+    $('#kpiValue').textContent = '–';
+  }
+
+  // Build series
+  const byDate = new Map();   // date -> { total (latest), inc (sum) }
+  const byMeter = new Map();  // meter -> sum inc
+
+  for(const r of rows){
+    const date = r.Date || (r.Date_Time ? r.Date_Time.slice(0,10) : null);
+    if(date){
+      const cur = byDate.get(date) || { total:null, inc:0 };
+      cur.total = (r.Total_Yield ?? cur.total);
+      cur.inc  += (+r.Incremental_Daily_Yield_KWH || 0);
+      byDate.set(date, cur);
+    }
+    const mKey = r.Meter_ID || r.Meter_Serial_No || 'Unknown';
+    byMeter.set(mKey, (byMeter.get(mKey) || 0) + (+r.Incremental_Daily_Yield_KWH || 0));
+  }
+
+  const labels = [...byDate.keys()].sort();
+  const totals = labels.map(d => +byDate.get(d).total || 0);
+  const incs   = labels.map(d => +byDate.get(d).inc   || 0);
+
+  renderBarLine(labels, totals, incs);
+  renderPie(byMeter);
+}
+
+/* ===== Charts ===== */
+// Sensible axis scaling (begin at zero + suggested max)
+function renderBarLine(labels, totals, incs){
+  const ctx = document.getElementById('barLineCanvas'); if(!ctx) return;
+  if(barLineChart) barLineChart.destroy();
+
+  const max1 = Math.max(0, ...totals);
+  const max2 = Math.max(0, ...incs);
+  const y1Max = max1 > 0 ? max1 * 1.1 : 1;
+  const y2Max = max2 > 0 ? max2 * 1.1 : 1;
+
+  barLineChart = new Chart(ctx, {
+    type:'bar',
+    data:{ labels, datasets:[
+      { type:'bar',  label:'Total Yield', data: totals, yAxisID:'y1' },
+      { type:'line', label:'Incremental Daily Yield (kWh)', data: incs, yAxisID:'y2' }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      scales:{
+        y1:{ beginAtZero:true, suggestedMax:y1Max, position:'left',  grid:{ color:'#eef1f5' }},
+        y2:{ beginAtZero:true, suggestedMax:y2Max, position:'right', grid:{ drawOnChartArea:false }}
+      },
+      plugins:{ legend:{ display:true } }
+    }
+  });
+}
+
+function renderPie(byMeterMap){
+  const ctx = document.getElementById('pieCanvas'); if(!ctx) return;
+  if(pieChart) pieChart.destroy();
+  const labels = [...byMeterMap.keys()];
+  const data   = labels.map(k => byMeterMap.get(k));
+  pieChart = new Chart(ctx, {
+    type:'pie',
+    data:{ labels, datasets:[{ data }] },
+    options:{ responsive:true, maintainAspectRatio:false }
+  });
+}
+</script>
+</body>
+</html>

@@ -1,0 +1,9 @@
+{
+  "name": "swa-api",
+  "version": "1.0.0",
+  "private": true,
+  "dependencies": {
+    "@azure/data-tables": "^13.3.1",
+    "@azure/identity": "^4.12.0"
+  }
+}

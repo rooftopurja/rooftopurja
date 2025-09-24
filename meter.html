@@ -1,0 +1,423 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Meter — Solar Monitoring</title>
+<link rel="preconnect" href="https://cdn.jsdelivr.net">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<style>
+  :root{ --ink:#0f172a;--muted:#64748b;--blue:#135ce6;
+         --bg:#f6f7fb;--card:#fff;--br:#e5e7eb;--pad:12px;--gap:12px }
+  html,body{height:100%}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:system-ui,Segoe UI,Arial,sans-serif;overflow:hidden}
+
+  header{height:44px;display:flex;align-items:center;justify-content:space-between;padding:0 18px;background:#0b233f;color:#fff}
+  nav a{color:#fff;text-decoration:none;margin-right:12px;opacity:.85}
+  nav a.active,nav a:hover{text-decoration:underline;opacity:1}
+  .band{background:var(--blue);color:#fff;font-weight:600;padding:10px 18px}
+
+  .wrap{padding:12px 16px;height:calc(100vh - 44px - 42px);display:grid;grid-template-rows:auto 1fr;gap:12px}
+
+  .filters{display:grid;gap:10px;grid-template-columns: 1.2fr .7fr .7fr auto auto}
+  .filters small{display:block;color:var(--muted);font-size:11px;margin-bottom:4px}
+  select,input[type=date]{height:32px;border:1px solid var(--br);border-radius:8px;padding:4px 8px;background:#fff;font-size:13px;width:100%}
+  button{height:32px;border:0;background:var(--blue);color:#fff;border-radius:8px;padding:0 14px;cursor:pointer}
+  .tip{grid-column:1/-1;color:var(--muted);font-size:12px;margin-top:-4px}
+
+  .dash{display:grid;gap:var(--gap);grid-template-columns: 1fr 1fr;grid-template-rows: 110px 1fr 1fr; height:100%}
+  .card{background:var(--card);border:1px solid var(--br);border-radius:12px;box-shadow:0 1px 1px rgba(0,0,0,.02);padding:var(--pad);display:flex;flex-direction:column;min-height:0}
+  .card h3{margin:0 0 8px 0;font-size:13px;color:#334155}
+  .kpi{display:flex;align-items:center;justify-content:center;flex:1}
+  .kpi .value{font-size:28px;font-weight:800;letter-spacing:.2px}
+  .foot{margin-top:6px;color:var(--muted);font-size:11px;text-align:right}
+
+  .kpi-card{grid-column:1;grid-row:1}
+  .barline-card{grid-column:1;grid-row:2 / span 2}
+  .table-card{grid-column:2;grid-row:2}
+  .pie-card{grid-column:2;grid-row:3}
+
+  .table-wrap{flex:1;min-height:0;max-height:220px;overflow:auto}
+  table{width:100%;border-collapse:collapse;table-layout:fixed}
+  th,td{padding:6px;border-bottom:1px solid var(--br);font-size:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  th{position:sticky;top:0;background:#fafafa;color:#475569;text-align:left;z-index:1}
+
+  .err{background:#fee2e2;border:1px solid #fecaca;color:#991b1b;border-radius:8px;padding:8px;font-size:12px;margin-top:10px;display:none}
+
+  .checkwrap{position:relative}
+  .checkbtn{height:32px;border:1px solid var(--br);border-radius:8px;padding:4px 8px;background:#fff;font-size:13px;display:flex;align-items:center;justify-content:space-between;cursor:pointer}
+  .checkpanel{position:absolute;left:0;top:36px;background:#fff;border:1px solid var(--br);border-radius:10px;box-shadow:0 8px 24px rgba(0,0,0,.08);padding:8px 10px;display:none;z-index:5;max-height:260px;overflow:auto;min-width:300px}
+  .checkpanel label{display:flex;align-items:center;gap:8px;padding:4px 2px;font-size:13px}
+  .checkpanel input{width:16px;height:16px}
+
+  @media (max-width:1100px){
+    .filters{grid-template-columns: 1fr 1fr 1fr auto auto}
+    .dash{grid-template-columns:1fr;grid-template-rows:110px 260px 200px 220px}
+    .kpi-card{grid-column:1;grid-row:1}
+    .barline-card{grid-column:1;grid-row:2}
+    .table-card{grid-column:1;grid-row:3}
+    .pie-card{grid-column:1;grid-row:4}
+  }
+</style>
+</head>
+<body>
+<header>
+  <div>Solar Monitor</div>
+  <nav>
+    <a href="index.html">Home</a>
+    <a href="meter.html" class="active">Meter</a>
+    <a href="inverter_analytics.html">Inverter Analytics</a>
+    <a href="inverter_data_overview.html">Inverter Data Overview</a>
+    <a href="inverter_faults.html">Inverter Faults</a>
+    <a href="maintenance.html">Maintenance</a>
+    <a href="about.html">About</a>
+  </nav>
+</header>
+
+<div class="band">Meter Dashboard</div>
+
+<div class="wrap">
+  <div class="filters">
+    <div class="checkwrap">
+      <small>Plants (checkboxes)</small>
+      <div id="plantBtn" class="checkbtn"><span id="plantBtnText">All Plants</span><span>▾</span></div>
+      <div id="plantPanel" class="checkpanel"></div>
+    </div>
+
+    <div>
+      <small>Quick Range (KPI & Pie)</small>
+      <select id="quick">
+        <option value="custom">Custom</option>
+        <option value="day">This Day</option>
+        <option value="month">This Month</option>
+        <option value="year">This Year</option>
+      </select>
+    </div>
+
+    <div><small>Start</small><input id="start" type="date"></div>
+    <div><small>End</small><input id="end" type="date"></div>
+    <div style="display:flex;align-items:flex-end"><button id="applyBtn">Apply</button></div>
+    <div class="tip">Tip: plant checkboxes control all visuals. Date range applies to KPI & Pie; table & bar/line show last 9 days.</div>
+  </div>
+
+  <div id="err" class="err"></div>
+
+  <div class="dash">
+    <div class="card kpi-card">
+      <h3>KPI: Total Yield</h3>
+      <div class="kpi"><div id="kpiVal" class="value">–</div></div>
+      <div id="kpiNote" class="foot"></div>
+    </div>
+
+    <div class="card barline-card">
+      <h3>Total Yield (bar) & Daily Incremental (line)</h3>
+      <canvas id="barLine" style="flex:1" height="280"></canvas>
+      <div class="foot">Bars: latest Total_Yield per day. Line: sum Incremental_Daily_Yield_KWH (last 9 days).</div>
+    </div>
+
+    <div class="card table-card">
+      <h3>Latest Readings</h3>
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr>
+              <th style="width:110px">Meter_ID</th>
+              <th style="width:70px">Make</th>
+              <th style="width:60px">Type</th>
+              <th style="width:90px">Model</th>
+              <th style="width:110px">Serial_No</th>
+              <th style="width:90px">Total_Yield</th>
+              <th style="width:70px">Unit</th>
+              <th style="width:145px">Date_Time</th>
+            </tr>
+          </thead>
+          <tbody id="tbl"></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card pie-card">
+      <h3>Contribution by Meter</h3>
+      <canvas id="pie" height="220" style="flex:1"></canvas>
+      <div class="foot">Hover to see values & %</div>
+    </div>
+  </div>
+</div>
+
+<script>
+const $ = s => document.querySelector(s);
+const pad2 = n => (n<10?'0':'')+n;
+const toISO = d => d.toISOString().slice(0,10);
+const fmt = (n, d=3) => isFinite(+n) ? (+n).toFixed(d) : '-';
+const humanUnit = totalMWh => totalMWh >= 1000 ? {v: totalMWh/1000, u:'GWh'} : {v: totalMWh, u:'MWh'};
+
+let barLineChart, pieChart;
+(function initDates(){
+  const today = new Date();
+  $('#end').value = toISO(today);
+  $('#start').value = toISO(new Date(today.getTime() - 6*24*3600*1000));
+})();
+
+async function safeJson(url){
+  try{
+    const r = await fetch(url, {headers:{'cache-control':'no-cache'}});
+    const ct = r.headers.get('content-type')||'';
+    if(!r.ok) throw new Error(`API ${r.status}: ${await r.text().catch(()=>r.statusText)}`);
+    if(!ct.includes('application/json')) return await r.text();
+    return await r.json();
+  }catch(e){
+    const box = $('#err'); box.style.display='block'; box.textContent = (''+e).slice(0,1000);
+    return null;
+  }
+}
+
+/* ---- Plant list (GetPlantDirectory, fallback to GetPlantMapping) ---- */
+async function loadPlants(){
+  const panel = $('#plantPanel'); panel.innerHTML = '';
+  let payload = await safeJson('/api/GetPlantDirectory');
+
+  let rows = [];
+  if (payload && Array.isArray(payload.items) && payload.items.length) {
+    rows = payload.items;
+  } else {
+    const p2 = await safeJson('/api/GetPlantMapping');
+    const seen = new Set();
+    for (const r of (p2?.items||[])) {
+      const pid = String(r.Plant_ID);
+      if (seen.has(pid)) continue;
+      seen.add(pid);
+      rows.push({ Plant_ID: r.Plant_ID, Plant_Name: r.Plant_Name || `Plant ${r.Plant_ID}` });
+    }
+    if (!rows.length) {
+      const box = $('#err'); box.style.display='block';
+      box.textContent = 'Plant list empty. Ensure /api/GetPlantDirectory or /api/GetPlantMapping is deployed.';
+    }
+  }
+
+  rows.sort((a,b)=> String(a.Plant_Name||'').localeCompare(String(b.Plant_Name||'')));
+
+  const allId = 'plant_all';
+  panel.insertAdjacentHTML('beforeend', `
+    <label><input id="${allId}" type="checkbox" checked> <b>All Plants</b></label>
+    <hr style="border:none;border-top:1px solid #eee;margin:6px 0">
+  `);
+
+  rows.forEach(p=>{
+    const id = `plant_${p.Plant_ID}`;
+    panel.insertAdjacentHTML('beforeend',
+      `<label><input class="plantcb" id="${id}" type="checkbox" data-id="${p.Plant_ID}" checked>
+       ${p.Plant_Name || ('Plant '+p.Plant_ID)}</label>`);
+  });
+
+  const allBox = $('#'+allId);
+  allBox.addEventListener('change', ()=>{
+    const state = allBox.checked;
+    panel.querySelectorAll('.plantcb').forEach(cb=> cb.checked = state);
+    updatePlantBtnText();
+  });
+  panel.querySelectorAll('.plantcb').forEach(cb=>{
+    cb.addEventListener('change', ()=>{
+      if(!cb.checked) allBox.checked = false;
+      updatePlantBtnText();
+    });
+  });
+
+  $('#plantBtn').onclick = ()=>{
+    const s = $('#plantPanel').style; s.display = (s.display==='block'?'none':'block');
+  };
+  document.addEventListener('click', (e)=>{
+    if(!$('#plantPanel').contains(e.target) && !$('#plantBtn').contains(e.target)){
+      $('#plantPanel').style.display='none';
+    }
+  });
+
+  updatePlantBtnText();
+}
+function selectedPlantIds(){
+  const all = $('#plantPanel input#plant_all').checked;
+  if(all) return { all:true, ids:[] };
+  const ids = [...document.querySelectorAll('.plantcb:checked')].map(cb=>cb.dataset.id);
+  return { all:false, ids };
+}
+function updatePlantBtnText(){
+  const allBox = document.querySelector('#plantPanel input#plant_all');
+  if (allBox?.checked) { $('#plantBtnText').textContent = 'All Plants'; return; }
+
+  const picks = [...document.querySelectorAll('.plantcb:checked')];
+  if (picks.length === 0) { $('#plantBtnText').textContent = '0 selected'; return; }
+
+  const names = picks.map(cb => cb.parentElement.textContent.trim());
+  const head = names.slice(0,3).join(', ');
+  const more = names.length > 3 ? ` +${names.length-3} more` : '';
+  $('#plantBtnText').textContent = head + more;
+}
+
+function applyQuick(){
+  const q = $('#quick').value;
+  const now = new Date();
+  const y = now.getFullYear(), m = now.getMonth();
+  if(q==='day'){ $('#start').value = toISO(now); $('#end').value = toISO(now); }
+  else if(q==='month'){ $('#start').value = `${y}-${pad2(m+1)}-01`; $('#end').value = toISO(now); }
+  else if(q==='year'){ $('#start').value = `${y}-01-01`; $('#end').value = toISO(now); }
+}
+
+/* ---- Data & render ---- */
+async function loadData(){
+  $('#err').style.display='none';
+  const uiStart = $('#start').value, uiEnd = $('#end').value;
+  if(!/^\d{4}-\d{2}-\d{2}$/.test(uiStart) || !/^\d{4}-\d{2}-\d{2}$/.test(uiEnd)){
+    const box=$('#err'); box.style.display='block'; box.textContent='start/end must be YYYY-MM-DD'; return;
+  }
+  const {all, ids} = selectedPlantIds();
+  const top = 20000;
+  const startForFetch = '1900-01-01';
+
+  const url = all
+    ? `/api/GetPremier300MeterAll?start=${startForFetch}&end=${uiEnd}&top=${top}`
+    : `/api/GetPremier300MeterAll?plantIds=${encodeURIComponent(ids.join(','))}&start=${startForFetch}&end=${uiEnd}&top=${top}`;
+
+  const payload = await safeJson(url);
+  const rows = payload?.items || [];
+  render(rows, {all, start: uiStart, end: uiEnd});
+}
+
+function render(rows, ctx){
+  const tbody = $('#tbl');
+
+  rows.sort((a,b)=> String(b.Date_Time||'').localeCompare(String(a.Date_Time||'')));
+
+  const latestByMeter = new Map();
+  const dayLatestByMeter = new Map();
+  const byDate = new Map();
+
+  for(const r of rows){
+    const date = (r.Date_Time||'').slice(0,10);
+    if(!date) continue;
+    const key = r.Meter_ID || r.Meter_Serial_No || 'Unknown';
+
+    if(!latestByMeter.has(key)) latestByMeter.set(key, r);
+
+    const m = dayLatestByMeter.get(date) || new Map();
+    if(!m.has(key)) m.set(key, r);
+    dayLatestByMeter.set(date, m);
+
+    const cur = byDate.get(date) || { total:0, inc:0 };
+    cur.inc += (+r.Incremental_Daily_Yield_KWH || 0);
+    byDate.set(date, cur);
+  }
+
+  for(const [date, m] of dayLatestByMeter){
+    let sum = 0;
+    for(const row of m.values()) sum += (+row.Total_Yield || 0);
+    const cur = byDate.get(date) || { total:0, inc:0 };
+    cur.total = sum;
+    byDate.set(date, cur);
+  }
+
+  const tableRows = [...latestByMeter.values()]
+    .sort((a,b)=> String(b.Date_Time||'').localeCompare(String(a.Date_Time||'')));
+  tbody.innerHTML = tableRows.length
+    ? tableRows.slice(0,60).map(r=>`
+        <tr>
+          <td>${r.Meter_ID||''}</td>
+          <td>${r.Meter_Make||'Secure'}</td>
+          <td>DLMS</td>
+          <td>${r.Meter_Model||'Premier300'}</td>
+          <td>${r.Meter_Serial_No||''}</td>
+          <td>${fmt(+r.Total_Yield||0)}</td>
+          <td>${r.Yield_Unit || 'MWh'}</td>
+          <td>${r.Date_Time||''}</td>
+        </tr>`).join('')
+    : `<tr><td colspan="8">No rows yet.</td></tr>`;
+
+  let kpiSum = 0; for(const r of latestByMeter.values()) kpiSum += (+r.Total_Yield || 0);
+  const hu = humanUnit(kpiSum);
+  $('#kpiVal').textContent = `${fmt(hu.v,3)} ${hu.u}`;
+  let note = 'All Plants';
+  if (!ctx.all) {
+    const names = [...document.querySelectorAll('.plantcb:checked')].map(cb=>cb.parentElement.textContent.trim());
+    note = names.slice(0,3).join(', ') + (names.length>3 ? ` +${names.length-3} more` : '');
+  }
+  $('#kpiNote').textContent = `Showing ${note} | ${ctx.start} → ${ctx.end}`;
+
+  const sortedDays = [...byDate.keys()].sort();
+  const last9 = sortedDays.slice(-9);
+  const totals = last9.map(d=>+byDate.get(d).total||0);
+  const incs   = last9.map(d=>+byDate.get(d).inc||0);
+  renderBarLine(last9, totals, incs);
+
+  const pieMap = new Map();
+  for(const [m,r] of latestByMeter) pieMap.set(m, +r.Total_Yield || 0);
+  renderPie(pieMap);
+}
+
+/* charts */
+function renderBarLine(labels, totals, incs){
+  const cv = $('#barLine'); const ctx = cv.getContext('2d');
+  if(barLineChart) barLineChart.destroy();
+
+  if (!labels.length) { labels = ['–']; totals = [0]; incs = [0]; }
+
+  const max1 = Math.max(0, ...totals), max2 = Math.max(0, ...incs);
+  const y1Max = max1>0 ? max1*1.15 : 1, y2Max = max2>0 ? max2*1.15 : 1;
+  const pluginsArr = []; if (window.ChartDataLabels) pluginsArr.push(ChartDataLabels);
+
+  barLineChart = new Chart(ctx,{
+    type:'bar',
+    data:{labels, datasets:[
+      {type:'bar', label:'Total Yield (MWh)', data: totals.map(x=>+x||0), yAxisID:'y1'},
+      {type:'line',label:'Incremental Daily (kWh)', data: incs.map(x=>+x||0), yAxisID:'y2', tension:.25, pointRadius:3}
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{
+        legend:{display:true}, tooltip:{enabled:true},
+        datalabels: window.ChartDataLabels ? {
+          display:(c)=> c.dataset.type==='line',
+          align:'top', anchor:'end',
+          formatter:(v)=> (Math.round((+v||0)*10)/10)
+        } : {}
+      },
+      scales:{
+        y1:{beginAtZero:true,suggestedMax:y1Max,position:'left'},
+        y2:{beginAtZero:true,suggestedMax:y2Max,position:'right',grid:{drawOnChartArea:false}}
+      }
+    },
+    plugins: pluginsArr
+  });
+}
+
+function renderPie(map){
+  const ctx = $('#pie').getContext('2d');
+  if(pieChart) pieChart.destroy();
+
+  const labels = [...map.keys()];
+  const data   = labels.map(k => +map.get(k) || 0);
+  const sum = data.reduce((a,b)=>a+b,0);
+  const finalLabels = sum>0 ? labels : ['No Data'];
+  const finalData   = sum>0 ? data   : [1];
+
+  pieChart = new Chart(ctx,{
+    type:'pie',
+    data:{ labels: finalLabels, datasets:[{ data: finalData }] },
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      plugins:{ tooltip:{ callbacks:{ label:(c)=>{
+        const val = c.parsed || 0, s = (finalData.reduce((a,b)=>a+b,0)||1), pct = (val*100/s).toFixed(1);
+        return `${c.label}: ${fmt(val,3)} MWh (${pct}%)`;
+      }}}}
+    }
+  });
+}
+
+/* wire */
+document.addEventListener('DOMContentLoaded', async ()=>{
+  await loadPlants();
+  $('#quick').addEventListener('change', ()=>{ if($('#quick').value!=='custom') applyQuick(); });
+  $('#applyBtn').addEventListener('click', loadData);
+  loadData();
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,20 @@
+﻿<nav style='position:sticky;top:0;z-index:10;background:#fff;border-bottom:1px solid #e5e5e5;padding:10px 14px;font-family:system-ui,Segoe UI,Arial,sans-serif;display:flex;gap:14px;align-items:center'>
+  <a href='/index.html' style='font-weight:700;text-decoration:none;color:#111;margin-right:auto'>Solar Monitor</a>
+  <a href='/index.html' style='text-decoration:none;color:#111'>Home</a>
+  <a href='/meter.html' style='text-decoration:none;color:#111'>Meter</a>
+  <a href='/inverter_analytics.html' style='text-decoration:none;color:#111'>Inverter Analytics</a>
+  <a href='/inverter_data_overview.html' style='text-decoration:none;color:#111'>Inverter Data Overview</a>
+  <a href='/inverter_faults.html' style='text-decoration:none;color:#111'>Inverter Faults</a>
+  <a href='/maintenance.html' style='text-decoration:none;color:#111'>Maintenance</a>
+  <a href='/about.html' style='text-decoration:none;color:#111'>About</a>
+</nav>
+<script>
+  (function(){
+    var links=document.querySelectorAll('nav a[href]');
+    var path=location.pathname.replace(/index\.html$/,'');
+    links.forEach(function(a){
+      var href=a.getAttribute('href').replace(/index\.html$/,'');
+      if(href===path){ a.style.fontWeight='800'; a.style.textDecoration='underline'; }
+    });
+  })();
+</script>
