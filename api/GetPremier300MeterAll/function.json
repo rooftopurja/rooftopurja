@@ -1,18 +1,18 @@
 {
-  "bindings": [
-    {
-      "authLevel": "anonymous",
-      "type": "httpTrigger",
-      "direction": "in", 
-      "name": "req",
-      "methods": ["get", "post"],
-      "route": "GetPremier300MeterAll"
-    },
-    {
-      "type": "http",
-      "direction": "out",
-      "name": "res"
-    }
-  ],
-  "scriptFile": "./index.js"
+    "scriptFile":  "./index.js",
+    "bindings":  [
+                     {
+                         "direction":  "in",
+                         "name":  "req",
+                         "route":  "GetPremier300MeterAll",
+                         "type":  "httpTrigger",
+                         "authLevel":  "anonymous",
+                         "methods":  "get post"
+                     },
+                     {
+                         "name":  "res",
+                         "direction":  "out",
+                         "type":  "http"
+                     }
+                 ]
 }
