@@ -30,7 +30,7 @@
             }
         ];
 
-        return {
+        context.res = {
             status: 200,
             body: {
                 success: true,
@@ -46,7 +46,7 @@
     } catch (error) {
         context.log.error('Error in GetPremier300MeterAll:', error);
         
-        return {
+        context.res = {
             status: 500,
             body: {
                 success: false,
