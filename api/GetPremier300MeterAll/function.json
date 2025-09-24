@@ -6,13 +6,12 @@
       "direction": "in",
       "name": "req",
       "methods": ["get", "post"],
-      "route": "GetPremier300MeterAll"
+      "route": "api/GetPremier300MeterAll"
     },
     {
       "type": "http",
       "direction": "out",
       "name": "res"
     }
-  ],
-  "scriptFile": "../dist/GetPremier300MeterAll/index.js"
+  ]
 }
