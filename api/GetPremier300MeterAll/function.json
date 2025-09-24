@@ -1,18 +1,18 @@
 {
+    "scriptFile":  "./index.js",
     "bindings":  [
                      {
-                         "authLevel":  "anonymous",
-                         "type":  "httpTrigger",
                          "direction":  "in",
                          "name":  "req",
-                         "methods":  "get",
-                         "route":  "GetPremier300MeterAll"
+                         "route":  "GetPremier300MeterAll",
+                         "type":  "httpTrigger",
+                         "authLevel":  "anonymous",
+                         "methods":  "get post"
                      },
                      {
-                         "type":  "http",
+                         "name":  "res",
                          "direction":  "out",
-                         "name":  "res"
+                         "type":  "http"
                      }
-                 ],
-    "scriptFile":  "index.js"
+                 ]
 }
