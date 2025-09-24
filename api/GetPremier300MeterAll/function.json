@@ -6,7 +6,7 @@
       "direction": "in",
       "name": "req",
       "methods": ["get", "post"],
-      "route": "api/GetPremier300MeterAll"
+      "route": "GetPremier300MeterAll"
     },
     {
       "type": "http",
