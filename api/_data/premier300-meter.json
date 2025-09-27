@@ -1,0 +1,24 @@
+[
+  {
+    "Meter_ID": "Meter_11",
+    "Meter_Make": "Secure",
+    "Meter_Model": "Premier300",
+    "Meter_Serial_No": "X2247525",
+    "Total_Yield": 188.873,
+    "Yield_Unit": "MWh",
+    "Incremental_Daily_Yield_KWH": 740.5,
+    "Date_Time": "2025-09-24T09:50:00",
+    "Plant_ID": 1
+  },
+  {
+    "Meter_ID": "Meter_12",
+    "Meter_Make": "Secure",
+    "Meter_Model": "Premier300",
+    "Meter_Serial_No": "X2247554",
+    "Total_Yield": 194.314,
+    "Yield_Unit": "MWh",
+    "Incremental_Daily_Yield_KWH": 810.2,
+    "Date_Time": "2025-09-24T09:50:00",
+    "Plant_ID": 2
+  }
+]
