@@ -1,0 +1,409 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta http-equiv="Cache-Control" content="no-store"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>Solar Monitoring – Meter</title>
+  <link rel="icon" href="/favicon.ico">
+  <style>
+    :root { --bg:#0e1320; --panel:#151b2b; --muted:#7f8aa3; --text:#e7ecf6; --accent:#4ea8de; --bad:#ff6b6b; --ok:#2acc8a; }
+    * { box-sizing:border-box }
+    body { margin:0; font:14px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif; color:var(--text); background:var(--bg); }
+    header { position:sticky; top:0; z-index:5; background:#0c111c; border-bottom:1px solid #202840; padding:14px 20px; display:flex; align-items:center; gap:12px }
+    header h1 { margin:0; font-size:20px }
+    header .env { margin-left:auto; color:var(--muted); font-size:12px }
+    main { padding:18px; max-width:1260px; margin:0 auto }
+
+    .filters { background:var(--panel); border:1px solid #222a45; border-radius:12px; padding:14px; display:grid; grid-template-columns:1fr auto auto auto auto; gap:10px; align-items:center }
+    .chipbar { display:flex; flex-wrap:wrap; gap:8px }
+    .chip { background:#0f1627; border:1px solid #2a3558; color:var(--text); padding:6px 10px; border-radius:999px; cursor:pointer; user-select:none }
+    .chip.active { background:#1f2a46; border-color:#5e6aa1 }
+    .filters .sub { color:var(--muted); font-size:12px }
+    .btn { background:#1e2742; border:1px solid #2b3761; color:var(--text); padding:8px 12px; border-radius:8px; cursor:pointer; }
+    .btn.primary { background:var(--accent); border-color:var(--accent); color:#06121f; font-weight:600 }
+    .btn.tiny { padding:5px 8px; font-size:12px }
+    input[type="date"] { background:#0f1627; color:var(--text); border:1px solid #2b3761; padding:6px 8px; border-radius:8px }
+
+    .grid { display:grid; grid-template-columns:1fr 1fr 1fr 1fr; gap:12px; margin-top:12px }
+    .card { background:var(--panel); border:1px solid #222a45; border-radius:12px; padding:14px }
+    .card h3 { margin:0 0 10px 0; font-size:14px; color:#b8c2df; text-transform:uppercase; letter-spacing:.05em }
+    .kpi { font-size:30px; font-weight:800 }
+    .muted { color:var(--muted) }
+
+    .flex2 { display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-top:12px }
+    table { width:100%; border-collapse:collapse; }
+    th, td { padding:10px 8px; border-bottom:1px solid #202840; text-align:left; }
+    th { color:#b8c2df; font-weight:600; font-size:12px; text-transform:uppercase; letter-spacing:.04em }
+    .error { color:var(--bad); margin-top:8px }
+
+    .legend { display:flex; gap:10px; flex-wrap:wrap; margin-top:6px }
+    .pill { border:1px solid #2a3558; background:#0f1627; border-radius:999px; padding:4px 8px; font-size:12px }
+    .footer-note { color:var(--muted); font-size:12px; margin-top:10px }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+</head>
+<body>
+<header>
+  <h1>Meter Overview</h1>
+  <div class="env" id="envLabel">live</div>
+</header>
+
+<main>
+
+  <!-- FILTERS -->
+  <section class="card filters">
+    <div>
+      <div class="sub">Plants</div>
+      <div id="plantChips" class="chipbar"><span class="muted">loading…</span></div>
+    </div>
+
+    <div>
+      <div class="sub">Preset</div>
+      <div style="display:flex;gap:6px">
+        <button class="btn tiny" data-preset="day">Day</button>
+        <button class="btn tiny" data-preset="month">Month</button>
+        <button class="btn tiny" data-preset="year">Year</button>
+        <button class="btn tiny" data-preset="custom">Custom</button>
+      </div>
+    </div>
+
+    <div>
+      <div class="sub">Start</div>
+      <input type="date" id="startDate">
+    </div>
+    <div>
+      <div class="sub">End</div>
+      <input type="date" id="endDate">
+    </div>
+
+    <div>
+      <div class="sub">&nbsp;</div>
+      <button id="applyBtn" class="btn primary">Apply</button>
+    </div>
+  </section>
+
+  <!-- KPIs -->
+  <section class="grid">
+    <div class="card">
+      <h3>Total Yield</h3>
+      <div class="kpi" id="kpiTotal">0</div>
+      <div class="muted">MWh (sum)</div>
+    </div>
+    <div class="card">
+      <h3>Daily Yield</h3>
+      <div class="kpi" id="kpiDaily">0</div>
+      <div class="muted">kWh (sum)</div>
+    </div>
+    <div class="card">
+      <h3>Meters</h3>
+      <div class="kpi" id="kpiMeters">0</div>
+      <div class="muted">count</div>
+    </div>
+    <div class="card">
+      <h3>Last Updated</h3>
+      <div class="kpi" id="kpiUpdated">—</div>
+      <div class="muted" id="kpiRange">latest in range</div>
+    </div>
+  </section>
+
+  <!-- TABLE + PIE -->
+  <section class="flex2">
+    <div class="card">
+      <h3>Latest Readings</h3>
+      <div class="muted" id="rowCount">0 rows</div>
+      <div class="legend" id="activeFilters"></div>
+      <div class="error" id="tableError" style="display:none"></div>
+      <div style="overflow:auto">
+        <table id="tbl">
+          <thead>
+            <tr>
+              <th>Plant</th><th>Meter ID</th><th>Make / Model</th>
+              <th>Total (MWh)</th><th>Daily (kWh)</th><th>Time</th>
+            </tr>
+          </thead>
+          <tbody></tbody>
+        </table>
+      </div>
+    </div>
+
+    <div class="card">
+      <h3>Yield Share by Plant (MWh)</h3>
+      <canvas id="pie"></canvas>
+      <div class="error" id="pieError" style="display:none"></div>
+    </div>
+  </section>
+
+  <!-- BAR + LINE -->
+  <section class="card" style="margin-top:12px">
+    <h3>Total vs Daily by Plant</h3>
+    <canvas id="bars"></canvas>
+    <div class="error" id="barsError" style="display:none"></div>
+    <div class="footer-note">Bar = Total MWh (sum), Line = Daily kWh (sum) per plant for the selected range.</div>
+  </section>
+
+</main>
+
+<script>
+/* ---------- helpers ---------- */
+
+const $ = sel => document.querySelector(sel);
+const $$ = sel => Array.from(document.querySelectorAll(sel));
+const fmt = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 3 });
+const fmt0 = new Intl.NumberFormat('en-IN', { maximumFractionDigits: 0 });
+
+function d2(s) { return String(s).padStart(2,'0'); }
+function toISODate(d) { return `${d.getFullYear()}-${d2(d.getMonth()+1)}-${d2(d.getDate())}`; }
+
+async function fetchJsonSafe(url) {
+  try {
+    const res = await fetch(url, { cache:'no-store' });
+    const text = await res.text();           // defensive
+    try { return { ok: res.ok, status: res.status, data: JSON.parse(text) }; }
+    catch { return { ok: res.ok, status: res.status, data: text, nonJson: true }; }
+  } catch (e) {
+    return { ok:false, status:0, error:e.message };
+  }
+}
+
+function groupBy(arr, key) {
+  return arr.reduce((m, x) => (m[x[key]] ||= []).push(x), {});
+}
+
+/* ---------- state ---------- */
+
+let PLANTS = [];           // [{Plant_ID, Plant_Name}]
+let ACTIVE = { plantIds: 'all', start: '', end: '' };
+
+let pieChart, barsChart;
+
+/* ---------- UI build ---------- */
+
+function buildPlantChips() {
+  const holder = $('#plantChips');
+  holder.innerHTML = '';
+  const makeChip = (label, value) => {
+    const el = document.createElement('span');
+    el.className = 'chip' + (value==='all' ? ' active' : '');
+    el.dataset.value = value;
+    el.textContent = label;
+    el.onclick = () => {
+      $$('#plantChips .chip').forEach(c => c.classList.remove('active'));
+      el.classList.add('active');
+      ACTIVE.plantIds = value;
+    };
+    return el;
+  };
+  holder.appendChild(makeChip('All Plants','all'));
+  PLANTS.forEach(p => holder.appendChild(makeChip(p.Plant_Name, String(p.Plant_ID))));
+}
+
+function stampRangePreset(preset) {
+  const today = new Date();
+  let start, end;
+  if (preset === 'day') {
+    start = end = toISODate(today);
+  } else if (preset === 'month') {
+    const s = new Date(today.getFullYear(), today.getMonth(), 1);
+    const e = new Date(today.getFullYear(), today.getMonth()+1, 0);
+    start = toISODate(s); end = toISODate(e);
+  } else if (preset === 'year') {
+    start = `${today.getFullYear()}-01-01`;
+    end   = `${today.getFullYear()}-12-31`;
+  } else { // custom -> keep as-is if already chosen
+    if (!$('#startDate').value || !$('#endDate').value) {
+      start = end = toISODate(today);
+    } else return;
+  }
+  $('#startDate').value = start;
+  $('#endDate').value   = end;
+}
+
+function showFiltersLegend() {
+  const wrap = $('#activeFilters');
+  wrap.innerHTML = '';
+  const plantText = (ACTIVE.plantIds==='all')
+    ? 'All Plants'
+    : (PLANTS.find(p => String(p.Plant_ID)===ACTIVE.plantIds)?.Plant_Name || `Plant ${ACTIVE.plantIds}`);
+  ['Plant: ' + plantText, `Range: ${ACTIVE.start} → ${ACTIVE.end}`]
+    .forEach(t => { const s = document.createElement('span'); s.className='pill'; s.textContent=t; wrap.appendChild(s); });
+}
+
+/* ---------- charts ---------- */
+
+function ensureChart(ctx, cfg, old) {
+  if (old) old.destroy();
+  return new Chart(ctx, cfg);
+}
+
+/* ---------- load + render ---------- */
+
+async function loadPlants() {
+  const r = await fetchJsonSafe('/api/GetPlantMapping');
+  if (!r.ok || r.nonJson) throw new Error(`Plant API error (HTTP ${r.status})`);
+  PLANTS = r.data?.data || r.data?.plants || [];
+  if (!Array.isArray(PLANTS)) PLANTS = [];
+  buildPlantChips();
+}
+
+async function loadMeters() {
+  // Build query
+  const q = new URLSearchParams({ start: ACTIVE.start, end: ACTIVE.end, top: '10000' });
+  const r = await fetchJsonSafe('/api/GetPremier300MeterAll?' + q.toString());
+  if (!r.ok || r.nonJson) throw new Error(`Meter API error (HTTP ${r.status})`);
+
+  let rows = Array.isArray(r.data?.data) ? r.data.data : [];
+  // optional plant filter if Plant_ID present
+  if (ACTIVE.plantIds !== 'all') {
+    rows = rows.filter(x => String(x.Plant_ID) === ACTIVE.plantIds);
+  }
+
+  // Normalize / coerce fields
+  rows.forEach(x => {
+    x.Total_Yield = Number(x.Total_Yield ?? x.total_yield ?? 0);
+    x.Incremental_Daily_Yield_KWH = Number(x.Incremental_Daily_Yield_KWH ?? x.daily_kwh ?? 0);
+    x.Plant_ID = Number(x.Plant_ID ?? x.plant_id ?? 0);
+    x.Plant_Name = PLANTS.find(p => p.Plant_ID===x.Plant_ID)?.Plant_Name || `Plant ${x.Plant_ID||'—'}`;
+    x.Date_Time = (x.Date_Time ?? x.datetime ?? x.date_time ?? '').toString();
+  });
+
+  return rows;
+}
+
+function renderKPIs(rows) {
+  const totalMWh = rows.reduce((a,b)=>a + (b.Total_Yield||0), 0);
+  const dailyKWh = rows.reduce((a,b)=>a + (b.Incremental_Daily_Yield_KWH||0), 0);
+  const meters   = new Set(rows.map(r => r.Meter_ID || r.Meter_ID)).size || rows.length;
+  const latest   = rows.map(r => r.Date_Time).sort().slice(-1)[0] || '—';
+
+  $('#kpiTotal').textContent  = fmt.format(totalMWh);
+  $('#kpiDaily').textContent  = fmt.format(dailyKWh);
+  $('#kpiMeters').textContent = fmt0.format(meters);
+  $('#kpiUpdated').textContent = latest;
+  $('#kpiRange').textContent   = `${ACTIVE.start} → ${ACTIVE.end}`;
+}
+
+function renderTable(rows) {
+  const tb = $('#tbl tbody');
+  tb.innerHTML = '';
+  $('#tableError').style.display = 'none';
+
+  const latestByMeter = Object.values(
+    rows.reduce((m, r) => {
+      const key = r.Meter_ID || r.Meter_Serial_No || r.Serial_No || Math.random();
+      if (!m[key] || (r.Date_Time > m[key].Date_Time)) m[key] = r;
+      return m;
+    }, {})
+  ).sort((a,b)=> (a.Date_Time<b.Date_Time?1:-1));
+
+  $('#rowCount').textContent = `${latestByMeter.length} rows`;
+  latestByMeter.forEach(r=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${r.Plant_Name}</td>
+      <td>${r.Meter_ID ?? ''}</td>
+      <td>${r.Meter_Make ?? ''} ${r.Meter_Model ?? ''}</td>
+      <td>${fmt.format(r.Total_Yield || 0)}</td>
+      <td>${fmt.format(r.Incremental_Daily_Yield_KWH || 0)}</td>
+      <td>${r.Date_Time || ''}</td>`;
+    tb.appendChild(tr);
+  });
+}
+
+function renderPie(rows) {
+  $('#pieError').style.display='none';
+  const byPlant = groupBy(rows,'Plant_ID');
+  const labels = Object.keys(byPlant).map(pid => PLANTS.find(p=>p.Plant_ID==pid)?.Plant_Name || `Plant ${pid}`);
+  const data = Object.values(byPlant).map(list => list.reduce((a,b)=>a+(b.Total_Yield||0),0));
+  const ctx = document.getElementById('pie');
+  pieChart = ensureChart(ctx, {
+    type: 'pie',
+    data: { labels, datasets: [{ data }] },
+    options: { responsive:true, plugins:{ legend:{ position:'bottom' } } }
+  }, pieChart);
+}
+
+function renderBars(rows) {
+  $('#barsError').style.display='none';
+  const byPlant = groupBy(rows,'Plant_ID');
+  const labels = Object.keys(byPlant).map(pid => PLANTS.find(p=>p.Plant_ID==pid)?.Plant_Name || `Plant ${pid}`);
+  const totals = Object.values(byPlant).map(list => list.reduce((a,b)=>a+(b.Total_Yield||0),0));
+  const dailys = Object.values(byPlant).map(list => list.reduce((a,b)=>a+(b.Incremental_Daily_Yield_KWH||0),0));
+
+  const ctx = document.getElementById('bars');
+  barsChart = ensureChart(ctx, {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [
+        { type:'bar', label:'Total MWh', data: totals },
+        { type:'line', label:'Daily kWh', data: dailys, tension:.2 }
+      ]
+    },
+    options: { responsive:true, scales:{ y:{ beginAtZero:true } } }
+  }, barsChart);
+}
+
+async function refresh() {
+  showFiltersLegend();
+  $('#tableError').style.display='none';
+  $('#pieError').style.display='none';
+  $('#barsError').style.display='none';
+
+  try {
+    const rows = await loadMeters();
+    renderKPIs(rows);
+    renderTable(rows);
+
+    if (rows.length) {
+      renderPie(rows);
+      renderBars(rows);
+    } else {
+      if (pieChart) pieChart.destroy();
+      if (barsChart) barsChart.destroy();
+    }
+  } catch (e) {
+    // show friendly error and keep page visible
+    $('#tableError').textContent = `Failed to load meter data: ${e.message}`;
+    $('#tableError').style.display='block';
+  }
+}
+
+/* ---------- boot ---------- */
+
+(async function init(){
+  // environment label: show “live” if not localhost
+  const live = !location.hostname.match(/(localhost|127\.0\.0\.1)/);
+  $('#envLabel').textContent = live ? 'live' : 'local';
+
+  // load plants, build chips
+  try {
+    await loadPlants();
+  } catch(e) {
+    $('#plantChips').innerHTML = `<span class="error">Plant list failed: ${e.message}</span>`;
+  }
+
+  // default range = This Month
+  stampRangePreset('month');
+
+  // wire presets + apply
+  $$('.filters [data-preset]').forEach(btn=>{
+    btn.addEventListener('click', (ev)=> {
+      stampRangePreset(ev.target.dataset.preset);
+    });
+  });
+  $('#applyBtn').addEventListener('click', ()=>{
+    ACTIVE.start = $('#startDate').value || toISODate(new Date());
+    ACTIVE.end   = $('#endDate').value   || ACTIVE.start;
+    refresh();
+  });
+
+  // first run
+  ACTIVE.start = $('#startDate').value;
+  ACTIVE.end   = $('#endDate').value;
+  refresh();
+})();
+</script>
+
+</body>
+</html>
