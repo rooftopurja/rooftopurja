@@ -1,17 +1,7 @@
 ﻿{
   "bindings": [
-    {
-      "authLevel": "anonymous",
-      "type": "httpTrigger",
-      "direction": "in",
-      "name": "req",
-      "methods": [ "get" ],
-      "route": "healthcheck"
-    },
-    {
-      "type": "http",
-      "direction": "out",
-      "name": "$return"
-    }
+    { "authLevel": "anonymous", "type": "httpTrigger", "direction": "in",
+      "name": "req", "methods": [ "get" ], "route": "healthcheck" },
+    { "type": "http", "direction": "out", "name": "$return" }
   ]
 }
