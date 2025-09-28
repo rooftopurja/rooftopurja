@@ -1,7 +1,17 @@
 ﻿{
-  "scriptFile": "./index.js",
   "bindings": [
-    { "authLevel": "anonymous", "type": "httpTrigger", "direction": "in", "name": "req", "methods": [ "get" ], "route": "health" },
-    { "type": "http", "direction": "out", "name": "res" }
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": [ "get" ],
+      "route": "healthcheck"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "$return"
+    }
   ]
 }

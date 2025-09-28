@@ -1,43 +1,30 @@
-﻿// GetPlantMapping/index.js
-const { TableClient } = require("@azure/data-tables");
+﻿const fs = require("fs");
+const path = require("path");
 
 module.exports = async function (context, req) {
   try {
-    // Use connection string (never undefined if set in local.settings.json)
-    const conn =
-      process.env.STORAGE_CONNECTION_STRING ||
-      process.env.AzureWebJobsStorage;
+    const dataPath = path.join(__dirname, "..", "_data", "plant-mapping.json");
+    const raw = fs.readFileSync(dataPath, "utf8").trim();
+    const json = JSON.parse(raw);
 
-    if (!conn) {
-      throw new Error(
-        "Missing STORAGE_CONNECTION_STRING / AzureWebJobsStorage in local.settings.json"
-      );
-    }
+    // Expected shape: [{ Plant_ID: 1, Plant_Name: "XYZ", ...}, ...]
+    // Normalize minimal fields for the UI
+    const plants = json.map(p => ({
+      Plant_ID: Number(p.Plant_ID ?? p.id ?? p.plant_id ?? 0),
+      Plant_Name: String(p.Plant_Name ?? p.name ?? `Plant ${p.Plant_ID ?? ""}`).trim()
+    }));
 
-    const tableName = process.env.PLANT_MAPPING_TABLE || "PlantMapping";
-    const client = TableClient.fromConnectionString(conn, tableName);
-
-    const items = [];
-    for await (const e of client.listEntities()) {
-      items.push({
-        Plant_ID: Number(e.Plant_ID ?? e.partitionKey ?? 0),
-        Device_ID: e.Device_ID ?? e.rowKey ?? "",
-        Device_Name: e.Device_Name ?? "",
-        Plant_Name: e.Plant_Name ?? ""
-      });
-    }
-
-    context.res = {
+    return {
       status: 200,
-      headers: { "content-type": "application/json" },
-      body: { items }
+      headers: { "Content-Type": "application/json" },
+      body: { success: true, data: plants, count: plants.length }
     };
   } catch (err) {
-    context.log.error("GetPlantMapping error:", err);
-    context.res = {
+    context.log.error("GetPlantMapping error:", err.message);
+    return {
       status: 500,
-      headers: { "content-type": "application/json" },
-      body: { error: String(err.message || err) }
+      headers: { "Content-Type": "application/json" },
+      body: { success: false, error: err.message }
     };
   }
 };
