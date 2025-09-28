@@ -1,390 +1,284 @@
-﻿<!doctype html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <meta name="viewport" content="width=device-width,initial-scale=1" />
-  <title>Meter — Solar Monitoring</title>
-
-  <!-- Bootstrap (layout) -->
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-  <!-- Chart.js -->
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-
-  <style>
-    body { background:#0b0c10; } /* dark navbar background contrast */
-    .appbar { background:#0b5ed7; }
-    .appbar a, .appbar .navbar-brand { color: #fff !important; }
-    .page-wrap { background:#f6f7fb; min-height:100vh; }
-    .section-title { font-weight:600; }
-    .kpi-card { border: 1px solid #e6e6e6; }
-    .kpi-value { font-weight: 800; font-size: 2.25rem; }
-    .muted { color:#6c757d; font-size:.9rem; }
-    .table thead th { font-weight:600; }
-    .legend-swatch {
-      display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:.35rem;vertical-align:middle;
-    }
-    .legend-label { margin-right:1rem; font-size:.9rem; }
-    .scroll-box { max-height:460px; overflow:auto; }
-  </style>
+<meta charset="utf-8" />
+<meta http-equiv="Cache-Control" content="no-store" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Meter — Solar Monitoring</title>
+<link rel="stylesheet" href="assets/style.css" />
+<link rel="preconnect" href="https://cdn.jsdelivr.net" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<style>
+  body{background:#f6f7fb;font-family:Inter,system-ui,Segoe UI,Arial,sans-serif}
+  .container{max-width:1200px;margin:0 auto;padding:16px}
+  .card{background:#fff;border-radius:12px;box-shadow:0 1px 3px rgba(0,0,0,.08);padding:16px}
+  .row{display:grid;gap:16px}
+  .row-2{grid-template-columns:1fr 1fr}
+  .muted{color:#667085;font-size:12px}
+  .kpi{font-size:40px;font-weight:800;letter-spacing:.3px}
+  .chips{display:flex;flex-wrap:wrap;gap:8px}
+  .chip{border:1px solid #e5e7eb;border-radius:999px;padding:6px 10px;background:#fff;cursor:pointer}
+  .chip.active{background:#1e40af;color:#fff;border-color:#1e40af}
+  .toolbar{display:flex;gap:12px;align-items:center}
+  .toolbar .right{margin-left:auto;display:flex;gap:8px}
+  table{width:100%;border-collapse:collapse}
+  th,td{padding:10px 8px;border-bottom:1px solid #f0f2f5;font-size:13px;text-align:left}
+  th{color:#475467;font-weight:600}
+  .legend{display:flex;gap:16px;align-items:center;margin:8px 0 0 6px}
+  .swatch{width:14px;height:6px;border-radius:4px;display:inline-block;vertical-align:middle}
+  .swatch.blue{background:#93c5fd}
+  .swatch.pink{background:#fda4af}
+</style>
 </head>
 <body>
-  <!-- Top Nav -->
-  <nav class="navbar navbar-expand-lg appbar">
-    <div class="container-fluid">
-      <a class="navbar-brand fw-semibold" href="index.html">Solar Monitor</a>
-      <ul class="navbar-nav ms-auto mb-2 mb-lg-0">
-        <li class="nav-item"><a class="nav-link" href="index.html">Home</a></li>
-        <li class="nav-item"><a class="nav-link active" aria-current="page" href="meter.html">Meter</a></li>
-        <li class="nav-item"><a class="nav-link" href="inverter_analytics.html">Inverter Analytics</a></li>
-        <li class="nav-item"><a class="nav-link" href="inverter_data_overview.html">Inverter Data Overview</a></li>
-        <li class="nav-item"><a class="nav-link" href="inverter_faults.html">Inverter Faults</a></li>
-        <li class="nav-item"><a class="nav-link" href="maintenance.html">Maintenance</a></li>
-        <li class="nav-item"><a class="nav-link" href="about.html">About</a></li>
-      </ul>
+  <nav class="card" style="border-radius:0;">
+    <div class="container" style="display:flex;gap:24px;align-items:center;">
+      <strong>Solar Monitor</strong>
+      <a href="index.html">Home</a>
+      <a href="meter.html" style="font-weight:700;">Meter</a>
+      <a href="inverter_analytics.html">Inverter Analytics</a>
+      <a href="inverter_data_overview.html">Inverter Data Overview</a>
+      <a href="inverter_faults.html">Inverter Faults</a>
+      <a href="maintenance.html">Maintenance</a>
+      <a href="about.html">About</a>
     </div>
   </nav>
 
-  <div class="page-wrap pb-5">
-    <div class="container-xxl py-4">
-      <h5 class="section-title mb-3">Meter Dashboard</h5>
+  <div class="container">
+    <h2>Meter Dashboard</h2>
 
-      <!-- Filters -->
-      <div class="row g-3 align-items-end">
-        <div class="col-12 col-lg-4">
-          <label class="form-label">Plants (checkboxes)</label>
-          <div class="input-group">
-            <select id="plantSelect" class="form-select">
-              <option value="ALL" selected>All Plants</option>
-            </select>
-            <button id="btnReloadPlants" class="btn btn-outline-secondary" title="Reload plants">↻</button>
+    <div class="card">
+      <div class="toolbar" style="flex-wrap:wrap;gap:16px;">
+        <div style="min-width:260px;">
+          <div class="muted">Plants (checkboxes)</div>
+          <div id="plantChips" class="chips"></div>
+        </div>
+
+        <div class="right">
+          <div>
+            <div class="muted">Start</div>
+            <input id="startDate" type="date" />
           </div>
-          <div class="form-text">Tip: plant selection controls all visuals.</div>
-        </div>
-
-        <div class="col-6 col-lg-3">
-          <label class="form-label">Quick Range (KPI & Pie)</label>
-          <select id="quickRange" class="form-select">
-            <option value="custom" selected>Custom</option>
-            <option value="today">Today</option>
-            <option value="yesterday">Yesterday</option>
-            <option value="last7">Last 7 days</option>
-            <option value="last30">Last 30 days</option>
-            <option value="mtd">MTD</option>
-            <option value="ytd">YTD</option>
-          </select>
-        </div>
-
-        <div class="col-6 col-lg-2">
-          <label class="form-label">Start</label>
-          <input id="dtStart" type="date" class="form-control" />
-        </div>
-        <div class="col-6 col-lg-2">
-          <label class="form-label">End</label>
-          <input id="dtEnd" type="date" class="form-control" />
-        </div>
-        <div class="col-6 col-lg-1 d-grid">
-          <button id="btnApply" class="btn btn-primary">Apply</button>
+          <div>
+            <div class="muted">End</div>
+            <input id="endDate" type="date" />
+          </div>
+          <button id="applyBtn" style="padding:8px 12px;border-radius:8px;border:0;background:#2563eb;color:#fff;">Apply</button>
         </div>
       </div>
+      <div class="muted" style="margin-top:8px;">Tip: plant checkboxes control all visuals. Date range applies to KPI & Pie; table & bar/line show last 9 days.</div>
+    </div>
 
-      <!-- KPI -->
-      <div class="row g-4 mt-3">
-        <div class="col-12 col-lg-6">
-          <div class="card kpi-card shadow-sm">
-            <div class="card-body">
-              <div class="muted mb-2">KPI: Total Yield</div>
-              <div id="kpiTotalYield" class="kpi-value">0.000 MWh</div>
-              <div id="kpiRangeLabel" class="muted mt-2">Showing All Plants | —</div>
-            </div>
-          </div>
+    <div class="row row-2" style="margin-top:16px;">
+      <div class="card">
+        <div class="muted">KPI: Total Yield</div>
+        <div id="kpiTotal" class="kpi">0.000 MWh</div>
+        <div class="muted" id="kpiNote"></div>
+      </div>
 
-          <div class="card mt-3 shadow-sm">
-            <div class="card-body">
-              <div class="d-flex justify-content-between">
-                <div class="fw-semibold">Total Yield (bar) & Daily Incremental (line)</div>
-                <div>
-                  <span class="legend-label"><span class="legend-swatch" style="background:#9ec5fe"></span>Total Yield (MWh)</span>
-                  <span class="legend-label"><span class="legend-swatch" style="background:#f5a3b1"></span>Incremental Daily (kWh)</span>
-                </div>
-              </div>
-              <canvas id="chartMain" height="150"></canvas>
-              <div id="chartEmpty" class="text-muted small mt-2 d-none">No data for the selected period.</div>
-            </div>
-          </div>
+      <div class="card">
+        <div style="display:flex;align-items:center;justify-content:space-between;">
+          <strong>Latest Readings</strong>
         </div>
-
-        <!-- Latest readings -->
-        <div class="col-12 col-lg-6">
-          <div class="card shadow-sm">
-            <div class="card-body">
-              <div class="fw-semibold mb-2">Latest Readings</div>
-              <div class="table-responsive scroll-box">
-                <table class="table table-sm align-middle">
-                  <thead class="table-light">
-                    <tr>
-                      <th>Meter_ID</th>
-                      <th>Make</th>
-                      <th>Type</th>
-                      <th>Model</th>
-                      <th>Serial_No</th>
-                      <th class="text-end">Total_Yield</th>
-                      <th>Unit</th>
-                      <th>Date_Time</th>
-                    </tr>
-                  </thead>
-                  <tbody id="tblBody">
-                    <tr><td colspan="8" class="text-muted">No rows yet.</td></tr>
-                  </tbody>
-                </table>
-              </div>
-              <div class="text-end">
-                <button id="btnTopMore" class="btn btn-sm btn-outline-secondary">Load more</button>
-              </div>
-            </div>
-          </div>
+        <div style="overflow:auto; max-height:360px; border-top:1px solid #f0f2f5; margin-top:8px;">
+          <table id="tblLatest">
+            <thead>
+              <tr>
+                <th>Meter_ID</th><th>Make</th><th>Type</th><th>Model</th>
+                <th>Serial_No</th><th>Total_Yield</th><th>Unit</th><th>Date_Time</th>
+              </tr>
+            </thead>
+            <tbody><tr><td colspan="8" class="muted">Loading…</td></tr></tbody>
+          </table>
         </div>
-      </div> <!-- /row -->
+      </div>
+    </div>
+
+    <div class="card" style="margin-top:16px;">
+      <strong>Total Yield (bar) & Daily Incremental (line)</strong>
+      <div class="legend">
+        <span class="swatch blue"></span><span class="muted">Total Yield (MWh)</span>
+        <span class="swatch pink"></span><span class="muted">Incremental Daily (kWh)</span>
+      </div>
+      <canvas id="yieldChart" height="120" style="margin-top:8px;"></canvas>
     </div>
   </div>
 
-  <script>
-  // ---- Helpers --------------------------------------------------------------
-  const $ = sel => document.querySelector(sel);
-  const api = path => `/api/${path}`;
+<script>
+const apiBase = location.hostname.includes("localhost")
+  ? "http://localhost:4286"
+  : "";
 
-  function fmtMWh(v){ return (Number(v)||0).toLocaleString(undefined,{minimumFractionDigits:3, maximumFractionDigits:3}); }
-  function fmtKWh(v){ return (Number(v)||0).toLocaleString(undefined,{maximumFractionDigits:0}); }
-  function toISO(d){ return d.toISOString().split('T')[0]; }
-  function parseDateInput(el){ return el.value ? new Date(el.value + 'T00:00:00') : null; }
+const $ = sel => document.querySelector(sel);
+const plantChips = $("#plantChips");
+const kpiTotal = $("#kpiTotal");
+const kpiNote = $("#kpiNote");
+const tblBody = $("#tblLatest tbody");
+const startInput = $("#startDate");
+const endInput = $("#endDate");
+const applyBtn = $("#applyBtn");
 
-  function rangeFromQuick(key){
-    const now = new Date();
-    const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
-    const end = new Date(today);
-    let start = new Date(today);
+let allPlants = [];       // [{Plant_ID, Plant_Name}]
+let selectedPlants = new Set(); // numbers
+let allRows = [];         // meter rows from API
+let chart;
 
-    switch(key){
-      case 'today': start = today; break;
-      case 'yesterday': start = new Date(today); start.setDate(start.getDate()-1); end.setDate(end.getDate()-1); break;
-      case 'last7': start.setDate(start.getDate()-6); break;
-      case 'last30': start.setDate(start.getDate()-29); break;
-      case 'mtd': start = new Date(today.getFullYear(), today.getMonth(), 1); break;
-      case 'ytd': start = new Date(today.getFullYear(), 0, 1); break;
-      default: return null;
-    }
-    return {start, end};
+function fmtMWh(x){ return (Number(x)||0).toFixed(3) + " MWh"; }
+
+function todayISO(d=0){
+  const t = new Date(); t.setDate(t.getDate()+d);
+  return t.toISOString().slice(0,10);
+}
+
+async function fetchJSON(url){
+  const r = await fetch(url, { headers: { "Cache-Control":"no-cache" }});
+  if(!r.ok){
+    const t = await r.text();
+    throw new Error(`HTTP ${r.status} - ${t}`);
   }
+  return r.json();
+}
 
-  // ---- State ---------------------------------------------------------------
-  let chart;
-  let topCount = 50;   // grows with "Load more"
-  let plants = [];     // from GetPlantMapping
+function renderPlantChips(){
+  plantChips.innerHTML = "";
+  // "All Plants" chip
+  const allChip = document.createElement("button");
+  allChip.className = "chip active";
+  allChip.textContent = "All Plants";
+  allChip.onclick = () => {
+    selectedPlants = new Set(allPlants.map(p=>p.Plant_ID));
+    document.querySelectorAll(".chip").forEach(c=>c.classList.add("active"));
+    refresh();
+  };
+  plantChips.appendChild(allChip);
 
-  // ---- UI wiring -----------------------------------------------------------
-  window.addEventListener('DOMContentLoaded', async () => {
-    // default dates: last 7 days
-    const r = rangeFromQuick('last7');
-    $('#dtStart').value = toISO(r.start);
-    $('#dtEnd').value   = toISO(r.end);
+  // individual plant chips
+  for(const p of allPlants){
+    const btn = document.createElement("button");
+    btn.className = "chip active";
+    btn.textContent = `${p.Plant_Name} (#${p.Plant_ID})`;
+    btn.dataset.id = p.Plant_ID;
+    btn.onclick = () => {
+      const id = Number(btn.dataset.id);
+      if(selectedPlants.has(id)){ selectedPlants.delete(id); btn.classList.remove("active"); }
+      else { selectedPlants.add(id); btn.classList.add("active"); }
+      refresh();
+    };
+    plantChips.appendChild(btn);
+  }
+  // default: all selected
+  selectedPlants = new Set(allPlants.map(p=>p.Plant_ID));
+}
 
-    await loadPlants();
-    await apply();
-
-    $('#btnApply').addEventListener('click', () => { topCount = 50; apply(); });
-    $('#btnReloadPlants').addEventListener('click', loadPlants);
-    $('#quickRange').addEventListener('change', onQuickRange);
-    $('#btnTopMore').addEventListener('click', () => { topCount += 100; apply(); });
+function filterRows(){
+  const s = new Date(startInput.value);
+  const e = new Date(endInput.value);
+  e.setHours(23,59,59,999);
+  return allRows.filter(r=>{
+    const pid = Number(r.Plant_ID ?? r.plant_id ?? 0);
+    const dt  = new Date(r.Date_Time ?? r.date ?? r.timestamp ?? 0);
+    return selectedPlants.has(pid) && dt>=s && dt<=e;
   });
+}
 
-  async function onQuickRange(){
-    const v = $('#quickRange').value;
-    if (v === 'custom') return;
-    const r = rangeFromQuick(v);
-    $('#dtStart').value = toISO(r.start);
-    $('#dtEnd').value   = toISO(r.end);
+function renderKPI(rows){
+  const total = rows.reduce((sum,r)=> sum + Number(r.Total_Yield??r.total_mwh??0), 0);
+  kpiTotal.textContent = fmtMWh(total);
+  kpiNote.textContent = `Showing ${selectedPlants.size===allPlants.length?"All Plants":selectedPlants.size+" plant(s)"} | ${startInput.value} — ${endInput.value}`;
+}
+
+function renderTable(rows){
+  if(rows.length===0){ tblBody.innerHTML = `<tr><td colspan="8" class="muted">No rows yet.</td></tr>`; return; }
+  const latest = [...rows].sort((a,b)=> new Date(b.Date_Time)-new Date(a.Date_Time)).slice(0,50);
+  tblBody.innerHTML = latest.map(r => `
+    <tr>
+      <td>${r.Meter_ID??""}</td>
+      <td>${r.Meter_Make??""}</td>
+      <td>${r.Meter_Type??""}</td>
+      <td>${r.Meter_Model??""}</td>
+      <td>${r.Meter_Serial_No??""}</td>
+      <td>${(Number(r.Total_Yield)||0).toFixed(3)}</td>
+      <td>${r.Yield_Unit??"MWh"}</td>
+      <td>${r.Date_Time??""}</td>
+    </tr>
+  `).join("");
+}
+
+function renderChart(rows){
+  // group by day
+  const byDay = {};
+  for(const r of rows){
+    const d = (r.Date_Time??"").slice(0,10);
+    if(!d) continue;
+    if(!byDay[d]) byDay[d] = {mwh:0,kwh:0};
+    byDay[d].mwh += Number(r.Total_Yield||0);
+    byDay[d].kwh += Number(r.Incremental_Daily_Yield_KWH||0);
   }
+  const days = Object.keys(byDay).sort();
+  const mwh = days.map(d=> byDay[d].mwh);
+  const kwh = days.map(d=> byDay[d].kwh);
 
-  // ---- Data loading --------------------------------------------------------
-  async function loadPlants(){
-    try{
-      const res = await fetch(api('GetPlantMapping'));
-      if (!res.ok) throw new Error(await res.text());
-      const rows = await res.json();
-
-      plants = Array.isArray(rows) ? rows : [];
-      const sel = $('#plantSelect');
-      sel.innerHTML = `<option value="ALL" selected>All Plants</option>`;
-      // Expecting rows like: { Plant_ID, Plant_Name } – fallback if fields differ
-      plants.forEach(p => {
-        const id = p.Plant_ID ?? p.PlantId ?? p.id ?? p.Name ?? 'P1';
-        const name = p.Plant_Name ?? p.PlantName ?? p.name ?? `Plant ${id}`;
-        const opt = document.createElement('option');
-        opt.value = id; opt.textContent = name;
-        sel.appendChild(opt);
-      });
-    }catch(err){
-      console.warn('Plant mapping failed:', err);
-      // leave dropdown with "All Plants"
-    }
-  }
-
-  async function apply(){
-    const s = parseDateInput($('#dtStart'));
-    const e = parseDateInput($('#dtEnd'));
-    if (!s || !e || s>e){ alert('Please select a valid date range'); return; }
-
-    const start = toISO(s); const end = toISO(e);
-    const plant = $('#plantSelect').value; // reserved for future filter (if API supports)
-
-    // Update KPI subtitle
-    const plantName = plant==='ALL' ? 'All Plants' : ($('#plantSelect').selectedOptions[0]?.textContent ?? plant);
-    $('#kpiRangeLabel').textContent = `Showing ${plantName} | ${start} — ${end}`;
-
-    const url = api(`GetPremier300MeterAll?start=${start}&end=${end}&top=${topCount}`);
-    let data = [];
-    try{
-      const res = await fetch(url);
-      if (!res.ok) throw new Error(await res.text());
-      data = await res.json();
-      if (!Array.isArray(data)) data = [];
-    }catch(err){
-      console.error('Readings failed:', err);
-      data = [];
-    }
-
-    // Optionally filter by plant if API doesn’t filter server-side
-    if (plant !== 'ALL'){
-      const pidKey = ['Plant_ID','PlantId','plant_id','plantId'].find(k => data.length && k in data[0]);
-      if (pidKey) data = data.filter(r => String(r[pidKey]) === String(plant));
-    }
-
-    renderKPI(data);
-    renderTable(data);
-    renderChart(data, start, end);
-  }
-
-  // ---- Rendering -----------------------------------------------------------
-  function renderKPI(rows){
-    const totalMWh = rows.reduce((acc,r)=>{
-      const v = Number(r.Total_Yield ?? r.TotalYield ?? r.total_yield ?? 0);
-      const unit = (r.Unit ?? r.unit ?? 'MWh').toUpperCase();
-      // Assume MWh; if kWh convert to MWh
-      return acc + (unit === 'KWH' ? v/1000 : v);
-    },0);
-    $('#kpiTotalYield').textContent = `${fmtMWh(totalMWh)} MWh`;
-  }
-
-  function renderTable(rows){
-    const body = $('#tblBody');
-    body.innerHTML = '';
-    if (!rows.length){
-      body.innerHTML = `<tr><td colspan="8" class="text-muted">No rows yet.</td></tr>`;
-      return;
-    }
-    // Sort latest first by Date_Time
-    rows.sort((a,b)=> new Date(b.Date_Time ?? b.DateTime ?? b.date ?? 0) - new Date(a.Date_Time ?? a.DateTime ?? a.date ?? 0));
-    for (const r of rows){
-      const tr = document.createElement('tr');
-      const val = (n)=> r[n] ?? r[n.toLowerCase()] ?? '';
-      const total = Number(r.Total_Yield ?? r.TotalYield ?? r.total_yield ?? 0);
-      const unit  = (r.Unit ?? r.unit ?? '').toUpperCase();
-      const shown = unit==='KWH' ? `${fmtKWh(total)} kWh` : `${fmtMWh(total)} MWh`;
-      tr.innerHTML = `
-        <td>${val('Meter_ID')}</td>
-        <td>${val('Make')}</td>
-        <td>${val('Type')}</td>
-        <td>${val('Model')}</td>
-        <td>${val('Serial_No')}</td>
-        <td class="text-end">${shown}</td>
-        <td>${unit || 'MWh'}</td>
-        <td>${val('Date_Time') || val('DateTime')}</td>
-      `;
-      body.appendChild(tr);
-    }
-  }
-
-  function renderChart(rows, startISO, endISO){
-    // Bar: total per meter (MWh)
-    const perMeter = {};
-    rows.forEach(r=>{
-      const id = String(r.Meter_ID ?? r.MeterId ?? r.meter_id ?? r.Serial_No ?? 'Meter');
-      const unit = (r.Unit ?? r.unit ?? 'MWh').toUpperCase();
-      const v = Number(r.Total_Yield ?? r.TotalYield ?? r.total_yield ?? 0);
-      const mwh = unit==='KWH' ? v/1000 : v;
-      perMeter[id] = (perMeter[id] ?? 0) + mwh;
-    });
-
-    const barLabels = Object.keys(perMeter);
-    const barData   = barLabels.map(k=> perMeter[k]);
-
-    // Line: daily incremental (kWh) summed across meters
-    const perDayKWh = {};
-    const s = new Date(startISO); const e = new Date(endISO);
-    // initialize all days to 0 (for a continuous x-axis)
-    for (let d=new Date(s); d<=e; d.setDate(d.getDate()+1)){
-      perDayKWh[toISO(d)] = 0;
-    }
-    rows.forEach(r=>{
-      const unit = (r.Unit ?? r.unit ?? 'MWh').toUpperCase();
-      const v = Number(r.Total_Yield ?? r.TotalYield ?? r.total_yield ?? 0);
-      // If API already returns daily “incremental”, great; otherwise treat Total_Yield as daily total.
-      // To keep it generic, we assume values are per reading at given Date_Time; sum as kWh.
-      const asKWh = unit==='MWH' ? v*1000 : v;
-      const day = (r.Date_Time ?? r.DateTime ?? '').slice(0,10);
-      if (day && perDayKWh.hasOwnProperty(day)) perDayKWh[day] += asKWh;
-    });
-
-    const lineLabels = Object.keys(perDayKWh).sort();
-    const lineData   = lineLabels.map(k=> perDayKWh[k]);
-
-    const ctx = document.getElementById('chartMain').getContext('2d');
-    if (chart) chart.destroy();
-
-    const hasBars = barLabels.length>0 && barData.some(x=>x>0);
-    const hasLine = lineLabels.length>0 && lineData.some(x=>x>0);
-    document.getElementById('chartEmpty').classList.toggle('d-none', hasBars||hasLine);
-
-    chart = new Chart(ctx, {
-      type: 'bar',
-      data: {
-        labels: hasBars ? barLabels : lineLabels,
-        datasets: [
-          {
-            type:'bar',
-            label:'Total Yield (MWh)',
-            data: hasBars ? barData : lineLabels.map(_=>0),
-            backgroundColor:'#9ec5fe',
-            borderColor:'#9ec5fe',
-            borderWidth:1,
-            yAxisID:'y1',
-          },
-          {
-            type:'line',
-            label:'Incremental Daily (kWh)',
-            data: hasLine ? lineData : [],
-            borderColor:'#f5a3b1',
-            backgroundColor:'#f5a3b1',
-            borderWidth:2,
-            tension:.25,
-            yAxisID:'y2',
-          }
-        ]
+  const ctx = document.getElementById("yieldChart");
+  if(chart) chart.destroy();
+  chart = new Chart(ctx, {
+    type:"bar",
+    data:{
+      labels:days,
+      datasets:[
+        { type:"bar",  label:"Total Yield (MWh)", data:mwh, backgroundColor:"#93c5fd" },
+        { type:"line", label:"Incremental Daily (kWh)", data:kwh, borderColor:"#fda4af", pointRadius:2, tension:.25, yAxisID:"y1" }
+      ]
+    },
+    options:{
+      responsive:true,
+      scales:{
+        y:{ beginAtZero:true, title:{display:true,text:"MWh"} },
+        y1:{ beginAtZero:true, position:"right", grid:{drawOnChartArea:false}, title:{display:true,text:"kWh"} }
       },
-      options: {
-        responsive:true,
-        maintainAspectRatio:false,
-        scales:{
-          x: { ticks:{ maxRotation:0, autoSkip:true } },
-          y1:{ type:'linear', position:'left', title:{display:true, text:'MWh'} },
-          y2:{ type:'linear', position:'right', grid:{ drawOnChartArea:false }, title:{display:true, text:'kWh'} }
-        },
-        plugins:{
-          legend:{ display:true },
-          tooltip:{ mode:'index', intersect:false }
-        }
-      }
-    });
-  }
-  </script>
+      plugins:{ legend:{display:true, position:"bottom"} }
+    }
+  });
+}
+
+function refresh(){
+  const rows = filterRows();
+  renderKPI(rows);
+  renderTable(rows);
+  renderChart(rows);
+}
+
+async function init(){
+  // dates: last 7 days
+  endInput.value = todayISO(0);
+  startInput.value = todayISO(-6);
+
+  // plants
+  const plantRes = await fetchJSON(`${apiBase}/api/GetPlantMapping`);
+  allPlants = plantRes.data ?? [];
+  renderPlantChips();
+
+  // meter rows (max 100 for now)
+  const url = `${apiBase}/api/GetPremier300MeterAll?start=${startInput.value}&end=${endInput.value}&top=100`;
+  const meterRes = await fetchJSON(url);
+  allRows = meterRes.data ?? [];
+
+  refresh();
+}
+
+applyBtn.addEventListener("click", async ()=>{
+  // re-query rows for the new range
+  const url = `${apiBase}/api/GetPremier300MeterAll?start=${startInput.value}&end=${endInput.value}&top=100`;
+  try{
+    const meterRes = await fetchJSON(url);
+    allRows = meterRes.data ?? [];
+    refresh();
+  }catch(e){ alert("Failed to load meter data:\n"+e.message); }
+});
+
+init().catch(err => {
+  console.error(err);
+  alert("Failed to initialize meter dashboard:\n" + err.message);
+});
+</script>
 </body>
 </html>
