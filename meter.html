@@ -325,7 +325,7 @@
       if(pie) pie.destroy();
       pie = new Chart($('#pieChart'), {
         type:'pie',
-        data:{ labels, datasets:[{ data: valScaled }] },
+        data:{ labels, datasets:[{ data: valScaled, radius:'95%' }] },
         options:{
           plugins:{
             legend:{ display:false },
@@ -432,5 +432,6 @@
 <!-- ===== End Footer ===== -->
 </body>
 </html>
+
 
 
