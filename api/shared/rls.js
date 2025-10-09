@@ -48,3 +48,4 @@ function applyRls(rows, grant){
 module.exports = { getUser, getAllowedPlants, applyRls };
 
 
+

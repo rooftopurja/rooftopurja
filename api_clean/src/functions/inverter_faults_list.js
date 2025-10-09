@@ -45,3 +45,4 @@ app.http('inverter_faults_list', {
 });
 
 
+
