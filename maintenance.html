@@ -26,6 +26,44 @@
     </style>
   </head>
   <body>
+<!-- ===== Top Nav (auto-injected) ===== -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  .topnav{position:sticky;top:0;z-index:50;background:#ffffffcc;backdrop-filter:saturate(180%) blur(8px);
+          border-bottom:1px solid #e5e7eb}
+  .topnav .inner{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
+  .brand{font:700 18px/1 Inter,system-ui,sans-serif;color:#0f172a;letter-spacing:.2px;margin-right:8px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .tab{font:500 13px/1 Inter,system-ui,sans-serif;color:#0f172a;text-decoration:none;
+       padding:8px 10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+  .tab:hover{border-color:#c7d2fe}
+  .tab.active{background:#eef2ff;color:#1e3a8a;border-color:#c7d2fe;font-weight:700}
+  @media (max-width:720px){ .brand{display:none} }
+</style>
+<nav class="topnav">
+  <div class="inner">
+    <div class="brand">Solar Plant Dashboard</div>
+    <div class="tabs">
+      <a class="tab" href="/meter.html"                 data-file="meter.html">Meter</a>
+      <a class="tab" href="/inverter_analytics.html"    data-file="inverter_analytics.html">Inverter Analytics</a>
+      <a class="tab" href="/inverter_data_overview.html"data-file="inverter_data_overview.html">Inverter Data Overview</a>
+      <a class="tab" href="/inverter_faults.html"       data-file="inverter_faults.html">Inverter Faults</a>
+      <a class="tab" href="/maintenance.html"           data-file="maintenance.html">Maintenance</a>
+    </div>
+  </div>
+</nav>
+<script>
+// highlight current tab by file name
+(function(){
+  var file = (location.pathname.split('/').pop() || 'meter.html').toLowerCase();
+  document.querySelectorAll('.topnav .tab').forEach(function(a){
+    if((a.getAttribute('data-file')||'').toLowerCase()===file){ a.classList.add('active'); }
+  });
+})();
+</script>
+<!-- ===== End Top Nav ===== -->
     <div id='nav-holder'></div>
     <script>
       fetch('/nav.html').then(r => r.text()).then(html => {
@@ -132,3 +170,4 @@
     </script>
   </body>
 </html>
+
