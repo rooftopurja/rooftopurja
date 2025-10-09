@@ -1,13 +1,12 @@
 ﻿{
     "routes":  [
                    {
-                       "route":  "/index.html",
-                       "headers":  {
-                                       "Cache-Control":  "no-store, no-cache, must-revalidate, max-age=0"
-                                   }
+                       "route":  "/meter.html",
+                       "redirect":  "/meter.v2.html",
+                       "statusCode":  302
                    },
                    {
-                       "route":  "/meter.html",
+                       "route":  "/index.html",
                        "headers":  {
                                        "Cache-Control":  "no-store, no-cache, must-revalidate, max-age=0"
                                    }
