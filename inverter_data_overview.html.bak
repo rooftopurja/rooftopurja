@@ -1,0 +1,155 @@
+﻿<!doctype html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <meta name='viewport' content='width=device-width, initial-scale=1'>
+    <title>Inverter Data Overview — Solar Monitoring</title>
+    <style>
+      body{font-family:system-ui,Segoe UI,Arial,sans-serif}
+      main{padding:24px}
+      .row{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:12px 0}
+      label{font-size:12px;color:#444;display:block;margin-bottom:4px}
+      input,button{padding:8px 10px;border:1px solid #ccc;border-radius:8px}
+      button{cursor:pointer}
+      table{border-collapse:collapse;width:100%;margin-top:16px}
+      th,td{border:1px solid #e5e5e5;padding:8px;text-align:left;font-size:14px}
+      th{background:#fafafa}
+      .muted{color:#666;font-size:13px}
+      .err{color:#b00020}
+    </style>
+  </head>
+  <body>
+<!-- ===== Top Nav (auto-injected) ===== -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap" rel="stylesheet">
+<style>
+  .topnav{position:sticky;top:0;z-index:50;background:#ffffffcc;backdrop-filter:saturate(180%) blur(8px);
+          border-bottom:1px solid #e5e7eb}
+  .topnav .inner{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
+  .brand{font:700 18px/1 Inter,system-ui,sans-serif;color:#0f172a;letter-spacing:.2px;margin-right:8px}
+  .tabs{display:flex;gap:6px;flex-wrap:wrap}
+  .tab{font:500 13px/1 Inter,system-ui,sans-serif;color:#0f172a;text-decoration:none;
+       padding:8px 10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
+  .tab:hover{border-color:#c7d2fe}
+  .tab.active{background:#eef2ff;color:#1e3a8a;border-color:#c7d2fe;font-weight:700}
+  @media (max-width:720px){ .brand{display:none} }
+</style>
+<nav class="topnav">
+  <div class="inner">
+    <div class="brand">Solar Plant Dashboard</div>
+    <div class="tabs">
+      <a class="tab" href="/meter.html"                 data-file="meter.html">Meter</a>
+      <a class="tab" href="/inverter_analytics.html"    data-file="inverter_analytics.html">Inverter Analytics</a>
+      <a class="tab" href="/inverter_data_overview.html"data-file="inverter_data_overview.html">Inverter Data Overview</a>
+      <a class="tab" href="/inverter_faults.html"       data-file="inverter_faults.html">Inverter Faults</a>
+      <a class="tab" href="/maintenance.html"           data-file="maintenance.html">Maintenance</a>
+    </div>
+  </div>
+</nav>
+<script>
+// highlight current tab by file name
+(function(){
+  var file = (location.pathname.split('/').pop() || 'meter.html').toLowerCase();
+  document.querySelectorAll('.topnav .tab').forEach(function(a){
+    if((a.getAttribute('data-file')||'').toLowerCase()===file){ a.classList.add('active'); }
+  });
+})();
+</script>
+<!-- ===== End Top Nav ===== -->
+    <div id='nav-holder'></div>
+    <script>
+      fetch('/nav.html').then(r => r.text()).then(html => {
+        document.getElementById('nav-holder').outerHTML = html;
+      });
+    </script>
+
+    <main>
+      <h1>Inverter Data Overview</h1>
+      <p class='muted'>Data from <code>/api/inverter/data/overview</code> (mock now; SQL later).</p>
+
+      <div class='row'>
+        <div>
+          <label for='plantId'>Plant ID</label>
+          <input id='plantId' value='DEMO'/>
+        </div>
+        <div>
+          <label for='topN'>Rows (max 200)</label>
+          <input id='topN' type='number' min='1' max='200' value='10'/>
+        </div>
+        <div>
+          <button id='btnLoad'>Load</button>
+        </div>
+        <div class='muted' id='status' style='margin-left:8px'></div>
+      </div>
+
+      <div id='error' class='err'></div>
+
+      <table id='grid' style='display:none'>
+        <thead>
+          <tr>
+            <th>Timestamp</th>
+            <th>Inverter ID</th>
+            <th>AC Power (kW)</th>
+            <th>DC Voltage (V)</th>
+            <th>DC Current (A)</th>
+            <th>MPPTs</th>
+            <th>Temp (°C)</th>
+            <th>Status</th>
+          </tr>
+        </thead>
+        <tbody id='gridBody'></tbody>
+      </table>
+    </main>
+
+    <script>
+      const btn = document.getElementById('btnLoad');
+      const grid = document.getElementById('grid');
+      const body = document.getElementById('gridBody');
+      const status = document.getElementById('status');
+      const errorBox = document.getElementById('error');
+
+      async function loadData() {
+        const plantId = document.getElementById('plantId').value.trim();
+        const top = Math.max(1, Math.min(200, parseInt(document.getElementById('topN').value || '10', 10)));
+        errorBox.textContent = '';
+        status.textContent = 'Loading...';
+        grid.style.display = 'none';
+        body.innerHTML = '';
+
+        if (!plantId) { errorBox.textContent = 'Please enter Plant ID'; status.textContent=''; return; }
+
+        try {
+          const url = \/api/inverter/data/overview?plantId=\&top=\\;
+          const res = await fetch(url);
+          if (!res.ok) throw new Error('API error ' + res.status);
+          const json = await res.json();
+          const rows = json.data || [];
+          rows.forEach(r => {
+            const tr = document.createElement('tr');
+            tr.innerHTML = \
+              <td>\</td>
+              <td>\</td>
+              <td>\</td>
+              <td>\</td>
+              <td>\</td>
+              <td>\</td>
+              <td>\</td>
+              <td>\</td>\;
+            body.appendChild(tr);
+          });
+          status.textContent = \\ rows\;
+          grid.style.display = rows.length ? '' : 'none';
+          if (!rows.length) errorBox.textContent = 'No data';
+        } catch (e) {
+          errorBox.textContent = e.message || String(e);
+          status.textContent = '';
+        }
+      }
+
+      btn.addEventListener('click', loadData);
+      window.addEventListener('DOMContentLoaded', loadData);
+    </script>
+  </body>
+</html>
+

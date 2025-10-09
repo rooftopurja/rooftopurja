@@ -73,6 +73,7 @@
     .muted{color:var(--muted)}
     .scroll{height:calc(var(--h-table) - 36px);overflow:auto;overflow-x:auto}
   </style>
+<style>.wrap{margin-top:6px}</style>
 </head>
 <body>
 <!-- ===== Top Nav (auto-injected) ===== -->
@@ -114,7 +115,7 @@
 </script>
 <!-- ===== End Top Nav ===== -->
   <div class="wrap">
-    <header>Meter</header>
+    
 
     <!-- FILTERS -->
     <div class="filters">
@@ -325,7 +326,7 @@
       if(pie) pie.destroy();
       pie = new Chart($('#pieChart'), {
         type:'pie',
-        data:{ labels, datasets:[{ data: valScaled, radius:'95%' }] },
+        data:{ labels, datasets:[{ data: valScaled, radius:'99%' }] },
         options:{
           plugins:{
             legend:{ display:false },
@@ -336,8 +337,7 @@
             }}},
             datalabels:{ display:false }
           },
-          maintainAspectRatio:false
-        }
+          maintainAspectRatio:false, layout:{padding:0} }
       });
     }
 
@@ -432,6 +432,9 @@
 <!-- ===== End Footer ===== -->
 </body>
 </html>
+
+
+
 
 
 
