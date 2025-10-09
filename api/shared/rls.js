@@ -1,5 +1,4 @@
-﻿const fs = require("fs");
-const path = require("path");
+﻿const { Buffer } = require("buffer");
 
 function getUser(req){
   try{
@@ -22,8 +21,10 @@ async function getAllowedPlants(context, user){
   const conn = process.env.AzureWebJobsStorage || process.env.STORAGE_CONNECTION_STRING;
   try{
     const { TableClient } = require("@azure/data-tables");
-    const table = TableClient.fromConnectionString(conn, "PlantAccess");
-    const pk = `user:${user.email}`;
+    // Use your existing table
+    const table = TableClient.fromConnectionString(conn, "UserPlantAccess");
+    // PK is just the email (lowercase)
+    const pk = user.email;
     const ids = [];
     const iter = table.listEntities({ queryOptions:{ filter: `PartitionKey eq '${pk}'` }});
     for await (const e of iter){
@@ -32,8 +33,8 @@ async function getAllowedPlants(context, user){
     }
     return { all:false, ids };
   }catch(err){
-    context.log.warn("RLS: PlantAccess not available:", err.message);
-    return { all:false, ids:[] }; // no access unless admin
+    context.log.warn("RLS: UserPlantAccess not available:", err.message);
+    return { all:false, ids:[] };
   }
 }
 
