@@ -43,3 +43,5 @@ app.http('inverter_faults_list', {
     return { jsonBody: { ok: true, count: data.length, data } };
   }
 });
+
+

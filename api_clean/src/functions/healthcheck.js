@@ -1,4 +1,4 @@
-const { app } = require('@azure/functions');
+﻿const { app } = require('@azure/functions');
 
 app.http('healthcheck', {
     methods: ['GET', 'POST'],
@@ -11,3 +11,5 @@ app.http('healthcheck', {
         return { body: `Hello, ${name}!` };
     }
 });
+
+
