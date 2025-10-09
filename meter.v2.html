@@ -1,8 +1,8 @@
-ï»¿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Meter â€” Solar Plant Dashboard</title>
+  <title>Meter — Solar Plant Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -46,7 +46,7 @@
     .dd-row input{transform:scale(1.1)}
     .dd-h{font-weight:700}
 
-    /* 2Ã—2 layout â€” no viewport clipping */
+    /* 2×2 layout — no viewport clipping */
     .grid{
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -144,7 +144,10 @@
     </div>
 
     <!-- TOP: KPI + PIE -->
-    <div class="grid">
+    <div id="nodata" style="display:none;background:#fff3cd;border:1px solid #ffe69c;color:#664d03;border-radius:10px;padding:10px;margin:8px 0;font-size:14px">
+  No data in the selected date range.
+</div>
+<div class="grid">
       <div class="card">
         <div class="kpi-wrap">
           <div class="kpi-label">TOTAL YIELD</div>
@@ -161,7 +164,7 @@
 
       <!-- BOTTOM: BAR+LINE + TABLE -->
       <div class="card">
-        <div class="card-title">Last 9 Days â€” Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
+        <div class="card-title">Last 9 Days — Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
         <div class="hint">Bars = end-of-day cumulative total across selected plants (unit). Line = Daily kWh.</div>
         <div class="bar-wrap"><canvas id="barLine"></canvas></div>
       </div>
@@ -293,7 +296,7 @@
       $('#kpiTotal').textContent = fmt(totalMWh*u.scale,3);
       $('#kpiUnit').textContent  = `(${u.unit})`;
       $('#pieBadge').textContent = u.unit;   // keep Pie in sync with KPI
-      $('#kpiHint').textContent  = `Range: ${ymd(start)} â†’ ${ymd(end)} â€¢ Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
+      $('#kpiHint').textContent  = `Range: ${ymd(start)} ? ${ymd(end)} • Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
     }
 
     function renderTable(rows){
@@ -398,7 +401,7 @@
         $('#applyBtn').disabled=true;
         const all = await loadMeters();
         const sel = filterByPlants(all);
-        renderKPI(sel);
+        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); renderKPI(sel);
         renderPie(sel);
         renderBarLine(sel);
         renderTable(sel);
@@ -425,8 +428,8 @@
 </style>
 <footer class="sp-footer">
   <div class="inner">
-    <div>Â© Solar Plant Dashboard</div>
-    <div><a href="/meter.html">Meter</a> Â· <a href="/inverter_analytics.html">Inverter Analytics</a> Â· <a href="/maintenance.html">Maintenance</a></div>
+    <div>© Solar Plant Dashboard</div>
+    <div><a href="/meter.html">Meter</a> · <a href="/inverter_analytics.html">Inverter Analytics</a> · <a href="/maintenance.html">Maintenance</a></div>
   </div>
 </footer>
 <!-- ===== End Footer ===== -->
