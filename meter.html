@@ -2,30 +2,41 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Meter — Solar Monitoring</title>
+  <title>Meter — Solar Plant Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
   <style>
-    :root{ --bg:#fff; --fg:#0f172a; --muted:#64748b; --card:#f8fafc; --border:#e5e7eb; --accent:#2563eb; --chip:#eef2ff; --chip-fg:#1e3a8a; }
+    /* ========= simple knobs (change just these) ========= */
+    :root{
+      --h-kpi: 81px;     /* shorter KPI                          */
+      --h-pie: 81px;     /* smaller pie                          */
+      --h-bar: 360px;     /* big bar/line                         */
+      --h-table: 360px;   /* big table                            */
+
+      --bg:#fff; --fg:#0f172a; --muted:#64748b; --card:#f8fafc; --border:#e5e7eb;
+      --accent:#2563eb; --chip:#eef2ff; --chip-fg:#1e3a8a;
+    }
+
     *{box-sizing:border-box}
     html,body{height:100%}
     body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
-    .wrap{max-width:1400px;margin:18px auto 28px;padding:0 16px}
-    header{font-size:22px;font-weight:800;margin-bottom:10px}
-    .tabs{display:flex;gap:12px;margin-bottom:12px}
-    .tab{padding:6px 12px;border:1px solid var(--border);border-radius:999px;background:#fff}
-    .tab.active{background:var(--chip);color:var(--chip-fg);border-color:#c7d2fe;font-weight:700}
+    .wrap{max-width:1400px;margin:10px auto 20px;padding:0 16px}
+    header{font-size:20px;font-weight:800;letter-spacing:.2px;margin:2px 0 8px}
+
+    /* filters */
     .filters{display:grid;grid-template-columns:1.2fr auto auto 1fr 1fr auto;gap:10px;align-items:center;
-      background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;margin-bottom:12px}
+      background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:10px}
     .filters label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
     .filters input[type="date"]{padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;width:100%}
     .preset{display:flex;gap:6px}
     .preset .chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 10px;font-size:13px;cursor:pointer}
     .preset .chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
     .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+
+    /* plant dropdown */
     .plant-select{position:relative}
     .plant-btn{width:100%;text-align:left;padding:10px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer}
     .dropdown{position:absolute;z-index:20;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:10px;margin-top:6px;max-height:320px;overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,.08);display:none}
@@ -34,28 +45,38 @@
     .dd-row:last-child{border-bottom:none}
     .dd-row input{transform:scale(1.1)}
     .dd-h{font-weight:700}
-    .grid{display:grid;grid-template-columns:1fr 1fr;grid-template-rows:240px 360px;gap:12px;height:calc(100vh - 190px);min-height:560px}
-    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;overflow:hidden}
-    .card-title{font-weight:800;margin-bottom:8px;display:flex;align-items:center;gap:8px}
+
+    /* 2×2 layout — no viewport clipping */
+    .grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      grid-template-rows:auto auto;
+      gap:12px;
+    }
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;overflow:hidden}
+    .card-title{font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:8px}
     .badge{background:#eef2ff;color:#3730a3;border-radius:999px;padding:4px 8px;font-size:12px}
-    .kpi-wrap{height:100%;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+    .hint{font-size:12px;color:var(--muted);margin-top:2px}
+
+    /* KPI compact */
+    .kpi-wrap{height:var(--h-kpi);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
     .kpi-label{color:var(--muted);letter-spacing:.04em}
-    .kpi-value{font-size:58px;font-weight:800;line-height:1;margin-top:6px}
-    .kpi-sub{color:var(--muted);margin-top:4px}
-    .hint{font-size:12px;color:var(--muted)}
-    table{width:100%;border-collapse:collapse;font-size:13px}
+    .kpi-value{font-size:42px;font-weight:800;line-height:1;margin-top:4px}
+    .kpi-sub{color:var(--muted);margin-top:2px;font-size:13px}
+
+    /* charts & table boxes */
+    .pie-wrap{display:flex;align-items:center;justify-content:center;height:var(--h-pie)}
+    .bar-wrap{height:var(--h-bar)}
+    table{width:max(100%, 1200px);border-collapse:collapse;font-size:13px;table-layout:auto;white-space:nowrap}
     thead th{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--border);padding:8px;text-align:left;font-weight:800}
     tbody td{border-bottom:1px solid var(--border);padding:8px}
     .muted{color:var(--muted)}
-    .scroll{height:calc(100% - 44px);overflow:auto}
-    .chart-wrap{height:calc(100% - 40px)}
-    .pie-wrap{display:flex;align-items:center;justify-content:center;height:calc(100% - 40px)}
+    .scroll{height:calc(var(--h-table) - 36px);overflow:auto;overflow-x:auto}
   </style>
 </head>
 <body>
   <div class="wrap">
-    <header>Meter Overview</header>
-    <div class="tabs"><div class="tab active">Meter</div></div>
+    <header>Meter</header>
 
     <!-- FILTERS -->
     <div class="filters">
@@ -83,9 +104,8 @@
       <div style="align-self:end"><button class="btn" id="applyBtn">Apply</button></div>
     </div>
 
-    <!-- GRID -->
+    <!-- TOP: KPI + PIE -->
     <div class="grid">
-      <!-- KPI -->
       <div class="card">
         <div class="kpi-wrap">
           <div class="kpi-label">TOTAL YIELD</div>
@@ -95,39 +115,31 @@
         </div>
       </div>
 
-      <!-- TABLE -->
+      <div class="card">
+        <div class="card-title">Yield Share by Plant <span class="badge" id="pieBadge">MWh</span></div>
+        <div class="pie-wrap"><canvas id="pieChart"></canvas></div>
+      </div>
+
+      <!-- BOTTOM: BAR+LINE + TABLE -->
+      <div class="card">
+        <div class="card-title">Last 9 Days — Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
+        <div class="hint">Bars = end-of-day cumulative total across selected plants (unit). Line = Daily kWh.</div>
+        <div class="bar-wrap"><canvas id="barLine"></canvas></div>
+      </div>
+
       <div class="card">
         <div class="card-title">Latest Reading per Meter</div>
         <div class="scroll">
           <table>
             <thead>
               <tr>
-                <th>Plant_Name</th>
-                <th>Meter_Make</th>
-                <th>Meter_Model</th>
-                <th>Type</th>
-                <th>Meter_Serial_No</th>
-                <th>Meter_Reading</th>
-                <th>Total_Yield_Unit</th>
-                <th>Date_Time (IST)</th>
+                <th>Plant_Name</th><th>Meter_Make</th><th>Meter_Model</th><th>Type</th>
+                <th>Meter_Serial_No</th><th>Meter_Reading</th><th>Total_Yield_Unit</th><th>Date_Time</th>
               </tr>
             </thead>
             <tbody id="latestBody"></tbody>
           </table>
         </div>
-      </div>
-
-      <!-- BAR + LINE -->
-      <div class="card">
-        <div class="card-title">Last 9 Days — Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
-        <div class="hint">Bars = end-of-day cumulative total across selected plants (unit). Line = Daily kWh.</div>
-        <div class="chart-wrap"><canvas id="barLine"></canvas></div>
-      </div>
-
-      <!-- PIE -->
-      <div class="card">
-        <div class="card-title">Yield Share by Plant <span class="badge" id="pieBadge">MWh</span></div>
-        <div class="pie-wrap"><canvas id="pieChart"></canvas></div>
       </div>
     </div>
   </div>
@@ -139,159 +151,121 @@
     const fmt = (n, d=3) => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:d});
     const ymd = d => d.toISOString().slice(0,10);
     const sum = (a, fn= x=>x) => a.reduce((t,v)=> t + (+fn(v)||0), 0);
-    function groupBy(arr, key){ const m=new Map(); for(const r of arr){ const k=key(r); if(!m.has(k)) m.set(k,[]); m.get(k).push(r);} return m; }
-    function bestUnit(totalMWh){ return totalMWh>=1000 ? {unit:'GWh', scale:1/1000} : {unit:'MWh', scale:1}; }
-    function unitToMWh(v, unit){ const u=String(unit||"MWh").toLowerCase(); if(u.includes("kwh"))return (Number(v)||0)/1000; if(u.includes("gwh"))return (Number(v)||0)*1000; return Number(v)||0; }
-    function getTotalMWh(r){ if(typeof r.Total_Yield_MWh==="number") return r.Total_Yield_MWh||0; return unitToMWh(r.Total_Yield, r.Total_Yield_Unit || r.Yield_Unit); }
+
+    function bestUnit(mwh){ return mwh>=1000 ? {unit:'GWh', scale:1/1000} : {unit:'MWh', scale:1}; }
+    function unitToMWh(v, unit){
+      const u=String(unit||"MWh").toLowerCase();
+      if(u.includes("kwh"))return (Number(v)||0)/1000;
+      if(u.includes("gwh"))return (Number(v)||0)*1000;
+      return Number(v)||0;
+    }
+    function getTotalMWh(r){
+      const unit = r.Total_Yield_Unit || r.Yield_Unit;
+      return unitToMWh(r.Total_Yield, unit);
+    }
     function getDateOnly(r){ return r.Date || (r.Date_Time ? r.Date_Time.slice(0,10) : ""); }
 
-    // pick latest row in a group by max Date_Time
     function latestBy(rows, keyFn){
-      const map = new Map();
+      const m=new Map();
       for(const r of rows){
-        const k = keyFn(r);
-        const dt = new Date(r.Date_Time || 0).getTime();
-        const curr = map.get(k);
-        if(!curr || dt > curr._ts){ map.set(k, {...r, _ts: dt}); }
-      }
-      return map; // Map(key -> rowWith_ts)
+        const k=keyFn(r); const ts = new Date(r.Date_Time||0).getTime();
+        const cur=m.get(k); if(!cur || ts>cur._ts) m.set(k,{...r,_ts:ts});
+      } return m;
     }
-    // same but constrained to a given day
     function latestPerPlantForDay(rows, dayStr){
-      const filtered = rows.filter(r => getDateOnly(r) === dayStr);
-      return latestBy(filtered, r => r.Plant_ID);
+      const filtered = rows.filter(r => getDateOnly(r)===dayStr);
+      return latestBy(filtered, r=>r.Plant_ID);
     }
 
     /* ---------- state ---------- */
-    let plants = [];           // [{Plant_ID,Plant_Name}]
-    let plantMap = new Map();  // Plant_ID -> Plant_Name
-    let selected = new Set();
-    let preset = 'custom';
-    let start = new Date(), end = new Date();
-    let pie, barline;
+    let plants=[], plantMap=new Map(), selected=new Set();
+    let start=new Date(), end=new Date(), preset='custom';
+    let pie, barline, kpiUnit='MWh';
 
-    /* ---------- plants dropdown ---------- */
-    function closeDD(e){
-      const dd = $('#plantDD');
-      if (!dd.contains(e.target) && e.target !== $('#plantBtn')) dd.classList.remove('open');
-    }
-    $('#plantBtn').addEventListener('click', () => $('#plantDD').classList.toggle('open'));
+    /* ---------- dropdown ---------- */
+    function closeDD(e){ const dd=$('#plantDD'); if(!dd.contains(e.target)&&e.target!==$('#plantBtn')) dd.classList.remove('open'); }
+    $('#plantBtn').addEventListener('click',()=>$('#plantDD').classList.toggle('open'));
     document.addEventListener('click', closeDD);
 
     async function loadPlants(){
       const res = await fetch(`${API_BASE}/api/GetPlantDirectory`);
       const js = await res.json();
-      plants = (js?.data || []).map(p => ({ Plant_ID:Number(p.Plant_ID), Plant_Name:String(p.Plant_Name) }));
-      plantMap = new Map(plants.map(p => [p.Plant_ID, p.Plant_Name]));
-      const host = $('#plantList');
-      host.innerHTML = '';
-      plants.sort((a,b)=> a.Plant_Name.localeCompare(b.Plant_Name));
+      plants = (js?.data||[]).map(p=>({Plant_ID:Number(p.Plant_ID), Plant_Name:String(p.Plant_Name)}));
+      plantMap = new Map(plants.map(p=>[p.Plant_ID,p.Plant_Name])); // from PlantDirectory schema (Plant_ID, Plant_Name) :contentReference[oaicite:2]{index=2}
+      const host=$('#plantList'); host.innerHTML='';
+      plants.sort((a,b)=>a.Plant_Name.localeCompare(b.Plant_Name));
       for(const p of plants){
-        const row = document.createElement('div');
-        row.className='dd-row';
-        const id = 'pl_'+p.Plant_ID;
-        row.innerHTML = `<input type="checkbox" id="${id}" data-id="${p.Plant_ID}"> <label for="${id}">${p.Plant_Name}</label>`;
+        const id='pl_'+p.Plant_ID;
+        const row=document.createElement('div'); row.className='dd-row';
+        row.innerHTML=`<input type="checkbox" id="${id}" data-id="${p.Plant_ID}"> <label for="${id}">${p.Plant_Name}</label>`;
         row.querySelector('input').addEventListener('change', onPlantChange);
         host.appendChild(row);
       }
-      $('#allPlants').addEventListener('change', ()=>{
+      $('#allPlants').addEventListener('change',()=>{
         selected.clear();
-        document.querySelectorAll('#plantList input[type="checkbox"]').forEach(cb=> cb.checked = false);
-        $('#plantBtn').textContent = 'All Plants';
+        document.querySelectorAll('#plantList input[type="checkbox"]').forEach(cb=>cb.checked=false);
+        $('#plantBtn').textContent='All Plants';
       });
     }
-
     function onPlantChange(){
-      $('#allPlants').checked = false;
-      const cbs = document.querySelectorAll('#plantList input[type="checkbox"]');
-      selected = new Set(Array.from(cbs).filter(cb=>cb.checked).map(cb=>Number(cb.dataset.id)));
-      if (selected.size===0){
-        $('#allPlants').checked=true; $('#plantBtn').textContent='All Plants';
-      } else if (selected.size===1){
-        const pid = [...selected][0];
-        $('#plantBtn').textContent = plantMap.get(pid) || '1 plant';
-      } else {
-        $('#plantBtn').textContent = `${selected.size} plants`;
-      }
+      $('#allPlants').checked=false;
+      const cbs=document.querySelectorAll('#plantList input[type="checkbox"]');
+      selected=new Set(Array.from(cbs).filter(cb=>cb.checked).map(cb=>Number(cb.dataset.id)));
+      if(selected.size===0){ $('#allPlants').checked=true; $('#plantBtn').textContent='All Plants'; }
+      else if(selected.size===1){ const pid=[...selected][0]; $('#plantBtn').textContent=plantMap.get(pid)||'1 plant'; }
+      else { $('#plantBtn').textContent=`${selected.size} plants`; }
     }
 
-    /* ---------- presets & dates ---------- */
-    function setDefaults(){
-      const now = new Date();
-      end = now;
-      start = new Date(now);
-      start.setDate(now.getDate()-30);
-      $('#startDate').value = ymd(start);
-      $('#endDate').value = ymd(end);
-    }
+    /* ---------- presets ---------- */
+    function setDefaults(){ const now=new Date(); end=now; start=new Date(now); start.setDate(now.getDate()-30);
+      $('#startDate').value=ymd(start); $('#endDate').value=ymd(end); }
     document.querySelectorAll('.preset .chip').forEach(ch=>{
-      ch.addEventListener('click', ()=>{
-        document.querySelectorAll('.preset .chip').forEach(x=>x.classList.remove('active'));
-        ch.classList.add('active');
-        preset = ch.dataset.preset;
-        const now = new Date();
-        if (preset==='day'){ start = new Date(now); end = new Date(now); }
-        if (preset==='month'){ start = new Date(now.getFullYear(), now.getMonth(), 1); end = new Date(now.getFullYear(), now.getMonth()+1, 0); }
-        if (preset==='year'){ start = new Date(now.getFullYear(),0,1); end = new Date(now.getFullYear(),11,31); }
-        $('#startDate').value = ymd(start); $('#endDate').value = ymd(end);
+      ch.addEventListener('click',()=>{
+        document.querySelectorAll('.preset .chip').forEach(x=>x.classList.remove('active')); ch.classList.add('active'); preset=ch.dataset.preset;
+        const now=new Date();
+        if(preset==='day'){ start=new Date(now); end=new Date(now); }
+        if(preset==='month'){ start=new Date(now.getFullYear(), now.getMonth(),1); end=new Date(now.getFullYear(), now.getMonth()+1,0); }
+        if(preset==='year'){ start=new Date(now.getFullYear(),0,1); end=new Date(now.getFullYear(),11,31); }
+        $('#startDate').value=ymd(start); $('#endDate').value=ymd(end);
       });
     });
-    $('#startDate').addEventListener('change', e=> start = new Date(e.target.value));
-    $('#endDate').addEventListener('change', e=> end = new Date(e.target.value));
+    $('#startDate').addEventListener('change',e=> start=new Date(e.target.value));
+    $('#endDate').addEventListener('change',e=> end=new Date(e.target.value));
 
     /* ---------- data ---------- */
-    async function fetchJSON(url){
-      const r = await fetch(url); const t = await r.text(); return t ? JSON.parse(t) : null;
-    }
+    async function fetchJSON(url){ const r=await fetch(url); const t=await r.text(); return t?JSON.parse(t):null; }
     async function loadMeters(){
-      const s = ymd(start), e = ymd(end);
+      const s=ymd(start), e=ymd(end);
       const js = await fetchJSON(`${API_BASE}/api/GetPremier300MeterAll?start=${s}&end=${e}&top=100000`);
-      const rows = js?.data || [];
-      // Fill Plant_Name if missing using PlantDirectory
-      for(const r of rows){
-        if(!r.Plant_Name || r.Plant_Name.trim()===""){
-          const nm = plantMap.get(Number(r.Plant_ID));
-          if (nm) r.Plant_Name = nm;
-        }
-      }
+      const rows = js?.data||[];
+      // fill Plant_Name when missing using PlantDirectory
+      for(const r of rows){ if(!r.Plant_Name||r.Plant_Name.trim()===""){ const nm = plantMap.get(Number(r.Plant_ID)); if(nm) r.Plant_Name = nm; } }
       return rows;
     }
-    function filterByPlants(rows){
-      if ($('#allPlants').checked || selected.size===0) return rows;
-      return rows.filter(r => selected.has(Number(r.Plant_ID)));
-    }
-    function uniqueSortedDays(rows){
-      return [...new Set(rows.map(getDateOnly).filter(Boolean))].sort();
-    }
+    function filterByPlants(rows){ if($('#allPlants').checked || selected.size===0) return rows; return rows.filter(r=>selected.has(Number(r.Plant_ID))); }
+    function uniqueSortedDays(rows){ return [...new Set(rows.map(r=> r.Date || (r.Date_Time?.slice(0,10)||"")))].filter(Boolean).sort(); }
 
     /* ---------- render ---------- */
-    // KPI: sum of latest Total_Yield per plant (unit-safe)
     function renderKPI(rows){
-      const latestPerPlant = latestBy(rows, r => r.Plant_ID);
-      const totals = Array.from(latestPerPlant.values()).map(getTotalMWh);
-      const totalMWh = sum(totals);
-      const {unit, scale} = bestUnit(totalMWh);
-      $('#kpiTotal').textContent = fmt(totalMWh * scale, 3);
-      $('#kpiUnit').textContent  = `(${unit})`;
-      $('#barBadge').textContent = unit;
-      $('#pieBadge').textContent = unit;
-      $('#kpiHint').textContent = `Range: ${ymd(start)} → ${ymd(end)} • Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
+      const latestPerPlant = latestBy(rows, r=>r.Plant_ID);
+      const totalMWh = [...latestPerPlant.values()].reduce((t,r)=> t + getTotalMWh(r), 0);
+      const u = bestUnit(totalMWh);
+      kpiUnit = u.unit;
+      $('#kpiTotal').textContent = fmt(totalMWh*u.scale,3);
+      $('#kpiUnit').textContent  = `(${u.unit})`;
+      $('#pieBadge').textContent = u.unit;   // keep Pie in sync with KPI
+      $('#kpiHint').textContent  = `Range: ${ymd(start)} → ${ymd(end)} • Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
     }
 
-    // Table: latest row per Meter_ID + Plant_Name filled from directory
     function renderTable(rows){
-      const byMeter = latestBy(rows, r => r.Meter_ID);
-      const latest = Array.from(byMeter.values()).sort((a,b)=> b._ts - a._ts);
-      const tb = $('#latestBody'); tb.innerHTML='';
+      const latest = Array.from(latestBy(rows, r=>r.Meter_ID).values()).sort((a,b)=> b._ts-a._ts);
+      const tb=$('#latestBody'); tb.innerHTML='';
       for(const r of latest){
-        const nm = r.Plant_Name || plantMap.get(Number(r.Plant_ID)) || '';
-        const tr = document.createElement('tr');
-        tr.innerHTML = `
-          <td>${nm}</td>
-          <td>${r.Meter_Make || ''}</td>
-          <td>${r.Meter_Model || ''}</td>
-          <td>${r.Meter_Type || ''}</td>
-          <td class="muted">${r.Meter_Serial_No || ''}</td>
+        const nm=r.Plant_Name || plantMap.get(Number(r.Plant_ID)) || '';
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td>${nm}</td><td>${r.Meter_Make||''}</td><td>${r.Meter_Model||''}</td><td>${r.Meter_Type||''}</td>
+          <td class="muted">${r.Meter_Serial_No||''}</td>
           <td style="text-align:right">${fmt(r.Meter_Reading,3)}</td>
           <td>${r.Total_Yield_Unit || r.Yield_Unit || 'MWh'}</td>
           <td class="muted">${String(r.Date_Time||'').replace('T',' ')}</td>`;
@@ -299,25 +273,28 @@
       }
     }
 
-    // Pie: share by plant using latest Total_Yield per plant
     function renderPie(rows){
-      const latestPerPlant = latestBy(rows, r => r.Plant_ID);
-      const labels = [], values = [];
+      const latestPerPlant = latestBy(rows, r=>r.Plant_ID);
+      const labels=[], values=[];
       latestPerPlant.forEach(r=>{
         labels.push(r.Plant_Name || plantMap.get(Number(r.Plant_ID)) || `Plant ${r.Plant_ID}`);
-        values.push(getTotalMWh(r));
+        values.push(getTotalMWh(r)); // always MWh first
       });
-      if (pie) pie.destroy();
+      // convert slice values to KPI unit
+      const scale = (kpiUnit==='GWh') ? (1/1000) : 1;
+      const valScaled = values.map(v=> v*scale);
+
+      if(pie) pie.destroy();
       pie = new Chart($('#pieChart'), {
         type:'pie',
-        data:{ labels, datasets:[{ data: values }] },
+        data:{ labels, datasets:[{ data: valScaled }] },
         options:{
           plugins:{
-            legend:{ position:'bottom' },
-            tooltip:{ callbacks:{ label: ctx => {
-              const total = values.reduce((a,c)=>a+c,0)||1;
-              const pct = (ctx.parsed/total*100).toFixed(1);
-              return `${ctx.label}: ${fmt(ctx.parsed,2)} ${$('#pieBadge').textContent} (${pct}%)`;
+            legend:{ display:false },
+            tooltip:{ callbacks:{ label: ctx=>{
+              const tot = valScaled.reduce((a,c)=>a+c,0)||1;
+              const pct = (ctx.parsed/tot*100).toFixed(1);
+              return `${ctx.label}: ${fmt(ctx.parsed,2)} ${kpiUnit} (${pct}%)`;
             }}},
             datalabels:{ display:false }
           },
@@ -326,54 +303,51 @@
       });
     }
 
-    // Bar/Line: for last 9 days
-    // Bars = end-of-day cumulative totals across plants => latest reading per plant for that day, then sum
-    // Line = daily kWh; if multiple rows per plant per day, take the max (to avoid double-counting)
     function renderBarLine(rows){
-      const allDays = uniqueSortedDays(rows);
-      const days = allDays.slice(-9);
-      const barTotalsMWh = [];
-      const lineKwh = [];
-
+      const days = uniqueSortedDays(rows).slice(-9);
+      const barTotalsMWh=[], lineKwh=[];
       for(const d of days){
-        // bars: latest total per plant on this day
         const latestMap = latestPerPlantForDay(rows, d);
-        const dayTotal = sum(Array.from(latestMap.values()), getTotalMWh);
-        barTotalsMWh.push(dayTotal);
+        barTotalsMWh.push([...latestMap.values()].reduce((t,r)=> t + getTotalMWh(r), 0));
 
-        // line: daily kWh per plant (dedup by plant, take max)
-        const dayRows = rows.filter(r => getDateOnly(r) === d);
+        // Sum daily kWh per plant (take max-per-plant to avoid duplicate rows)
+        const dayRows = rows.filter(r => (r.Date || r.Date_Time?.slice(0,10))===d);
         const byPlant = new Map();
         for(const r of dayRows){
-          const pid = r.Plant_ID;
-          const val = Number(r.Daily_Yield_KWH || r.Incremental_Daily_Yield_KWH || 0);
+          const pid=r.Plant_ID;
+          const val = Number(r.Incremental_Daily_Yield_KWH || 0); // from Premier300Meter schema :contentReference[oaicite:3]{index=3}
           byPlant.set(pid, Math.max(byPlant.get(pid)||0, val));
         }
-        lineKwh.push(sum(Array.from(byPlant.values())));
+        lineKwh.push([...byPlant.values()].reduce((a,b)=>a+b,0));
       }
 
-      const {unit, scale} = bestUnit(sum(barTotalsMWh));
+      const maxBar = Math.max(...barTotalsMWh, 0);
+      const {unit, scale} = bestUnit(maxBar); // choose bar unit by selection
       $('#barBadge').textContent = unit;
       const barVals = barTotalsMWh.map(v=> v*scale);
 
-      if (barline) barline.destroy();
+      if(barline) barline.destroy();
       barline = new Chart($('#barLine'), {
         type:'bar',
         data:{
-          labels: days.map(d => new Date(d).toLocaleDateString()),
+          labels: days.map(d=> new Date(d).toLocaleDateString()),
           datasets:[
-            { type:'bar',  label:`Total (${unit})`, data:barVals, order:2 },
-            { type:'line', label:'Daily (kWh)', data:lineKwh, yAxisID:'y2', tension:.25, order:1 }
+            { type:'bar',  label:`Total (${unit})`, data:barVals, order:2, borderWidth:1 },
+            { type:'line', label:'Daily (kWh)', data:lineKwh, yAxisID:'y2', tension:.25, order:1,
+              borderWidth:2.5, pointRadius:3, pointHoverRadius:4, fill:false }
           ]
         },
         options:{
           maintainAspectRatio:false,
-          scales:{ y:{ beginAtZero:true }, y2:{ position:'right', beginAtZero:true, grid:{ drawOnChartArea:false } } },
+          scales:{
+            y:{ beginAtZero:true },
+            y2:{ position:'right', beginAtZero:true, grid:{ drawOnChartArea:false } } // kWh axis
+          },
           plugins:{
             legend:{ position:'bottom' },
             tooltip:{ enabled:true },
             datalabels:{ color:'#111', anchor:'end', align:'end',
-              formatter:(v,ctx)=> ctx.dataset.type==='bar' ? fmt(v,1) : fmt(v,0) }
+              formatter:(v,ctx)=> ctx.dataset.type==='bar' ? fmt(v,1) : (v>0?fmt(v,0):'') }
           }
         },
         plugins:[ChartDataLabels]
@@ -383,19 +357,16 @@
     /* ---------- main ---------- */
     async function run(){
       try{
-        $('#applyBtn').disabled = true;
+        $('#applyBtn').disabled=true;
         const all = await loadMeters();
         const sel = filterByPlants(all);
         renderKPI(sel);
-        renderTable(sel);
         renderPie(sel);
         renderBarLine(sel);
+        renderTable(sel);
       }catch(e){
-        console.error(e);
-        alert('Failed to load data: '+ (e.message||e));
-      }finally{
-        $('#applyBtn').disabled = false;
-      }
+        console.error(e); alert('Failed to load data: '+(e.message||e));
+      }finally{ $('#applyBtn').disabled=false; }
     }
 
     document.addEventListener('DOMContentLoaded', async ()=>{
