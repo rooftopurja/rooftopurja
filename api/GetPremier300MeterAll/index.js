@@ -117,17 +117,19 @@ module.exports = async function (context, req) {
     }
     return {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" , "Cache-Control":"no-store, no-cache, must-revalidate, max-age=0", "Pragma":"no-cache", "Expires":"0"},
       body: { success:true, version:"GetPremier300MeterAll v4", count:data.length, data }
     };
   }catch(err){
     context.log.error("GetPremier300MeterAll error:", err);
     return {
       status: 200,
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json" , "Cache-Control":"no-store, no-cache, must-revalidate, max-age=0", "Pragma":"no-cache", "Expires":"0"},
       body: { success:false, version:"GetPremier300MeterAll v4", error: err.message, data:[], count:0 }
     };
   }
 };
+
+
 
 
