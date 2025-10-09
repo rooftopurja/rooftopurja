@@ -1,69 +1,130 @@
-﻿const fs = require("fs");
+﻿// GetPremier300MeterAll v4 — normalized totals with unit-safe math
+const fs = require("fs");
 const path = require("path");
 
-function safeParse(jsonText) {
-  if (!jsonText || !jsonText.trim()) return [];
-  const clean = jsonText.replace(/^\uFEFF/, "").trim(); // strip BOM
-  try { return JSON.parse(clean); } catch { return []; }
+function toISODateOnly(d){ return d.toISOString().slice(0,10); }
+
+function parseQS(req){
+  const start = req.query?.start ? new Date(req.query.start) : new Date("1900-01-01");
+  const end   = req.query?.end   ? new Date(req.query.end)   : new Date("2099-12-31");
+  const top   = Math.max(0, Math.min(parseInt(req.query?.top ?? "1000",10) || 1000, 100000));
+  return { start, end, top };
 }
 
-// yyyy-mm-dd to Date (midnight)
-function toDate(d) {
-  if (!d) return null;
-  const m = /^(\d{4})-(\d{2})-(\d{2})/.exec(d);
-  if (!m) return null;
-  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
+// --- Unit helpers ---
+function pickUnit(u){
+  if (!u) return "MWh";
+  const m = String(u).toLowerCase().match(/(kwh|mwh|gwh)/);
+  return m ? m[1].toUpperCase() : "MWh";
+}
+function toMWh(value, unit){
+  const v = Number(value || 0);
+  const u = pickUnit(unit);
+  if (u === "KWH") return v / 1000;
+  if (u === "MWH") return v;
+  if (u === "GWH") return v * 1000;
+  return v; // default treat as MWh
+}
+
+// Azure Table row → normalized row we return to the UI
+function normalizeRow(e){
+  const row = {
+    Plant_ID: Number(e.Plant_ID ?? e.PlantId ?? 0),
+    Plant_Name: String(e.Plant_Name ?? e.PlantName ?? "").trim(),
+    Meter_ID: String(e.Meter_ID ?? e.MeterId ?? e.PartitionKey ?? ""),
+    Meter_Serial_No: String(e.Meter_Serial_No ?? e.MeterSerialNo ?? ""),
+    Meter_Make: String(e.Meter_Make ?? e.MeterMake ?? ""),
+    Meter_Model: String(e.Meter_Model ?? e.MeterModel ?? ""),
+    Meter_Type: String(e.Meter_Type ?? e.MeterType ?? ""),
+    // raw readings as stored in SQL schema (columns exist in your table)  :contentReference[oaicite:0]{index=0}
+    Meter_Reading: Number(e.Meter_Reading ?? e.Total_Yield ?? 0),
+    Total_Yield: Number(e.Total_Yield ?? e.Meter_Reading ?? 0),
+    Yield_Unit: String(e.Yield_Unit ?? e.Total_Yield_Unit ?? "MWh"),
+    Total_Yield_Unit: String(e.Total_Yield_Unit ?? e.Yield_Unit ?? "MWh"),
+    Incremental_Daily_Yield_KWH: Number(e.Incremental_Daily_Yield_KWH ?? e.Daily_Yield_KWH ?? 0),
+    Date_Time: String(e.Date_Time ?? e.Timestamp ?? e.DateTime ?? ""),
+    Date: e.Date ? String(e.Date) : undefined
+  };
+  // derived, unit-safe fields for the frontend
+  row.Total_Yield_MWh = toMWh(row.Total_Yield, row.Total_Yield_Unit);
+  row.Daily_Yield_KWH = Number(row.Incremental_Daily_Yield_KWH || 0);
+  return row;
+}
+
+function inRange(row, start, end){
+  // Prefer explicit Date (YYYY-MM-DD) if present; else use Date_Time
+  if (row.Date){
+    const s = toISODateOnly(start), e = toISODateOnly(end);
+    return row.Date >= s && row.Date <= e;
+  }
+  const dt = row.Date_Time ? new Date(row.Date_Time) : null;
+  if (!dt || isNaN(+dt)) return false;
+  // inclusive of the End day
+  return dt >= start && dt <= new Date(end.getTime() + 24*60*60*1000 - 1);
+}
+
+async function tryAzureTables(context, start, end, top){
+  const conn = process.env.AzureWebJobsStorage || process.env.STORAGE_CONNECTION_STRING;
+  if (!conn) throw new Error("No storage connection string");
+  const { TableClient } = require("@azure/data-tables");
+  const table = TableClient.fromConnectionString(conn, "Premier300Meter");
+
+  const rows = [];
+  const iter = table.listEntities({
+    queryOptions:{
+      select:[
+        "PartitionKey","RowKey","Timestamp",
+        "Plant_ID","Plant_Name",
+        "Meter_ID","Meter_Serial_No","Meter_Make","Meter_Model","Meter_Type",
+        "Meter_Reading","Total_Yield","Yield_Unit","Total_Yield_Unit",
+        "Incremental_Daily_Yield_KWH","Daily_Yield_KWH",
+        "Date","Date_Time"
+      ]
+    }
+  });
+
+  for await (const e of iter){
+    const r = normalizeRow(e);
+    if (inRange(r, start, end)) rows.push(r);
+    if (rows.length >= top) break;
+  }
+  rows.sort((a,b)=> new Date(b.Date_Time) - new Date(a.Date_Time));
+  return rows.slice(0, top);
+}
+
+function tryLocalFile(context, start, end, top){
+  const p = path.join(__dirname,"..","_data","premier300-meter.json");
+  if (!fs.existsSync(p)) return [];
+  const js = JSON.parse(fs.readFileSync(p,"utf8"));
+  const rows = (Array.isArray(js)? js : (js.data||[]))
+    .map(normalizeRow)
+    .filter(r=>inRange(r,start,end))
+    .sort((a,b)=> new Date(b.Date_Time) - new Date(a.Date_Time))
+    .slice(0, top);
+  return rows;
 }
 
 module.exports = async function (context, req) {
-  try {
-    const dataPath = path.join(__dirname, "..", "_data", "premier300-meter.json");
-    const raw = fs.readFileSync(dataPath, "utf8");
-    const rows = safeParse(raw);
-
-    // Normalise: ensure the fields our UI expects exist
-    const norm = rows.map(r => ({
-      Meter_ID:                r.Meter_ID ?? r.MeterId ?? r.meter_id ?? "",
-      Meter_Serial_No:         r.Meter_Serial_No ?? r.Serial_No ?? r.serial ?? "",
-      Meter_Make:              r.Meter_Make ?? r.Make ?? r.make ?? "",
-      Meter_Model:             r.Meter_Model ?? r.Model ?? r.model ?? "",
-      Meter_Type:              r.Meter_Type ?? r.Type ?? r.type ?? "",
-      Total_Yield:             Number(r.Total_Yield ?? r.total_mwh ?? r.Total_MWh ?? 0),
-      Yield_Unit:              r.Yield_Unit ?? r.Unit ?? "MWh",
-      Incremental_Daily_Yield_KWH: Number(r.Incremental_Daily_Yield_KWH ?? r.daily_kwh ?? r.Daily_kWh ?? 0),
-      Date_Time:               r.Date_Time ?? r.timestamp ?? r.Time ?? r.datetime ?? "",
-      Plant_ID:                Number(r.Plant_ID ?? r.plant_id ?? r.PlantId ?? 0)
-    }));
-
-    // Filter by date range
-    const start = toDate(req.query?.start);
-    const end   = toDate(req.query?.end);
-    let filtered = norm;
-    if (start || end) {
-      filtered = filtered.filter(x => {
-        const t = new Date(x.Date_Time);
-        return (!start || t >= start) && (!end || t <= new Date(end.getFullYear(), end.getMonth(), end.getDate(), 23, 59, 59, 999));
-      });
+  const { start, end, top } = parseQS(req);
+  try{
+    let data = [];
+    try {
+      data = await tryAzureTables(context, start, end, top);
+    } catch (inner) {
+      context.log.warn("Falling back to local file:", inner.message);
+      data = tryLocalFile(context, start, end, top);
     }
-
-    // Sort newest first
-    filtered.sort((a, b) => new Date(b.Date_Time) - new Date(a.Date_Time));
-
-    // top=
-    const top = Math.max(0, Number(req.query?.top ?? 0));
-    const data = top ? filtered.slice(0, top) : filtered;
-
     return {
       status: 200,
       headers: { "Content-Type": "application/json" },
-      body: { success: true, data, count: data.length, version: "GetPremier300MeterAll v2" }
+      body: { success:true, version:"GetPremier300MeterAll v4", count:data.length, data }
     };
-  } catch (err) {
-    context.log.error("GetPremier300MeterAll error:", err?.message);
+  }catch(err){
+    context.log.error("GetPremier300MeterAll error:", err);
     return {
       status: 200,
       headers: { "Content-Type": "application/json" },
-      body: { success: true, data: [], count: 0, version: "GetPremier300MeterAll v2", note: "empty-on-error" }
+      body: { success:false, version:"GetPremier300MeterAll v4", error: err.message, data:[], count:0 }
     };
   }
 };
