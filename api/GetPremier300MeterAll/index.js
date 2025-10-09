@@ -1,6 +1,7 @@
 ﻿// GetPremier300MeterAll v4 — normalized totals with unit-safe math
 const fs = require("fs");
-const path = require("path");
+const path = require('path');
+const rls = require('../shared/rls');
 
 function toISODateOnly(d){ return d.toISOString().slice(0,10); }
 
@@ -128,3 +129,4 @@ module.exports = async function (context, req) {
     };
   }
 };
+

@@ -1,6 +1,22 @@
-{
-  "navigationFallback": {
-    "rewrite": "/index.html",
-    "exclude": [ "/api/*", "/assets/*" ]
-  }
+﻿{
+  "routes": [
+    {
+      "route": "/*.html",
+      "headers": {
+        "cache-control": "no-cache, no-store, must-revalidate",
+        "pragma": "no-cache",
+        "expires": "-1"
+      }
+    },
+    { "route": "/meter.html",                   "allowedRoles": ["authenticated"] },
+    { "route": "/inverter_analytics.html",     "allowedRoles": ["authenticated"] },
+    { "route": "/inverter_data_overview.html", "allowedRoles": ["authenticated"] },
+    { "route": "/inverter_faults.html",        "allowedRoles": ["authenticated"] },
+    { "route": "/maintenance.html",            "allowedRoles": ["authenticated"] }
+
+    /* If you want to lock APIs too, add:
+    ,{ "route": "/api/*", "allowedRoles": ["authenticated"] }
+    */
+  ],
+  "navigationFallback": { "rewrite": "/index.html", "exclude": ["/api/*"] }
 }
