@@ -227,7 +227,7 @@
     document.addEventListener('click', closeDD);
 
     async function loadPlants(){
-      const res = await fetch(`${API_BASE}/api/GetPlantDirectory`);
+      const res = await fetch(`${API_BASE}/api/GetPlantDirectory?${bust()}`);
       const js = await res.json();
       plants = (js?.data||[]).map(p=>({Plant_ID:Number(p.Plant_ID), Plant_Name:String(p.Plant_Name)}));
       plantMap = new Map(plants.map(p=>[p.Plant_ID,p.Plant_Name])); // from PlantDirectory schema (Plant_ID, Plant_Name) :contentReference[oaicite:2]{index=2}
@@ -275,7 +275,7 @@
     async function fetchJSON(url){ const r=await fetch(url); const t=await r.text(); return t?JSON.parse(t):null; }
     async function loadMeters(){
       const s=ymd(start), e=ymd(end);
-      const js = await fetchJSON(`${API_BASE}/api/GetPremier300MeterAll?start=${s}&end=${e}&top=100000`);
+      const js = await fetchJSON(`${API_BASE}/api/GetPremier300MeterAll?start=${s}&end=${e}&top=100000&${bust()}`);
       const rows = js?.data||[];
       // fill Plant_Name when missing using PlantDirectory
       for(const r of rows){ if(!r.Plant_Name||r.Plant_Name.trim()===""){ const nm = plantMap.get(Number(r.Plant_ID)); if(nm) r.Plant_Name = nm; } }
@@ -432,6 +432,7 @@
 <!-- ===== End Footer ===== -->
 </body>
 </html>
+
 
 
 
