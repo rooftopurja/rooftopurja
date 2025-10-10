@@ -1,0 +1,8 @@
+﻿/* Global top navigation */
+.navbar{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid #e5e7eb}
+.navwrap{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;gap:10px;align-items:center}
+.brand{font-weight:700}
+.navspacer{flex:1}
+.navlink{padding:8px 10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;text-decoration:none;color:#111}
+.navlink:hover{background:#f3f4f6}
+.navlink.active{background:#111;color:#fff;border-color:#111}
