@@ -1,15 +1,13 @@
-{
-    "name": "api",
-    "version": "1.0.0",
-    "description": "API functions for Solar Monitoring",
-    "scripts": {},
-    "dependencies": {
-        "@azure/data-tables": "^13.3.1",
-        "@azure/identity": "^4.2.0",
-        "mssql": "^9.1.1",
-        "tedious": "^16.6.0"
-    },
-    "engines": {
-        "node": "18.x"
-    }
+﻿{
+  "name": "swa-api",
+  "version": "1.1.0",
+  "private": true,
+  "engines": { "node": ">=20.0.0 <21" },
+  "scripts": {
+    "build": "echo \"no build step for js\""
+  },
+  "dependencies": {
+    "@azure/data-tables": "^13.2.2",
+    "@azure/identity": "^4.2.0"
+  }
 }
