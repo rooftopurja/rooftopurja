@@ -1,64 +1,10 @@
 {
-    "routes":  [
-                   {
-                       "route":  "/meter.html",
-                       "redirect":  "/meter.v2.html",
-                       "statusCode":  302
-                   },
-                   {
-                       "route":  "/api/*",
-                       "headers":  {
-                                       "Pragma":  "no-cache",
-                                       "Cache-Control":  "no-store, no-cache, must-revalidate, max-age=0",
-                                       "Expires":  "0"
-                                   }
-                   },
-                   {
-                       "route":  "/index.html",
-                       "headers":  {
-                                       "Cache-Control":  "no-store, no-cache, must-revalidate, max-age=0"
-                                   }
-                   },
-                   {
-                       "route":  "/meter.v2.html",
-                       "headers":  {
-                                       "Cache-Control":  "no-store, no-cache, must-revalidate, max-age=0"
-                                   }
-                   },
-                   {
-                       "route":  "/inverter_analytics.html",
-                       "headers":  {
-                                       "Cache-Control":  "no-store, no-cache, must-revalidate, max-age=0"
-                                   }
-                   },
-                   {
-                       "route":  "/inverter_data_overview.html",
-                       "headers":  {
-                                       "Cache-Control":  "no-store, no-cache, must-revalidate, max-age=0"
-                                   }
-                   },
-                   {
-                       "route":  "/inverter_faults.html",
-                       "headers":  {
-                                       "Cache-Control":  "no-store, no-cache, must-revalidate, max-age=0"
-                                   }
-                   },
-                   {
-                       "route":  "/maintenance.html",
-                       "headers":  {
-                                       "Cache-Control":  "no-store, no-cache, must-revalidate, max-age=0"
-                                   }
-                   }
-               ],
-    "navigationFallback":  {
-                               "rewrite":  "/index.html",
-                               "exclude":  [
-                                               "/api/*",
-                                               "/*.css",
-                                               "/*.js",
-                                               "/*.png",
-                                               "/*.jpg",
-                                               "/*.svg"
-                                           ]
-                           }
+  "navigationFallback": {
+    "rewrite": "/index.html",
+    "exclude": [ "/api/*", "/*.css", "/*.js", "/*.png", "/*.ico", "/meter*.html" ]
+  },
+  "mimeTypes": {
+    ".html": "text/html; charset=utf-8",
+    ".json": "application/json"
+  }
 }
