@@ -101,7 +101,11 @@
           (r.Plant_ID != null && map["PID:"+r.Plant_ID]) ||
           "Unknown";
 
-        if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || !(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) (r.DisplayPlant||r.Plant_Name) = r.DisplayPlant;
+        if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || !(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) {
+  const __nm = r.DisplayPlant || r.Plant_Name || "Unknown";
+  if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = __nm;
+  if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = __nm;
+}
       }
       return rows;
     }
@@ -146,7 +150,11 @@ function enrichRowsWithPlantNames(rows, dirRows){
       "";
 
     // Back-fill Plant_Name if missing
-    if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || !(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) (r.DisplayPlant||r.Plant_Name) = learned || "Unknown";
+    if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || !(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) {
+  const __nm = learned || "Unknown";
+  if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = __nm;
+  if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = __nm;
+}
 
     // Set DisplayPlant used by UI
     r.DisplayPlant = (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || learned || "Unknown";
@@ -341,7 +349,15 @@ function enrichRowsWithPlantNames(rows, dirRows){
       const js = await fetchJSON(`${API_BASE}/api/GetPremier300MeterAll?start=${s}&end=${e}&top=100000&${window.bust}`);
       const rows = js?.data||[];
       // fill Plant_Name when missing using PlantDirectory
-      for(const r of rows){ if(!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name))||(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()===""){ const nm = plantMap.get(Number(r.Plant_ID)); if(nm) (r.DisplayPlant||r.Plant_Name) = nm; } }
+      for (const r of rows) {
+  if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()==="") {
+    const nm = plantMap.get(Number(r.Plant_ID));
+    if (nm) {
+      if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = nm;
+      if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = nm;
+    }
+  }
+}
       return rows;
     }
     function filterByPlants(rows){ if($('#allPlants').checked || selected.size===0) return rows; return rows.filter(r=>selected.has(Number(r.Plant_ID))); }
@@ -512,6 +528,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
