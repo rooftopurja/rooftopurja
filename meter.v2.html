@@ -106,6 +106,54 @@
       return rows;
     }
   </script>
+<script>
+// --- Plant name enrichment ----------------------------------------------
+// Build a name map from directory + any rows that already have names
+function buildPlantNameMap(dirRows, meterRows){
+  const map = Object.create(null);
+  const add = (k,v)=>{ if(k && v){ map[k]=v; } };
+
+  // From Plant Directory (prefer canonical names)
+  for (const d of (dirRows||[])) {
+    const name = (d.Plant_Name||"").trim();
+    if (!name) continue;
+    if (d.Plant_ID!=null && d.Plant_ID!=="") add("PID:"+d.Plant_ID, name);
+    if (d.Meter_Serial_No)                  add("SN:"+d.Meter_Serial_No, name);
+    if (d.Meter_ID)                         add("ID:"+d.Meter_ID, name);
+  }
+
+  // Also learn from any meter rows that already have names
+  for (const r of (meterRows||[])) {
+    const name = (r.Plant_Name||"").trim();
+    if (!name) continue;
+    if (r.Plant_ID!=null && r.Plant_ID!=="") add("PID:"+r.Plant_ID, name);
+    if (r.Meter_Serial_No)                  add("SN:"+r.Meter_Serial_No, name);
+    if (r.Meter_ID)                         add("ID:"+r.Meter_ID, name);
+  }
+  return map;
+}
+
+// Enrich rows: back-fill Plant_Name and set DisplayPlant
+function enrichRowsWithPlantNames(rows, dirRows){
+  const map = buildPlantNameMap(dirRows, rows);
+  for (const r of (rows||[])) {
+    // Figure out best name
+    const learned =
+      (r.Plant_Name && r.Plant_Name.trim()) ||
+      (r.Plant_ID!=null && map["PID:"+r.Plant_ID]) ||
+      (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
+      (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
+      "";
+
+    // Back-fill Plant_Name if missing
+    if (!r.Plant_Name || !r.Plant_Name.trim()) r.Plant_Name = learned || "Unknown";
+
+    // Set DisplayPlant used by UI
+    r.DisplayPlant = r.Plant_Name || learned || "Unknown";
+  }
+  return rows;
+}
+</script>
 </head>
 <body>
 <!-- ===== Top Nav (auto-injected) ===== -->
@@ -484,6 +532,7 @@
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
