@@ -45,10 +45,7 @@ function inRange(row, start, end){
 }
 
 async function readFromAzureTable(context){
-const conn =
-  process.env.TABLES_CONNECTION_STRING ||
-  process.env.STORAGE_CONNECTION_STRING ||
-  process.env.AzureWebJobsStorage;
+  const conn = process.env.AzureWebJobsStorage || process.env.STORAGE_CONNECTION_STRING;
   if (!conn) throw new Error("No storage connection string in environment");
   const { TableClient } = require("@azure/data-tables");
   const table = TableClient.fromConnectionString(conn, "Premier300Meter");
@@ -91,29 +88,7 @@ function addNoCacheHeaders(h){
   };
 }
 
-function hydrateRows(rows){
-  if (!Array.isArray(rows)) return [];
-  const map = Object.create(null);
-  for (const r of rows){
-    const name = (r.Plant_Name || "").trim();
-    if (!name) continue;
-    if (r.Meter_Serial_No) map["SN:"+r.Meter_Serial_No] = name;
-    if (r.Meter_ID)        map["ID:"+r.Meter_ID]        = name;
-    if (r.Plant_ID!=null && r.Plant_ID!=="") map["PID:"+r.Plant_ID] = name;
-  }
-  for (const r of rows){
-    const best =
-      (r.Plant_Name && r.Plant_Name.trim()) ||
-      (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
-      (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
-      ((r.Plant_ID!=null && r.Plant_ID!=="") && map["PID:"+r.Plant_ID]) ||
-      "Unknown";
-    r.DisplayPlant = best;
-    if (!r.Plant_Name || !r.Plant_Name.trim()) r.Plant_Name = best;
-  }
-  return rows;
-}
-
+module.exports = async function (context, req) {
   const { start, end, top, debug } = parseQS(req);
   try{
     let source = "azure";
@@ -139,7 +114,7 @@ function hydrateRows(rows){
     }
 
     filtered.sort((a,b)=> new Date(b.Date_Time||0) - new Date(a.Date_Time||0));
-    const data = hydrateRows(filtered.slice(0, top));
+    const data = filtered.slice(0, top);
 
     const body = {
       success: true,
@@ -167,8 +142,3 @@ function hydrateRows(rows){
     };
   }
 };
-
-
-
-
-
