@@ -15,9 +15,10 @@ function j(x){ try { return JSON.stringify(x) } catch { return String(x) } }
  */
 module.exports = async function () {
   try {
-    const conn =
-      process.env.AzureWebJobsStorage ||
-      process.env.STORAGE_CONNECTION_STRING;
+const conn =
+  process.env.TABLES_CONNECTION_STRING ||
+  process.env.STORAGE_CONNECTION_STRING ||
+  process.env.AzureWebJobsStorage;
 
     if (!conn) {
       return {
@@ -63,6 +64,7 @@ module.exports = async function () {
     };
   }
 };
+
 
 
 

@@ -45,7 +45,10 @@ function inRange(row, start, end){
 }
 
 async function readFromAzureTable(context){
-  const conn = process.env.AzureWebJobsStorage || process.env.STORAGE_CONNECTION_STRING;
+const conn =
+  process.env.TABLES_CONNECTION_STRING ||
+  process.env.STORAGE_CONNECTION_STRING ||
+  process.env.AzureWebJobsStorage;
   if (!conn) throw new Error("No storage connection string in environment");
   const { TableClient } = require("@azure/data-tables");
   const table = TableClient.fromConnectionString(conn, "Premier300Meter");
@@ -142,6 +145,7 @@ module.exports = async function (context, req) {
     };
   }
 };
+
 
 
 
