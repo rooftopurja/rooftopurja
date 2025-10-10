@@ -85,7 +85,7 @@
 
       // Learn plant names from any row that already has one
       for (const r of rows){
-        const name = (r.Plant_Name || "").trim();
+        const name = ((r.DisplayPlant||r.Plant_Name) || "").trim();
         if (!name) continue;
         if (r.Meter_Serial_No) map["SN:"+r.Meter_Serial_No] = name;
         if (r.Meter_ID)        map["ID:"+r.Meter_ID]        = name;
@@ -95,13 +95,13 @@
       // Stamp DisplayPlant on every row (and back-fill Plant_Name if empty)
       for (const r of rows){
         r.DisplayPlant =
-          (r.Plant_Name && r.Plant_Name.trim()) ||
+          ((r.DisplayPlant||r.Plant_Name) && (r.DisplayPlant||r.Plant_Name).trim()) ||
           (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
           (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
           (r.Plant_ID != null && map["PID:"+r.Plant_ID]) ||
           "Unknown";
 
-        if (!r.Plant_Name || !r.Plant_Name.trim()) r.Plant_Name = r.DisplayPlant;
+        if (!(r.DisplayPlant||r.Plant_Name) || !(r.DisplayPlant||r.Plant_Name).trim()) (r.DisplayPlant||r.Plant_Name) = r.DisplayPlant;
       }
       return rows;
     }
@@ -115,7 +115,7 @@ function buildPlantNameMap(dirRows, meterRows){
 
   // From Plant Directory (prefer canonical names)
   for (const d of (dirRows||[])) {
-    const name = (d.Plant_Name||"").trim();
+    const name = ((d.DisplayPlant||d.Plant_Name)||"").trim();
     if (!name) continue;
     if (d.Plant_ID!=null && d.Plant_ID!=="") add("PID:"+d.Plant_ID, name);
     if (d.Meter_Serial_No)                  add("SN:"+d.Meter_Serial_No, name);
@@ -124,7 +124,7 @@ function buildPlantNameMap(dirRows, meterRows){
 
   // Also learn from any meter rows that already have names
   for (const r of (meterRows||[])) {
-    const name = (r.Plant_Name||"").trim();
+    const name = ((r.DisplayPlant||r.Plant_Name)||"").trim();
     if (!name) continue;
     if (r.Plant_ID!=null && r.Plant_ID!=="") add("PID:"+r.Plant_ID, name);
     if (r.Meter_Serial_No)                  add("SN:"+r.Meter_Serial_No, name);
@@ -139,17 +139,17 @@ function enrichRowsWithPlantNames(rows, dirRows){
   for (const r of (rows||[])) {
     // Figure out best name
     const learned =
-      (r.Plant_Name && r.Plant_Name.trim()) ||
+      ((r.DisplayPlant||r.Plant_Name) && (r.DisplayPlant||r.Plant_Name).trim()) ||
       (r.Plant_ID!=null && map["PID:"+r.Plant_ID]) ||
       (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
       (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
       "";
 
     // Back-fill Plant_Name if missing
-    if (!r.Plant_Name || !r.Plant_Name.trim()) r.Plant_Name = learned || "Unknown";
+    if (!(r.DisplayPlant||r.Plant_Name) || !(r.DisplayPlant||r.Plant_Name).trim()) (r.DisplayPlant||r.Plant_Name) = learned || "Unknown";
 
     // Set DisplayPlant used by UI
-    r.DisplayPlant = r.Plant_Name || learned || "Unknown";
+    r.DisplayPlant = (r.DisplayPlant||r.Plant_Name) || learned || "Unknown";
   }
   return rows;
 }
@@ -157,39 +157,45 @@ function enrichRowsWithPlantNames(rows, dirRows){
   <script id="plant-hydrator">
     // Pulls PlantDirectory once and back-fills Plant_Name/DisplayPlant on all rows
     async function backfillPlantNames(rows){
-      try{
-        const pd = await fetch(`/api/GetPlantDirectory?cb=${Date.now()}`).then(r=>r.json());
-        const dir = Array.isArray(pd?.data) ? pd.data : (Array.isArray(pd) ? pd : []);
-        const mapSN = Object.create(null), mapID = Object.create(null), mapPID = Object.create(null);
+  return (async ()=>{
+    try{
+      const pd = await fetch(`/api/GetPlantDirectory?cb=${Date.now()}`).then(r=>r.json()).catch(()=>null);
+      const dir = Array.isArray(pd?.data) ? pd.data : (Array.isArray(pd) ? pd : []);
+      const mapSN = Object.create(null), mapID = Object.create(null), mapPID = Object.create(null);
 
-        for (const p of dir){
-          const name = (p.Plant_Name || p.Plant || "").trim();
-          if (!name) continue;
-          if (p.Meter_Serial_No) mapSN[p.Meter_Serial_No] = name;
-          if (p.Meter_ID)        mapID[p.Meter_ID]        = name;
-          if (p.Plant_ID !== undefined && p.Plant_ID !== null && String(p.Plant_ID).trim() !== "")
-            mapPID[String(p.Plant_ID)] = name;
-        }
+      for (const p of dir){
+        const name = ((p.DisplayPlant||p.Plant_Name) || p.Plant || "").trim();
+        if (!name) continue;
+        if (p.Meter_Serial_No) mapSN[p.Meter_Serial_No] = name;
+        if (p.Meter_ID)        mapID[p.Meter_ID]        = name;
+        if (p.Plant_ID!=null && String(p.Plant_ID).trim()!=="") mapPID[String(p.Plant_ID)] = name;
+      }
 
-        for (const r of rows){
-          const pick =
-              (r.Plant_Name && r.Plant_Name.trim())
-           || (r.Meter_Serial_No && mapSN[r.Meter_Serial_No])
-           || (r.Meter_ID && mapID[r.Meter_ID])
-           || ((r.Plant_ID !== undefined && r.Plant_ID !== null) && mapPID[String(r.Plant_ID)])
-           || "";
+      for (let i=0;i<rows.length;i++){
+        const r = rows[i] || {};
+        const pick =
+           ((r.DisplayPlant||r.Plant_Name) && (r.DisplayPlant||r.Plant_Name).trim())
+        || (r.Meter_Serial_No && mapSN[r.Meter_Serial_No])
+        || (r.Meter_ID && mapID[r.Meter_ID])
+        || (r.Plant_ID!=null && mapPID[String(r.Plant_ID)])
+        || "Unknown";
 
-          if (pick){
-            r.DisplayPlant = pick;
-            if (!r.Plant_Name || !r.Plant_Name.trim()) r.Plant_Name = pick;
-          } else {
-            r.DisplayPlant = r.Plant_Name || "Unknown";
-          }
-        }
-      }catch(e){
+        // Always stamp DisplayPlant; back-fill Plant_Name if missing
+        rows[i] = { ...r, DisplayPlant: pick, Plant_Name: ((r.DisplayPlant||r.Plant_Name) && (r.DisplayPlant||r.Plant_Name).trim()) ? (r.DisplayPlant||r.Plant_Name) : pick };
+      }
+    }catch(e){
+      console.warn("backfillPlantNames failed:", e);
+      for (let i=0;i<rows.length;i++){
+        const r = rows[i] || {};
+        rows[i] = { ...r, DisplayPlant: (r.DisplayPlant || (r.DisplayPlant||r.Plant_Name) || "Unknown") };
+      }
+    }
+    return rows;
+  })();
+}catch(e){
         console.warn("backfillPlantNames failed:", e);
         for (const r of rows){
-          r.DisplayPlant = r.DisplayPlant || r.Plant_Name || "Unknown";
+          r.DisplayPlant = r.DisplayPlant || (r.DisplayPlant||r.Plant_Name) || "Unknown";
         }
       }
       return rows;
@@ -353,14 +359,14 @@ function enrichRowsWithPlantNames(rows, dirRows){
     async function loadPlants(){
       const res = await fetch(`${API_BASE}/api/GetPlantDirectory?${window.bust}`);
       const js = await res.json();
-      plants = (js?.data||[]).map(p=>({Plant_ID:Number(p.Plant_ID), Plant_Name:String(p.Plant_Name)}));
-      plantMap = new Map(plants.map(p=>[p.Plant_ID,p.Plant_Name])); // from PlantDirectory schema (Plant_ID, Plant_Name) :contentReference[oaicite:2]{index=2}
+      plants = (js?.data||[]).map(p=>({Plant_ID:Number(p.Plant_ID), Plant_Name:String((p.DisplayPlant||p.Plant_Name))}));
+      plantMap = new Map(plants.map(p=>[p.Plant_ID,(p.DisplayPlant||p.Plant_Name)])); // from PlantDirectory schema (Plant_ID, Plant_Name) :contentReference[oaicite:2]{index=2}
       const host=$('#plantList'); host.innerHTML='';
-      plants.sort((a,b)=>a.Plant_Name.localeCompare(b.Plant_Name));
+      plants.sort((a,b)=>(a.DisplayPlant||a.Plant_Name).localeCompare((b.DisplayPlant||b.Plant_Name)));
       for(const p of plants){
         const id='pl_'+p.Plant_ID;
         const row=document.createElement('div'); row.className='dd-row';
-        row.innerHTML=`<input type="checkbox" id="${id}" data-id="${p.Plant_ID}"> <label for="${id}">${p.Plant_Name}</label>`;
+        row.innerHTML=`<input type="checkbox" id="${id}" data-id="${p.Plant_ID}"> <label for="${id}">${(p.DisplayPlant||p.Plant_Name)}</label>`;
         row.querySelector('input').addEventListener('change', onPlantChange);
         host.appendChild(row);
       }
@@ -402,7 +408,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
       const js = await fetchJSON(`${API_BASE}/api/GetPremier300MeterAll?start=${s}&end=${e}&top=100000&${window.bust}`);
       const rows = js?.data||[];
       // fill Plant_Name when missing using PlantDirectory
-      for(const r of rows){ if(!r.Plant_Name||r.Plant_Name.trim()===""){ const nm = plantMap.get(Number(r.Plant_ID)); if(nm) r.Plant_Name = nm; } }
+      for(const r of rows){ if(!(r.DisplayPlant||r.Plant_Name)||(r.DisplayPlant||r.Plant_Name).trim()===""){ const nm = plantMap.get(Number(r.Plant_ID)); if(nm) (r.DisplayPlant||r.Plant_Name) = nm; } }
       return rows;
     }
     function filterByPlants(rows){ if($('#allPlants').checked || selected.size===0) return rows; return rows.filter(r=>selected.has(Number(r.Plant_ID))); }
@@ -424,7 +430,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
       const latest = Array.from(latestBy(rows, r=>r.Meter_ID).values()).sort((a,b)=> b._ts-a._ts);
       const tb=$('#latestBody'); tb.innerHTML='';
       for(const r of latest){
-        const nm=r.Plant_Name || plantMap.get(Number(r.Plant_ID)) || '';
+        const nm=(r.DisplayPlant||r.Plant_Name) || plantMap.get(Number(r.Plant_ID)) || '';
         const tr=document.createElement('tr');
         tr.innerHTML=`
           <td>${nm}</td><td>${r.Meter_Make||''}</td><td>${r.Meter_Model||''}</td><td>${r.Meter_Type||''}</td>
@@ -440,7 +446,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
       const latestPerPlant = latestBy(rows, r=>r.Plant_ID);
       const labels=[], values=[];
       latestPerPlant.forEach(r=>{
-        labels.push(r.Plant_Name || plantMap.get(Number(r.Plant_ID)) || `Plant ${r.Plant_ID}`);
+        labels.push((r.DisplayPlant||r.Plant_Name) || plantMap.get(Number(r.Plant_ID)) || `Plant ${r.Plant_ID}`);
         values.push(getTotalMWh(r)); // always MWh first
       });
       // convert slice values to KPI unit
@@ -523,7 +529,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
         let all = await loadMeters();
 /* already hydrated */
         const sel = filterByPlants(all);
-        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); console.log("After hydrate:", all.length, "rows"); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); renderKPI(sel);
+        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); console.log("After hydrate:", all.length, "rows"); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); renderKPI(sel);
         renderPie(sel);
         renderBarLine(sel);
         renderTable(sel);
@@ -573,6 +579,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
