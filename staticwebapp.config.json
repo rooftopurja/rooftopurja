@@ -1,10 +1,15 @@
-{
+﻿{
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": [ "/api/*", "/*.css", "/*.js", "/*.png", "/*.ico", "/meter*.html" ]
+    "exclude": [ "/api/*", "/*.css", "/*.js", "/*.png", "/*.jpg", "/*.svg", "/*.ico", "/assets/*" ]
+  },
+  "responseOverrides": {
+    "404": {
+      "rewrite": "/index.html",
+      "statusCode": 200
+    }
   },
   "mimeTypes": {
-    ".html": "text/html; charset=utf-8",
     ".json": "application/json"
   }
 }
