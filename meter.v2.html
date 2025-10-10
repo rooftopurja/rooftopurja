@@ -432,8 +432,9 @@
       try{
         $('#applyBtn').disabled=true;
         const all = await loadMeters();
+all = hydrateDisplayPlant(all);
         const sel = filterByPlants(all);
-        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); renderKPI(sel);
+        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); console.log("After hydrate:", all.length, "rows"); renderKPI(sel);
         renderPie(sel);
         renderBarLine(sel);
         renderTable(sel);
@@ -483,4 +484,5 @@
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
