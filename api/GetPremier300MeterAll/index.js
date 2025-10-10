@@ -91,7 +91,29 @@ function addNoCacheHeaders(h){
   };
 }
 
-module.exports = async function (context, req) {
+function hydrateRows(rows){
+  if (!Array.isArray(rows)) return [];
+  const map = Object.create(null);
+  for (const r of rows){
+    const name = (r.Plant_Name || "").trim();
+    if (!name) continue;
+    if (r.Meter_Serial_No) map["SN:"+r.Meter_Serial_No] = name;
+    if (r.Meter_ID)        map["ID:"+r.Meter_ID]        = name;
+    if (r.Plant_ID!=null && r.Plant_ID!=="") map["PID:"+r.Plant_ID] = name;
+  }
+  for (const r of rows){
+    const best =
+      (r.Plant_Name && r.Plant_Name.trim()) ||
+      (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
+      (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
+      ((r.Plant_ID!=null && r.Plant_ID!=="") && map["PID:"+r.Plant_ID]) ||
+      "Unknown";
+    r.DisplayPlant = best;
+    if (!r.Plant_Name || !r.Plant_Name.trim()) r.Plant_Name = best;
+  }
+  return rows;
+}
+
   const { start, end, top, debug } = parseQS(req);
   try{
     let source = "azure";
@@ -117,7 +139,7 @@ module.exports = async function (context, req) {
     }
 
     filtered.sort((a,b)=> new Date(b.Date_Time||0) - new Date(a.Date_Time||0));
-    const data = filtered.slice(0, top);
+    const data = hydrateRows(filtered.slice(0, top));
 
     const body = {
       success: true,
@@ -145,6 +167,7 @@ module.exports = async function (context, req) {
     };
   }
 };
+
 
 
 
