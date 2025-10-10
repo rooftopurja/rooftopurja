@@ -4,7 +4,9 @@ const { TableClient } = require("@azure/data-tables");
 const ACCOUNT_NAME = process.env.STORAGE_ACCOUNT_NAME || "solariothubstorage";
 const ENDPOINT = `https://${ACCOUNT_NAME}.table.core.windows.net`;
 const IST_OFFSET_MIN = 330;
-const CANDIDATE_TABLES = ["SungrowInverter125KW","SungrowInverter100KW","SungrowInverter110KW","SungrowInverter80KW","SungrowInverter60KW","SungrowInverter50KW"];
+const CANDIDATE_TABLES = (process.env.SVI_TABLES
+  ? process.env.SVI_TABLES.split(",").map(s => s.trim()).filter(Boolean)
+  : ["SungrowInverter125KW","SungrowInverter100KW","SungrowInverter110KW","SungrowInverter80KW","SungrowInverter60KW","SungrowInverter50KW"]);
 
 const cache = new Map();
 const cacheTTLms = 60 * 1000;
