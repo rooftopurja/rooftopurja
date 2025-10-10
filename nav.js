@@ -1,16 +1,23 @@
-﻿// Update hrefs if your filenames differ.
+﻿// FINAL top navigation links
 const LINKS = [
-  { href: "/",                         label: "Dashboard" },
   { href: "/meter.v2.html",            label: "Meter" },
   { href: "/inverter_analytics.html",  label: "Inverter Analytics" },
   { href: "/inverter_overview.html",   label: "Inverter Data Overview" },
-  { href: "/inverter_faults.html",     label: "Inverter Faults" }
+  { href: "/inverter_faults.html",     label: "Inverter Faults" },
+  { href: "/maintenance.html",         label: "Maintenance" }
 ];
+
+// Robust active detection (ignores query string & trailing slashes)
+function isActive(href) {
+  const clean = (p) => p.toLowerCase().split("?")[0].replace(/\/+$/,"");
+  const cur = clean(location.pathname);
+  const target = clean(href);
+  return cur === target;
+}
 
 (function(){
   const placeholder = document.getElementById("global-nav");
   if(!placeholder) return;
-  const path = location.pathname.toLowerCase();
   const bar = document.createElement("div");
   bar.className = "navbar";
   bar.innerHTML = `
@@ -18,8 +25,8 @@ const LINKS = [
       <div class="brand">Solar Plant Dashboard</div>
       <div class="navspacer"></div>
       ${LINKS.map(l => {
-        const active = path === l.href.toLowerCase();
-        return `<a class="navlink ${active ? "active" : ""}" href="${l.href}">${l.label}</a>`;
+        const active = isActive(l.href) ? "active" : "";
+        return `<a class="navlink ${active}" href="${l.href}">${l.label}</a>`;
       }).join("")}
     </div>`;
   placeholder.replaceWith(bar);
