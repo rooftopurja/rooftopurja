@@ -1,15 +1,9 @@
-{
+﻿{
   "name": "swa-api",
-  "version": "1.1.0",
   "private": true,
-  "engines": {
-    "node": ">=20.0.0 <21"
-  },
-  "scripts": {
-    "build": "echo \"no build step for js\""
-  },
+  "engines": { "node": ">=20 <21" },
   "dependencies": {
-    "@azure/data-tables": "^13.3.1",
-    "@azure/identity": "^4.13.0"
+    "@azure/data-tables": "^13.2.2",
+    "@azure/identity": "^4.2.0"
   }
 }
