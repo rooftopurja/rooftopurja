@@ -154,6 +154,47 @@ function enrichRowsWithPlantNames(rows, dirRows){
   return rows;
 }
 </script>
+  <script id="plant-hydrator">
+    // Pulls PlantDirectory once and back-fills Plant_Name/DisplayPlant on all rows
+    async function backfillPlantNames(rows){
+      try{
+        const pd = await fetch(`/api/GetPlantDirectory?cb=${Date.now()}`).then(r=>r.json());
+        const dir = Array.isArray(pd?.data) ? pd.data : (Array.isArray(pd) ? pd : []);
+        const mapSN = Object.create(null), mapID = Object.create(null), mapPID = Object.create(null);
+
+        for (const p of dir){
+          const name = (p.Plant_Name || p.Plant || "").trim();
+          if (!name) continue;
+          if (p.Meter_Serial_No) mapSN[p.Meter_Serial_No] = name;
+          if (p.Meter_ID)        mapID[p.Meter_ID]        = name;
+          if (p.Plant_ID !== undefined && p.Plant_ID !== null && String(p.Plant_ID).trim() !== "")
+            mapPID[String(p.Plant_ID)] = name;
+        }
+
+        for (const r of rows){
+          const pick =
+              (r.Plant_Name && r.Plant_Name.trim())
+           || (r.Meter_Serial_No && mapSN[r.Meter_Serial_No])
+           || (r.Meter_ID && mapID[r.Meter_ID])
+           || ((r.Plant_ID !== undefined && r.Plant_ID !== null) && mapPID[String(r.Plant_ID)])
+           || "";
+
+          if (pick){
+            r.DisplayPlant = pick;
+            if (!r.Plant_Name || !r.Plant_Name.trim()) r.Plant_Name = pick;
+          } else {
+            r.DisplayPlant = r.Plant_Name || "Unknown";
+          }
+        }
+      }catch(e){
+        console.warn("backfillPlantNames failed:", e);
+        for (const r of rows){
+          r.DisplayPlant = r.DisplayPlant || r.Plant_Name || "Unknown";
+        }
+      }
+      return rows;
+    }
+  </script>
 </head>
 <body>
 <!-- ===== Top Nav (auto-injected) ===== -->
@@ -482,7 +523,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
         let all = await loadMeters();
 /* already hydrated */
         const sel = filterByPlants(all);
-        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); console.log("After hydrate:", all.length, "rows"); renderKPI(sel);
+        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); console.log("After hydrate:", all.length, "rows"); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); renderKPI(sel);
         renderPie(sel);
         renderBarLine(sel);
         renderTable(sel);
@@ -532,6 +573,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
