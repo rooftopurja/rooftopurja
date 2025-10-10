@@ -78,6 +78,34 @@
     .scroll{height:calc(var(--h-table) - 36px);overflow:auto;overflow-x:auto}
   </style>
 <style>.wrap{margin-top:6px}</style>
+  <script>
+    // Fills DisplayPlant for every row, and back-fills Plant_Name if missing.
+    function hydrateDisplayPlant(rows){
+      const map = Object.create(null);
+
+      // Learn plant names from any row that already has one
+      for (const r of rows){
+        const name = (r.Plant_Name || "").trim();
+        if (!name) continue;
+        if (r.Meter_Serial_No) map["SN:"+r.Meter_Serial_No] = name;
+        if (r.Meter_ID)        map["ID:"+r.Meter_ID]        = name;
+        if (r.Plant_ID != null && r.Plant_ID !== "") map["PID:"+r.Plant_ID] = name;
+      }
+
+      // Stamp DisplayPlant on every row (and back-fill Plant_Name if empty)
+      for (const r of rows){
+        r.DisplayPlant =
+          (r.Plant_Name && r.Plant_Name.trim()) ||
+          (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
+          (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
+          (r.Plant_ID != null && map["PID:"+r.Plant_ID]) ||
+          "Unknown";
+
+        if (!r.Plant_Name || !r.Plant_Name.trim()) r.Plant_Name = r.DisplayPlant;
+      }
+      return rows;
+    }
+  </script>
 </head>
 <body>
 <!-- ===== Top Nav (auto-injected) ===== -->
@@ -405,7 +433,7 @@
         $('#applyBtn').disabled=true;
         const all = await loadMeters();
         const sel = filterByPlants(all);
-        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); renderKPI(sel);
+        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); renderKPI(sel);
         renderPie(sel);
         renderBarLine(sel);
         renderTable(sel);
@@ -455,3 +483,4 @@
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
