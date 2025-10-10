@@ -523,7 +523,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
         let all = await loadMeters();
 /* already hydrated */
         const sel = filterByPlants(all);
-        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); console.log("After hydrate:", all.length, "rows"); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); renderKPI(sel);
+        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); console.log("After hydrate:", all.length, "rows"); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); renderKPI(sel);
         renderPie(sel);
         renderBarLine(sel);
         renderTable(sel);
@@ -573,6 +573,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
