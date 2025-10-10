@@ -8,9 +8,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js">
-  const bust = Date.now(); // cache-bust for API calls
-</script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
   <style>
     /* ========= simple knobs (change just these) ========= */
@@ -179,10 +177,30 @@ function enrichRowsWithPlantNames(rows, dirRows){
     console.warn("backfillPlantNames failed:", e);
     return rows || [];
   }
-};})();
+}
 </script>
 <!-- ===== End Top Nav ===== -->
-  <div class="wrap">
+  <header class="sp-top">
+  <div class="inner">
+    <div class="brand">Solar Plant Dashboard</div>
+    <nav>
+      <a href="/meter.v2.html" class="active">Meter</a>
+      <a href="/inverter_analytics.html">Inverter Analytics</a>
+      <a href="/inverter_overview.html">Inverter Data Overview</a>
+      <a href="/inverter_faults.html">Inverter Faults</a>
+      <a href="/maintenance.html">Maintenance</a>
+    </nav>
+  </div>
+</header>
+<style>
+  .sp-top{background:#fff;border-bottom:1px solid #e5e7eb}
+  .sp-top .inner{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
+  .sp-top .brand{font-weight:800;font-size:18px;margin-right:8px}
+  .sp-top nav a{display:inline-block;margin-right:8px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:999px;
+                text-decoration:none;color:#0f172a;font-weight:600}
+  .sp-top nav a.active{background:#2563eb;color:#fff;border-color:#2563eb}
+  .sp-top nav a:hover{background:#eef2ff}
+</style><div class="wrap">
     
 
     <!-- FILTERS -->
@@ -528,6 +546,9 @@ function enrichRowsWithPlantNames(rows, dirRows){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
+
+
 
 
 
