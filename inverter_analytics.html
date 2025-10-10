@@ -1,163 +1,199 @@
-﻿<!doctype html>
-<html>
-  <head>
-    <meta charset='utf-8'>
-    <meta name='viewport' content='width=device-width, initial-scale=1'>
-    <title>Inverter Analytics — Solar Monitoring</title>
-    <style>
-      body{font-family:system-ui,Segoe UI,Arial,sans-serif}
-      main{padding:24px}
-      .row{display:flex;gap:12px;flex-wrap:wrap;align-items:end;margin:12px 0}
-      label{font-size:12px;color:#444;display:block;margin-bottom:4px}
-      input,button{padding:8px 10px;border:1px solid #ccc;border-radius:8px}
-      button{cursor:pointer}
-      .cards{display:grid;grid-template-columns:repeat(auto-fit,minmax(180px,1fr));gap:12px;margin-top:16px}
-      .card{border:1px solid #e5e5e5;border-radius:12px;padding:14px;background:#fff}
-      .k{font-size:12px;color:#666}
-      .v{font-size:22px;font-weight:700}
-      .err{color:#b00020;margin-top:8px}
-      .muted{color:#666;font-size:13px}
-      code{background:#f5f5f5;padding:2px 6px;border-radius:6px}
-    </style>
-  </head>
-  <body>
-<!-- ===== Top Nav (auto-injected) ===== -->
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Inter:wght@500;700&display=swap" rel="stylesheet">
-<style>
-  .topnav{position:sticky;top:0;z-index:50;background:#ffffffcc;backdrop-filter:saturate(180%) blur(8px);
-          border-bottom:1px solid #e5e7eb}
-  .topnav .inner{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
-  .brand{font:700 18px/1 Inter,system-ui,sans-serif;color:#0f172a;letter-spacing:.2px;margin-right:8px}
-  .tabs{display:flex;gap:6px;flex-wrap:wrap}
-  .tab{font:500 13px/1 Inter,system-ui,sans-serif;color:#0f172a;text-decoration:none;
-       padding:8px 10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff}
-  .tab:hover{border-color:#c7d2fe}
-  .tab.active{background:#eef2ff;color:#1e3a8a;border-color:#c7d2fe;font-weight:700}
-  @media (max-width:720px){ .brand{display:none} }
-</style>
-<nav class="topnav">
-  <div class="inner">
-    <div class="brand">Solar Plant Dashboard</div>
-    <div class="tabs">
-      <a class="tab" href="/meter.html"                 data-file="meter.html">Meter</a>
-      <a class="tab" href="/inverter_analytics.html"    data-file="inverter_analytics.html">Inverter Analytics</a>
-      <a class="tab" href="/inverter_data_overview.html"data-file="inverter_data_overview.html">Inverter Data Overview</a>
-      <a class="tab" href="/inverter_faults.html"       data-file="inverter_faults.html">Inverter Faults</a>
-      <a class="tab" href="/maintenance.html"           data-file="maintenance.html">Maintenance</a>
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Inverter Analytics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;background:#fafafa;color:#111}
+    header{padding:12px 16px;border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .kpi{flex:1 1 220px}
+    .kpi .label{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em}
+    .kpi .value{font-size:28px;font-weight:700;margin-top:4px}
+    .controls{gap:8px;align-items:center}
+    select,input,button{padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff}
+    .seg button{padding:8px 12px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+    .seg button.active{background:#111;color:#fff;border-color:#111}
+    .chart-card{flex:1 1 520px;min-width:320px}
+    .muted{color:#6b7280;font-size:12px}
+    .spinner{display:none}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<header>
+  <div class="wrap row controls">
+    <div style="font-weight:700;">Inverter Analytics</div>
+    <div style="flex:1"></div>
+    <label>Plant</label>
+    <select id="plantSel">
+      <option value="all">All Plants</option>
+      <!-- you can append more options later via PlantDirectory -->
+    </select>
+    <label>Date</label>
+    <input type="date" id="dayPicker" />
+    <div class="seg" id="viewSeg">
+      <button data-view="day"   class="active">Day</button>
+      <button data-view="week">Week</button>
+      <button data-view="month">Month</button>
+      <button data-view="year">Year</button>
+    </div>
+    <button id="refreshBtn">Refresh</button>
+    <div id="spin" class="muted spinner">Loading…</div>
+  </div>
+</header>
+
+<main class="wrap">
+  <div class="row">
+    <div class="card kpi">
+      <div class="label">Total Yield</div>
+      <div class="value"><span id="kpiYieldValue">0</span> <span id="kpiYieldUnit">kWh</span></div>
+      <div class="muted" id="kpiDate"></div>
+    </div>
+    <div class="card kpi">
+      <div class="label">CUF</div>
+      <div class="value">—</div>
+      <div class="muted">Coming soon</div>
+    </div>
+    <div class="card kpi">
+      <div class="label">PR</div>
+      <div class="value">—</div>
+      <div class="muted">Coming soon</div>
     </div>
   </div>
-</nav>
-<script>
-// highlight current tab by file name
-(function(){
-  var file = (location.pathname.split('/').pop() || 'meter.html').toLowerCase();
-  document.querySelectorAll('.topnav .tab').forEach(function(a){
-    if((a.getAttribute('data-file')||'').toLowerCase()===file){ a.classList.add('active'); }
-  });
-})();
-</script>
-<!-- ===== End Top Nav ===== -->
-    <div id='nav-holder'></div>
-    <script>
-      fetch('/nav.html').then(r => r.text()).then(html => {
-        document.getElementById('nav-holder').outerHTML = html;
-      });
-    </script>
 
-    <main>
-      <h1>Inverter Analytics</h1>
-      <p class='muted'>Shows placeholder PR & CUF from <code>/api/inverter/analytics/summary</code> (we'll wire real SQL next).</p>
-
-      <div class='row'>
-        <div>
-          <label for='plantId'>Plant ID</label>
-          <input id='plantId' value='DEMO'/>
-        </div>
-        <div>
-          <label for='days'>Window (days, 1–31)</label>
-          <input id='days' type='number' min='1' max='31' value='3'/>
-        </div>
-        <div>
-          <button id='btnLoad'>Load</button>
-        </div>
-        <div class='muted' id='status' style='margin-left:8px'></div>
-      </div>
-
-      <div id='error' class='err'></div>
-
-      <div class='cards' id='cards' style='display:none'>
-        <div class='card'><div class='k'>PR</div><div class='v' id='pr'>—</div></div>
-        <div class='card'><div class='k'>CUF</div><div class='v' id='cuf'>—</div></div>
-        <div class='card'><div class='k'>Energy Export (kWh)</div><div class='v' id='exp'>—</div></div>
-        <div class='card'><div class='k'>Theoretical (kWh)</div><div class='v' id='theo'>—</div></div>
-        <div class='card'><div class='k'>Capacity (MW)</div><div class='v' id='cap'>—</div></div>
-        <div class='card'><div class='k'>From</div><div class='v' id='from'>—</div></div>
-        <div class='card'><div class='k'>To</div><div class='v' id='to'>—</div></div>
-      </div>
-    </main>
-
-    <script>
-      const btn = document.getElementById('btnLoad');
-      const status = document.getElementById('status');
-      const err = document.getElementById('error');
-      const cards = document.getElementById('cards');
-
-      const el = id => document.getElementById(id);
-
-      async function loadSummary(){
-        const plantId = el('plantId').value.trim();
-        const days = Math.max(1, Math.min(31, parseInt(el('days').value||'3',10)));
-        err.textContent=''; status.textContent='Loading…'; cards.style.display='none';
-
-        if(!plantId){ err.textContent='Please enter Plant ID'; status.textContent=''; return; }
-
-        try{
-          const url = \/api/inverter/analytics/summary?plantId=\&days=\\;
-          const res = await fetch(url);
-          if(!res.ok) throw new Error('API error '+res.status);
-          const j = await res.json();
-
-          el('pr').textContent = (j.PR ?? 0).toFixed ? (j.PR*100).toFixed(0)+'%' : String(j.PR);
-          el('cuf').textContent = (j.CUF ?? 0).toFixed ? (j.CUF*100).toFixed(0)+'%' : String(j.CUF);
-          el('exp').textContent = j.energyExportKWh?.toLocaleString?.() ?? j.energyExportKWh ?? '—';
-          el('theo').textContent = j.theoreticalKWh?.toLocaleString?.() ?? j.theoreticalKWh ?? '—';
-          el('cap').textContent = j.capacityMW ?? '—';
-          el('from').textContent = new Date(j.from).toLocaleString();
-          el('to').textContent = new Date(j.to).toLocaleString();
-
-          status.textContent = \Plant \ • \ day(s)\;
-          cards.style.display='';
-        }catch(e){
-          err.textContent = e.message || String(e);
-          status.textContent='';
-        }
-      }
-
-      btn.addEventListener('click', loadSummary);
-      window.addEventListener('DOMContentLoaded', loadSummary);
-    </script>
-  <!-- ===== Small Footer ===== -->
-<style>
-  .sp-footer{margin-top:12px;border-top:1px solid #e5e7eb;background:#fff}
-  .sp-footer .inner{max-width:1400px;margin:0 auto;padding:10px 16px;
-    display:flex;gap:10px;justify-content:space-between;align-items:center;
-    font:500 12px/1.4 Inter,system-ui,sans-serif;color:#64748b}
-  .sp-footer a{color:#2563eb;text-decoration:none}
-  .sp-footer a:hover{text-decoration:underline}
-</style>
-<footer class="sp-footer">
-  <div class="inner">
-    <div>© Solar Plant Dashboard</div>
-    <div><a href="/meter.html">Meter</a> · <a href="/inverter_analytics.html">Inverter Analytics</a> · <a href="/maintenance.html">Maintenance</a></div>
+  <div class="row" style="margin-top:12px;">
+    <div class="card chart-card">
+      <div class="muted" style="margin-bottom:6px;">Power (AC/DC) vs Time</div>
+      <canvas id="powerChart" height="220"></canvas>
+    </div>
+    <div class="card chart-card">
+      <div class="muted" style="margin-bottom:6px;">Yield</div>
+      <canvas id="yieldChart" height="220"></canvas>
+    </div>
   </div>
-</footer>
-<!-- ===== End Footer ===== -->
+</main>
+
+<script>
+const spin = document.getElementById('spin');
+const dayPicker = document.getElementById('dayPicker');
+const plantSel = document.getElementById('plantSel');
+const viewSeg = document.getElementById('viewSeg');
+const refreshBtn = document.getElementById('refreshBtn');
+
+function todayYMDIST(){
+  // Build IST "today" Y-M-D from client time (simple)
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth()+1).padStart(2,'0');
+  const d = String(now.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+dayPicker.value = todayYMDIST();
+
+let currentView = 'day';
+viewSeg.addEventListener('click', (e)=>{
+  if(e.target.tagName==='BUTTON'){
+    [...viewSeg.querySelectorAll('button')].forEach(b=>b.classList.remove('active'));
+    e.target.classList.add('active');
+    currentView = e.target.dataset.view;
+  }
+});
+
+let powerChart, yieldChart;
+function ensureCharts(){
+  if(!powerChart){
+    const ctx = document.getElementById('powerChart').getContext('2d');
+    powerChart = new Chart(ctx,{
+      type:'line',
+      data:{ labels:[], datasets:[
+        { label:'AC Power (kW)', data:[], fill:false, tension:0.2 },
+        { label:'DC Power (kW)', data:[], fill:false, tension:0.2 }
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ ticks:{ maxRotation:0, autoSkip:true } }, y:{} },
+        plugins:{ legend:{ position:'bottom' } }
+      }
+    });
+  }
+  if(!yieldChart){
+    const ctx = document.getElementById('yieldChart').getContext('2d');
+    yieldChart = new Chart(ctx,{
+      type:'bar',
+      data:{ labels:[], datasets:[ { label:'Yield', data:[] } ]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false } },
+        scales:{ x:{ }, y:{ beginAtZero:true } }
+      }
+    });
+  }
+}
+
+async function fetchAnalytics(){
+  const plantId = plantSel.value || 'all';
+  const date = dayPicker.value; // Y-M-D
+  const url = new URL(location.origin + '/api/inverter/analytics');
+  url.searchParams.set('view', currentView);
+  url.searchParams.set('plantId', plantId);
+  if (currentView === 'day' || currentView === 'week' || currentView === 'month' || currentView === 'year') {
+    // day param accepted for all; backend uses IST
+    if (date) url.searchParams.set('date', date);
+  }
+  spin.style.display = 'inline';
+  const res = await fetch(url.toString(), { headers: { 'Accept':'application/json' }});
+  spin.style.display = 'none';
+  if(!res.ok){
+    alert('API error: '+res.status);
+    return null;
+  }
+  return await res.json();
+}
+
+function updateUI(payload){
+  // KPIs
+  const k = payload?.kpis || {};
+  document.getElementById('kpiYieldValue').textContent = (k.total_yield ?? 0);
+  document.getElementById('kpiYieldUnit').textContent  = (k.unit || 'kWh');
+  document.getElementById('kpiDate').textContent = `View: ${payload?.parameters?.view} • Date: ${payload?.parameters?.date}`;
+
+  ensureCharts();
+
+  // Power chart (only for day view)
+  if (payload?.power && Array.isArray(payload.power)) {
+    const labels = payload.power.map(p => new Date(p.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+    const ac = payload.power.map(p => p.ac ?? 0);
+    const dc = payload.power.map(p => p.dc ?? 0);
+    powerChart.data.labels = labels;
+    powerChart.data.datasets[0].data = ac;
+    powerChart.data.datasets[1].data = dc;
+    powerChart.update();
+  } else {
+    powerChart.data.labels = [];
+    powerChart.data.datasets[0].data = [];
+    powerChart.data.datasets[1].data = [];
+    powerChart.update();
+  }
+
+  // Yield chart (bars)
+  if (payload?.yield && Array.isArray(payload.yield)) {
+    yieldChart.data.labels = payload.yield.map(y => y.label);
+    yieldChart.data.datasets[0].data = payload.yield.map(y => y.value ?? 0);
+    yieldChart.update();
+  } else {
+    yieldChart.data.labels = [];
+    yieldChart.data.datasets[0].data = [];
+    yieldChart.update();
+  }
+}
+
+async function run(){ const data = await fetchAnalytics(); if(data) updateUI(data); }
+refreshBtn.addEventListener('click', run);
+
+// Initial load
+run();
+</script>
 </body>
 </html>
-
-
-
-
-
