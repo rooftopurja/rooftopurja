@@ -1,18 +1,16 @@
-﻿const { DefaultAzureCredential } = require("@azure/identity");
-const { TableServiceClient, TableClient } = require("@azure/data-tables");
+﻿const { DefaultAzureCredential, ManagedIdentityCredential } = require("@azure/identity");
+const { TableClient } = require("@azure/data-tables");
 
-// ---- Config ----
 const ACCOUNT_NAME = process.env.STORAGE_ACCOUNT_NAME || "solariothubstorage";
 const ENDPOINT = `https://${ACCOUNT_NAME}.table.core.windows.net`;
-const IST_OFFSET_MIN = 330; // +05:30
+const IST_OFFSET_MIN = 330;
+const CANDIDATE_TABLES = ["SungrowInverter125KW","SungrowInverter100KW","SungrowInverter110KW","SungrowInverter80KW","SungrowInverter60KW","SungrowInverter50KW"];
 
-// simple in-memory cache (per instance)
 const cache = new Map();
 const cacheTTLms = 60 * 1000;
 const cacheGet = k => { const h = cache.get(k); if (!h) return null; if (Date.now()-h.t>cacheTTLms) { cache.delete(k); return null; } return h.v; };
 const cacheSet = (k,v) => cache.set(k,{t:Date.now(),v});
 
-// time helpers
 function toUtcISOStringFromIST(y,m,d,hh,mm){ const ist=Date.UTC(y,m-1,d,hh,mm); const utc=ist-IST_OFFSET_MIN*60*1000; return new Date(utc).toISOString(); }
 function istFloor(date){ const utcMillis=Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate()); const istMillis=utcMillis+IST_OFFSET_MIN*60*1000; return new Date(istMillis); }
 function parseDateParamIST(s){ const [y,m,d]=s.split("-").map(Number); const utc=Date.UTC(y,m-1,d,0,0)-IST_OFFSET_MIN*60*1000; return new Date(utc); }
@@ -22,15 +20,29 @@ function formatTotalYield(kWh){ if(kWh==null) return {value:null,unit:null}; if(
 function istDayUtcRange(istDay){ const y=istDay.getUTCFullYear(), m=istDay.getUTCMonth()+1, d=istDay.getUTCDate(); return [toUtcISOStringFromIST(y,m,d,0,0), toUtcISOStringFromIST(y,m,d,23,59)]; }
 function lastNMonths(refIst,n){ const out=[]; const y0=refIst.getUTCFullYear(), m0=refIst.getUTCMonth()+1; for(let i=n-1;i>=0;i--){ let y=y0, m=m0-i; while(m<=0){m+=12;y-=1;} out.push({y,m}); } return out; }
 
-let svcClient;
-function getSvcClient(){ if(!svcClient){ svcClient=new TableServiceClient(ENDPOINT,new DefaultAzureCredential()); } return svcClient; }
-async function listInverterTables(){ const svc=getSvcClient(); const names=[]; for await (const t of svc.listTables()){ if(t.name.toLowerCase().startsWith("sungrowinverter")) names.push(t.name); } return names; }
+const credential = new DefaultAzureCredential();
+
+async function tableExists(name){
+  try{
+    const client = new TableClient(ENDPOINT, name, credential);
+    for await (const _ of client.listEntities({ queryOptions: { top: 1 } })) { break; }
+    return true;
+  } catch(e){ return false; }
+}
+async function getActiveTables(){
+  const ok = [];
+  for (const name of CANDIDATE_TABLES){
+    try {
+      if (await tableExists(name)) ok.push(name);
+    } catch (_) {}
+  }
+  return ok;
+}
 async function fetchEntitiesInRange(tableName, fromIso, toIso){
-  const client = new TableClient(ENDPOINT, tableName, new DefaultAzureCredential());
+  const client = new TableClient(ENDPOINT, tableName, credential);
   const filter = `Timestamp ge datetime'${fromIso}' and Timestamp le datetime'${toIso}'`;
   const out=[]; for await (const ent of client.listEntities({ queryOptions: { filter } })) out.push(ent); return out;
 }
-
 function buildMapping(entities){ const map=new Map(); for(const e of entities){ const inv=e.Inverter_ID||e.InverterId||e.inverter_id; const pid=e.Plant_ID||e.PlantId||e.plant_id; if(inv&&pid&&!map.has(String(inv))) map.set(String(inv),String(pid)); } return map; }
 function filterByPlant(entities, targetPlantId, inferredMap){
   if(!targetPlantId || targetPlantId.toLowerCase()==="all") return entities;
@@ -43,15 +55,12 @@ function filterByPlant(entities, targetPlantId, inferredMap){
   }
   return out;
 }
-
 function aggregatePowerDayIST(entities, dayIST){
-  // 05:00–19:00 IST
   const y=dayIST.getUTCFullYear(), m=dayIST.getUTCMonth()+1, d=dayIST.getUTCDate();
   const startIso=toUtcISOStringFromIST(y,m,d,5,0), endIso=toUtcISOStringFromIST(y,m,d,19,0);
   const start=new Date(startIso), end=new Date(endIso);
   const buckets=[]; for(let t=start.getTime(); t<=end.getTime(); t+=20*60*1000) buckets.push({t,ac:0,dc:0,n:0});
   const nearest=(ts)=>{ const i=Math.round((ts-start.getTime())/(20*60*1000)); return (i<0||i>=buckets.length)?-1:i; };
-
   for(const e of entities){
     const ts=new Date(e.timestamp||e.Timestamp); if(ts<start||ts>end) continue;
     const i=nearest(ts.getTime()); if(i<0) continue;
@@ -62,7 +71,6 @@ function aggregatePowerDayIST(entities, dayIST){
   }
   return buckets.map(b=>({ t:new Date(b.t).toISOString(), ac: b.n?b.ac:0, dc: b.n?b.dc:0 }));
 }
-
 function sumByFilter(entities, fromIso, toIso){
   const from=new Date(fromIso), to=new Date(toIso);
   let s=0; for(const e of entities){ const ts=new Date(e.timestamp||e.Timestamp); if(ts<from||ts>to) continue;
@@ -95,26 +103,37 @@ function aggregateYields(entities, view, refDayIST){
 module.exports = async function (context, req) {
   const path = (context.bindingData && context.bindingData.path) || "";
 
-  if (path.toLowerCase() === "ping") {
-    context.res = { status: 200, body: "ok" }; return;
+  if (path.toLowerCase() === "ping") { context.res = { status: 200, body: "ok" }; return; }
+
+  // NEW: /diag — check Managed Identity token & simple TableClient creation
+  if (path.toLowerCase() === "diag") {
+    try {
+      const mic = new ManagedIdentityCredential(); // direct MI
+      await mic.getToken("https://storage.azure.com/.default");
+      const client = new TableClient(ENDPOINT, "SungrowInverter125KW", mic); // will 404 if table missing; that’s OK
+      context.res = { status: 200, jsonBody: { ok:true, account: ACCOUNT_NAME, node: process.version } };
+    } catch (e) {
+      context.log("diag error", e);
+      context.res = { status: 500, jsonBody: { ok:false, error: String(e), hint: "If this says 'ManagedIdentityCredential', verify SWA system-assigned MI is enabled and has Storage Table Data Reader on solariothubstorage." } };
+    }
+    return;
   }
+
   if (path.toLowerCase() === "health") {
     try {
-      const names = await listInverterTables();
-      context.res = { status: 200, jsonBody: { ok: true, tables: names } };
+      const names = await getActiveTables();
+      context.res = { status: 200, jsonBody: { ok: true, tables: names, account: ACCOUNT_NAME } };
     } catch(e){ context.log("health error", e); context.res = { status: 500, jsonBody: { ok:false, error: String(e) } }; }
     return;
   }
 
   try {
-    const view = (req.query.view || "day").toLowerCase(); // day|week|month|year
+    const view = (req.query.view || "day").toLowerCase();
     const plantId = req.query.plantId || "all";
     const refIst = (req.query.date ? parseDateParamIST(req.query.date) : istFloor(new Date()));
-
     const key = JSON.stringify({ view, plantId, date: toYMD(refIst) });
     const cached = cacheGet(key); if (cached) { context.res = { status: 200, jsonBody: cached }; return; }
 
-    // time windows
     let fromIso, toIso;
     if (view === "day") {
       const y=refIst.getUTCFullYear(), m=refIst.getUTCMonth()+1, d=refIst.getUTCDate();
@@ -135,23 +154,19 @@ module.exports = async function (context, req) {
       toIso   = toUtcISOStringFromIST(end.getUTCFullYear(),end.getUTCMonth()+1,end.getUTCDate(),23,59);
     } else { context.res = { status: 400, jsonBody: { error: "invalid view" } }; return; }
 
-    // fetch from all SungrowInverter* tables
-    const tableNames = await listInverterTables();
+    const tableNames = await getActiveTables();
     let all = [];
     for (const name of tableNames) {
       const ents = await fetchEntitiesInRange(name, fromIso, toIso);
       all = all.concat(ents);
     }
 
-    // Infer inverter->plant from newer rows (for older rows missing Plant_ID)
     const inferredMap = buildMapping(all);
     const filtered = filterByPlant(all, plantId, inferredMap);
 
-    // series
     const powerSeries = (view === "day") ? aggregatePowerDayIST(filtered, refIst) : [];
     const yieldSeries = aggregateYields(filtered, view, refIst);
 
-    // KPI total yield (max snapshot)
     let totalKWh = 0;
     for (const e of filtered) {
       const v = Number(e.Total_Yield ?? e.Total_Yield_KWh ?? e.Total_Yield_kWh ?? 0);
