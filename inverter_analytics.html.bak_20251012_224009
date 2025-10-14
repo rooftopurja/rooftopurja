@@ -1,0 +1,553 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<script id="fetch-shim-7071">
+  // Route all relative /api/* to local Functions (7071)
+  (function(){
+    const API_BASE = "http://127.0.0.1:7071";
+    const _fetch = window.fetch;
+    window.fetch = (u,o)=> (typeof u==="string" && u.startsWith("/api/"))
+      ? _fetch(API_BASE + u, o) : _fetch(u,o);
+  })();
+</script>
+  <meta charset="utf-8" />
+  <title>Inverter Analytics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;background:#fafafa;color:#111}
+    header{padding:12px 16px;border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .kpi{flex:1 1 220px}
+    .kpi .label{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em}
+    .kpi .value{font-size:28px;font-weight:700;margin-top:4px}
+    .controls{gap:8px;align-items:center}
+    select,input,button{padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff}
+    .seg button{padding:8px 12px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+    .seg button.active{background:#111;color:#fff;border-color:#111}
+    .chart-card{flex:1 1 520px;min-width:320px}
+    .muted{color:#6b7280;font-size:12px}
+    .spinner{display:none}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style id="ia-fix-h">
+  #powerChart, #yieldChart { min-height: 280px; }
+</style>
+<style id="ia-layout-styles">
+  .ia-wrap{display:flex;flex-direction:column;gap:16px;margin:8px 0 24px}
+  .ia-kpis{display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:12px}
+  .ia-card{background:#fff;border:1px solid #e7e7e9;border-radius:14px;box-shadow:0 6px 20px rgba(0,0,0,.04)}
+  .ia-kpi{padding:16px 18px}
+  .ia-kpi .label{font-size:.9rem;color:#6b7280;font-weight:600;letter-spacing:.02em}
+  .ia-kpi .value{font-size:2rem;font-weight:800;line-height:1.1}
+  .ia-kpi .unit{font-size:1rem;margin-left:.35rem;color:#6b7280}
+  .ia-grid{display:grid;grid-template-columns:1fr;gap:14px}
+  @media (min-width:1100px){ .ia-grid{grid-template-columns:1fr} }
+  .ia-chart{padding:14px 16px 10px}
+  .ia-chart h4{margin:2px 0 12px 4px;font-size:1rem;color:#111827}
+  #powerChart,#yieldChart{min-height:320px}
+  .ia-legend{font-size:.85rem;color:#6b7280;margin-left:4px}
+</style>
+<script id="ia-chartjs-cdn" src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script id="ia-chartjs-datalabels" src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<style id="ia-top-fixes">
+  /* put our IA block at top and give space */
+  body #ia-wrap{ margin:12px 8px 24px; }
+  /* attempt to hide the legacy single-number header if it exists */
+  .kpi, .stats, .header-kpi, .summary-bar { display:none !important; }
+</style>
+</head>
+<body>
+<!-- IA UI (auto) -->
+<style id="ia-autostyles">
+  #ia-wrap{margin:12px;font-family:system-ui,Segoe UI,Arial}
+  #ia-kpis{display:flex;gap:12px;margin:8px 0}
+  .kpi{padding:10px 14px;border:1px solid #ddd;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,.06)}
+  .kpi .v{font-size:26px;font-weight:700;margin-right:6px}
+  #plantFilter{display:flex;align-items:center;gap:.5rem;margin:.5rem 0}
+  #plantPanel{position:absolute;z-index:20;background:#fff;border:1px solid #ddd;border-radius:8px;
+              box-shadow:0 8px 24px rgba(0,0,0,.08);padding:.5rem;max-height:260px;overflow:auto;min-width:280px;}
+  #powerChart,#yieldChart{height:280px;border:1px solid #eee;border-radius:10px;margin:8px 0;padding:6px}
+  /* hide legacy selects to avoid duplicates */
+  select#plantSelect, select#plants, select#meterPlantSelect, select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<div id="ia-wrap">
+  <div id="plantFilter">
+    <label style="font-weight:600;">Plant</label>
+    <button id="plantBtn" type="button" class="btn" style="min-width:220px;">All Plants ▾</button>
+    <div style="position:relative;">
+      <div id="plantPanel" hidden>
+        <label style="display:flex;align-items:center;gap:.5rem;padding:.25rem .5rem;">
+          <input type="checkbox" id="plant_all" checked> <strong>All Plants</strong>
+        </label>
+        <div id="plantList"></div>
+        <div style="display:flex;justify-content:flex-end;gap:.5rem;padding-top:.5rem;">
+          <button id="plantApply" class="btn">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ia-kpis">
+    <div class="kpi"><span class="v" data-kpi="total-yield">0</span><span data-kpi="total-yield-unit">MWh</span></div>
+  </div>
+
+  <div id="powerChart"></div>
+  <div id="yieldChart"></div>
+</div>
+<!-- /IA UI -->
+<link rel="stylesheet" href="/nav.css"><div id="global-nav"></div><script src="/nav.js" defer></script>
+<header>
+  <div class="wrap row controls">
+    <div style="font-weight:700;">Inverter Analytics</div>
+    <div style="flex:1"></div>
+    <label>Plant</label>
+    <select id="plantSel">
+      <option value="all">All Plants</option>
+      <!-- you can append more options later via PlantDirectory -->
+    </select>
+    <label>Date</label>
+    <input type="date" id="dayPicker" />
+    <div class="seg" id="viewSeg">
+      <button data-view="day"   class="active">Day</button>
+      <button data-view="week">Week</button>
+      <button data-view="month">Month</button>
+      <button data-view="year">Year</button>
+    </div>
+    <button id="refreshBtn">Refresh</button>
+    <div id="spin" class="muted spinner">Loading…</div>
+  </div>
+</header>
+
+
+
+
+
+
+<script id="ia_domfix">
+(function(){
+  const $ = (s,d=document)=>d.querySelector(s);
+  const $$= (s,d=document)=>[...d.querySelectorAll(s)];
+
+  function moveFilterToToolbar(){
+    const filter = $("#plantFilter");
+    if(!filter) return;
+
+    // Find the existing "Plant" control row (near the top)
+    const topSelect = $("#plantSelect, #plants, #meterPlantSelect, select[name='plant'], select[data-role='plant']");
+    const plantLabel = [...document.querySelectorAll("label")].find(l=>/^\s*Plant\s*$/i.test(l.textContent||""));
+    const toolbar = topSelect?.parentElement || plantLabel?.parentElement || document.body;
+
+    // Hide original single-select (if present)
+    if (topSelect) topSelect.style.setProperty("display","none","important");
+
+    // If filter is already in toolbar, stop. Else move it just after the label/select.
+    if (toolbar && filter.parentElement !== toolbar) {
+      if (plantLabel && plantLabel.nextSibling) {
+        toolbar.insertBefore(filter, plantLabel.nextSibling);
+      } else {
+        toolbar.prepend(filter);
+      }
+    }
+
+    // Remove stray duplicates at the bottom (keep only the first instance)
+    const dups = $$("#plantFilter");
+    dups.slice(1).forEach(n=>n.remove());
+  }
+
+  // Ensure KPI/Chart placeholders exist so visuals are never blank
+  function ensureMounts(){
+    // TOTAL YIELD card: find the card that mentions "TOTAL YIELD"
+    const kpiCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /TOTAL\s*YIELD/i.test(x.textContent||""));
+    if (kpiCard && !kpiCard.querySelector("[data-kpi='total-yield']")){
+      const slot = document.createElement("div");
+      slot.style.fontSize = "36px";
+      slot.style.fontWeight = "700";
+      slot.innerHTML = '<span data-kpi="total-yield">0</span> <span data-kpi="total-yield-unit">kWh</span>';
+      kpiCard.prepend(slot);
+    }
+
+    // Power card
+    const powerCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /Power\s*\(AC\/DC\)\s*vs\s*Time/i.test(x.textContent||""));
+    if (powerCard && !powerCard.querySelector("#powerChart")){
+      const div = document.createElement("div");
+      div.id = "powerChart"; div.style.height = "320px"; div.style.marginTop = "8px";
+      powerCard.appendChild(div);
+    }
+
+    // Yield card
+    const yieldCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /^\s*Yield\s*$/i.test((x.querySelector("h2,h3,h4,header")?.textContent)||"") || /(^|\s)Yield(\s|$)/i.test(x.textContent||""));
+    if (yieldCard && !yieldCard.querySelector("#yieldChart")){
+      const div = document.createElement("div");
+      div.id = "yieldChart"; div.style.height = "320px"; div.style.marginTop = "8px";
+      yieldCard.appendChild(div);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", ()=>{ try{
+    moveFilterToToolbar();
+    ensureMounts();
+  }catch(e){ console.warn(e); }});
+})();
+</script>
+<style id="ia_hide_legacy_select">
+#plantFilter ~ select, select#plantSelect, select#plants, select#meterPlantSelect,
+select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<style id="ia_plant_selectlike">
+  #plantFilter>label{display:none!important;}
+  #plantBtn{
+    display:inline-flex;align-items:center;gap:.5rem;
+    padding:.375rem .75rem;border:1px solid #ced4da;border-radius:.375rem;
+    background:#fff;min-width:220px;height:36px;line-height:1.2;
+  }
+  #plantBtn:after{content:"";} /* keep arrow we put in text ( ▾ ) */
+</style>
+<script id="ia_cleanup_once">
+(function(){
+  document.addEventListener("DOMContentLoaded", ()=>{
+    const filters=[...document.querySelectorAll("#plantFilter")];
+    filters.slice(1).forEach(n=>n.remove()); // keep only the first
+  });
+})();
+</script>
+
+<style id="hide-legacy-plant">
+  select#plantSelect, select#plants, select#meterPlantSelect { display:none !important; }
+</style>
+
+
+
+
+
+
+
+
+
+
+<script id="ia-multiplant">
+(function(){
+  const $ = (s,d=document)=>d.querySelector(s);
+  const $$= (s,d=document)=>[...d.querySelectorAll(s)];
+  const btn=$("#plantBtn"), panel=$("#plantPanel"), list=$("#plantList"),
+        allCb=$("#plant_all"), apply=$("#plantApply");
+  const kpiVal = document.querySelector("[data-kpi='total-yield']"),
+        kpiUnit= document.querySelector("[data-kpi='total-yield-unit']");
+  let PLANTS=[], SELECTED=new Set();
+
+  const units = { mwhAuto(v){ v=+v||0; return v>=1000 ? {value:+(v/1000).toFixed(3),unit:"GWh"} : {value:+v.toFixed(3),unit:"MWh"}; } };
+
+  async function loadPlants(){
+    const r = await fetch("/api/GetPlantDirectory?_ts="+Date.now());
+    const j = await r.json();
+    if(!j.success || !Array.isArray(j.data)) throw new Error("Plant list failed");
+    PLANTS = j.data.map(p=>({ id:String(p.Plant_ID), name:p.Plant_Name }));
+    list.innerHTML = PLANTS.map(p=>`
+      <label style="display:flex;align-items:center;gap:.5rem;padding:.25rem .5rem;">
+        <input type="checkbox" class="plant_cb" value="${p.id}" checked>
+        <span>${p.name}</span>
+      </label>`).join("");
+  }
+
+  function labelFromSel(){
+    if (!SELECTED.size || SELECTED.size===PLANTS.length) return "All Plants ▾";
+    if (SELECTED.size===1){ const id=[...SELECTED][0]; const p=PLANTS.find(x=>x.id===id); return (p?.name||"1 selected")+" ▾"; }
+    return `${SELECTED.size} selected ▾`;
+  }
+
+  async function loadAnalytics(){
+    const fallbackDate = "2025-06-18"; // known-good from your tables
+    const dateInp = document.querySelector('input[type="date"], input[name="date"]');
+    const date = (dateInp && dateInp.value) ? dateInp.value : fallbackDate;
+    let view="day"; const on=document.querySelector('.btn.active, .active');
+    if (on && /week/i.test(on.textContent)) view="week";
+    else if (on && /month/i.test(on.textContent)) view="month";
+    else if (on && /year/i.test(on.textContent)) view="year";
+
+    const all = (!SELECTED.size || SELECTED.size===PLANTS.length);
+    const plantParam = all ? "all" : [...SELECTED].join(",");
+    const url = `/api/inverter-analytics?view=${encodeURIComponent(view)}&plantId=${encodeURIComponent(plantParam)}&date=${encodeURIComponent(date)}&_ts=${Date.now()}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    // KPI
+    const totalMWh = Array.isArray(data?.yield) ? data.yield.reduce((s,r)=>s+(+r.value||0),0) : 0;
+    const {value,unit} = units.mwhAuto(totalMWh);
+    if (kpiVal)  kpiVal.textContent  = value.toLocaleString();
+    if (kpiUnit) kpiUnit.textContent = unit;
+
+    // Series
+    const power = Array.isArray(data?.power)? data.power:[];    // [{t,ac,dc}]
+    const ac = power.map(p=>({x:new Date(p.t), y:+(p.ac||0)}));
+    const dc = power.map(p=>({x:new Date(p.t), y:+(p.dc||0)}));
+
+    const yld = Array.isArray(data?.yield)? data.yield:[];      // [{label,value}]
+    const yldPts = yld.map(d=>({x:d.label, y:+(d.value||0)}));
+
+    // Always draw inline charts so the cards are never blank
+    if (typeof window.__drawInverterCharts==="function") window.__drawInverterCharts(ac, dc, []);
+    if (typeof window.__drawInverterCharts==="function") window.__drawInverterCharts(ac, dc, yldPts);
+
+    // If host provides custom updaters, call them too
+    if (typeof window.updatePowerChart === "function") window.updatePowerChart(ac,dc);
+    
+    // cache last series for redraws
+    window.__lastIA = { ac, dc, yldPts };
+    // always render our visuals (titles + labels)
+    if (typeof window.__drawInverterCharts === "function") window.__drawInverterCharts(ac, dc, yldPts);}
+
+  function drawMini(sel, series1, series2){
+    const host = document.querySelector(sel); if(!host) return;
+    const W=Math.max(300, host.clientWidth||700), H=host.clientHeight||280, pad=24;
+    const svgNS="http://www.w3.org/2000/svg";
+    host.innerHTML="";
+    const svg=document.createElementNS(svgNS,"svg"); svg.setAttribute("width",W); svg.setAttribute("height",H); host.appendChild(svg);
+    const allY=[...series1.map(p=>p.y),...(series2||[]).map(p=>p.y)];
+    const maxY=Math.max(1, ...allY, 1);
+    function xScale(i,n){ return pad + (W-2*pad) * (n<=1?0.5:i/(n-1)); }
+    function yScale(v){ return H-pad - (H-2*pad) * (v/maxY); }
+    function poly(ss,stroke){
+      const n=ss.length; if(!n) {svg.textContent="No data"; return;}
+      const pts=ss.map((p,i)=>`${xScale(i,n)},${yScale(p.y)}`).join(" ");
+      const poly=document.createElementNS(svgNS,"polyline");
+      poly.setAttribute("points",pts); poly.setAttribute("fill","none"); poly.setAttribute("stroke",stroke); poly.setAttribute("stroke-width","2");
+      svg.appendChild(poly);
+    }
+    poly(series1,"#2f80ed");
+    if(series2) poly(series2,"#27ae60");
+  }
+
+  // Events
+  btn?.addEventListener("click", ()=> panel.hidden = !panel.hidden);
+  allCb?.addEventListener("change", (e)=> { $$(".plant_cb", panel).forEach(cb=>cb.checked=e.target.checked); });
+  apply?.addEventListener("click", ()=>{
+    const chosen = $$(".plant_cb", panel).filter(cb=>cb.checked).map(cb=>cb.value);
+    SELECTED = new Set(chosen);
+    btn.textContent = labelFromSel(); panel.hidden = true;
+    loadAnalytics().catch(console.warn);
+  });
+  document.addEventListener("click", (e)=>{ if(panel && !panel.contains(e.target) && e.target!==btn) panel.hidden=true; });
+
+  document.addEventListener("DOMContentLoaded", ()=>{
+    loadPlants().then(()=>{ SELECTED.clear(); btn.textContent = labelFromSel(); loadAnalytics(); })
+                .catch(console.warn);
+  });
+})();
+</script>
+<style id="ia-charts-css">
+  .ia-card { background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;margin:12px 0; }
+  .ia-title { font-weight:700;margin:4px 8px 8px 8px; }
+  #powerChart,#yieldChart { min-height: 320px; }
+  .ia-legend { font-size:12px; fill:#555; }
+</style>
+
+<script id="ia-charts">
+(function(){
+  const $ = (s,d=document)=>d.querySelector(s);
+
+  // --- simple SVG chart helper with titles, axes, legend, and value labels ---
+  function drawChart(hostSel, seriesArr, opts){
+    const host = $(hostSel); if(!host) return;
+    const W = Math.max(600, host.clientWidth||800), H = Math.max(300, host.clientHeight||320);
+    const padL=48, padR=16, padT=30, padB=34;
+    const svgNS="http://www.w3.org/2000/svg";
+
+    host.innerHTML="";
+    const wrap = document.createElement("div");
+    wrap.className = "ia-card"; host.appendChild(wrap);
+    const title = document.createElement("div");
+    title.className = "ia-title"; title.textContent = opts.title || "";
+    wrap.appendChild(title);
+
+    const svg=document.createElementNS(svgNS,"svg"); svg.setAttribute("width",W); svg.setAttribute("height",H); wrap.appendChild(svg);
+
+    // Flatten points
+    const allY=[]; let N=0;
+    seriesArr.forEach(s=>{ (s.data||[]).forEach(p=>allY.push(p.y)); N = Math.max(N, (s.data||[]).length);});
+    const yMax = Math.max(1, Math.ceil(Math.max(...allY, 0)*1.1));
+    const xStep=(W-padL-padR)/Math.max(1, (N-1));
+    const yScale=v=> H-padB - (H-padT-padB)*(v/yMax);
+    const xScale=i=> padL + i*xStep;
+
+    // grid + axes
+    const g = document.createElementNS(svgNS,"g"); svg.appendChild(g);
+    // Y ticks (5)
+    for(let i=0;i<=5;i++){
+      const v = (yMax*i/5), y = yScale(v);
+      const line=document.createElementNS(svgNS,"line");
+      line.setAttribute("x1", padL); line.setAttribute("x2", W-padR);
+      line.setAttribute("y1", y); line.setAttribute("y2", y);
+      line.setAttribute("stroke", "#f0f2f5"); g.appendChild(line);
+      const lbl=document.createElementNS(svgNS,"text");
+      lbl.setAttribute("x", padL-6); lbl.setAttribute("y", y+4);
+      lbl.setAttribute("text-anchor","end"); lbl.setAttribute("font-size","11");
+      lbl.textContent = v.toFixed(0);
+      g.appendChild(lbl);
+    }
+    // X axis line
+    const xAxis=document.createElementNS(svgNS,"line");
+    xAxis.setAttribute("x1", padL); xAxis.setAttribute("x2", W-padR);
+    xAxis.setAttribute("y1", H-padB); xAxis.setAttribute("y2", H-padB);
+    xAxis.setAttribute("stroke","#e5e7eb"); svg.appendChild(xAxis);
+
+    // legend
+    const legend = document.createElementNS(svgNS,"g"); svg.appendChild(legend);
+    let lx = padL, ly = padT-10;
+    (opts.legend||[]).forEach((lg,i)=>{
+      const box=document.createElementNS(svgNS,"rect");
+      box.setAttribute("x", lx); box.setAttribute("y", ly-8); box.setAttribute("width","16"); box.setAttribute("height","3");
+      box.setAttribute("fill", lg.color); legend.appendChild(box);
+      const tx=document.createElementNS(svgNS,"text");
+      tx.setAttribute("x", lx+22); tx.setAttribute("y", ly-5); tx.setAttribute("class","ia-legend");
+      tx.textContent = lg.text; legend.appendChild(tx);
+      lx += 22 + tx.getComputedTextLength() + 28;
+    });
+
+    // lines + point labels
+    const labelEvery = Math.max(1, Math.round(N/12)); // ~12 labels max
+    seriesArr.forEach((s,si)=>{
+      const pts = (s.data||[]).map((p,i)=> `${xScale(i)},${yScale(p.y)}`).join(" ");
+      const poly=document.createElementNS(svgNS,"polyline");
+      poly.setAttribute("points",pts); poly.setAttribute("fill","none");
+      poly.setAttribute("stroke", s.color||"#2f80ed"); poly.setAttribute("stroke-width","2");
+      svg.appendChild(poly);
+
+      // point labels (sparse)
+      (s.data||[]).forEach((p,i)=>{
+        if(i % labelEvery !== 0) return;
+        const cx=xScale(i), cy=yScale(p.y);
+        const dot=document.createElementNS(svgNS,"circle");
+        dot.setAttribute("cx",cx); dot.setAttribute("cy",cy); dot.setAttribute("r","2.8");
+        dot.setAttribute("fill", s.color||"#2f80ed"); svg.appendChild(dot);
+        const t=document.createElementNS(svgNS,"text");
+        t.setAttribute("x", cx+4); t.setAttribute("y", cy-6);
+        t.setAttribute("font-size","10"); t.setAttribute("fill", "#333");
+        t.textContent = (opts.yUnitAfter? `${p.y}${opts.yUnit}` : `${p.y} ${opts.yUnit||""}`).trim();
+        svg.appendChild(t);
+      });
+    });
+  }
+
+  // Expose hook our loader can call after it fetches
+  window.__drawInverterCharts = function(ac, dc, yldPts){
+    drawChart("#powerChart", [
+      { name:"AC", color:"#2f80ed", data: ac },
+      { name:"DC", color:"#27ae60", data: dc },
+    ], { title:"Daily Power Curve", legend:[{text:"AC",color:"#2f80ed"},{text:"DC",color:"#27ae60"}], yUnit:"kW" });
+
+    drawChart("#yieldChart", [
+      { name:"Yield", color:"#6c5ce7", data: yldPts },
+    ], { title:"Yield Curve", legend:[{text:"Yield",color:"#6c5ce7"}], yUnit:"MWh", yUnitAfter:false });
+  };
+
+  // If the page’s analytics loader already ran, try to redraw using any globals left there:
+  if (window.__lastIA && (window.__lastIA.ac || window.__lastIA.yldPts)) {
+    const {ac=[], dc=[], yldPts=[]} = window.__lastIA;
+    window.__drawInverterCharts(ac, dc, yldPts);
+  }
+})();
+</script>
+
+<script id="ia-draw">
+(function(){
+  // cache
+  const I = (window.__iaCharts = window.__iaCharts || {});
+
+  // helpers
+  const fmtMWh = v => {
+    const x = +v||0;
+    return x>=1000 ? (x/1000).toFixed(3)+" GWh" : x.toFixed(3)+" MWh";
+  };
+  const labelsFromDates = arr => arr.map(p=>{
+    const d = (p.x instanceof Date)? p.x : new Date(p.x);
+    const hh = String(d.getHours()).padStart(2,"0");
+    const mm = String(d.getMinutes()).padStart(2,"0");
+    return `${hh}:${mm}`;
+  });
+  const lineSeries = (data, color) => ({
+    data: data.map(p=>p.y),
+    borderColor: color,
+    backgroundColor: ctx => {
+      const {chart} = ctx, a = chart?.chartArea; if(!a) return color;
+      const g = chart.ctx.createLinearGradient(0,a.top,0,a.bottom);
+      g.addColorStop(0, color+"33"); g.addColorStop(1, color+"05");
+      return g;
+    },
+    fill:true, tension:.25, pointRadius:0, borderWidth:2
+  });
+
+  function ensure(ctxSel, type, data, options){
+    const host = document.querySelector(ctxSel);
+    const canvas = host?.querySelector('canvas') || host;
+    if (!canvas || !window.Chart) return null;
+    if (I[ctxSel]) { I[ctxSel].data = data; I[ctxSel].options = options; I[ctxSel].update('none'); return I[ctxSel]; }
+    I[ctxSel] = new Chart(canvas.getContext('2d'), { type, data, options, plugins:[ChartDataLabels] });
+    return I[ctxSel];
+  }
+
+  // Public entry point
+  window.__drawInverterCharts = function(ac, dc, yldPts){
+    // cache
+    window.__lastIA = { ac, dc, yldPts };
+
+    // KPI: total yield (sum of bars/points), auto MWh→GWh
+    const total = (yldPts||[]).reduce((s,p)=> s + (+p.y||+p.value||0), 0);
+    (document.getElementById('kpi_total_yield')||{}).textContent = (total>=1000 ? (total/1000).toFixed(3) : total.toFixed(3));
+    (document.getElementById('kpi_total_yield_unit')||{}).textContent = (total>=1000 ? 'GWh' : 'MWh');
+
+    // Power
+    const labels = labelsFromDates(ac.length?ac:dc);
+    ensure('#powerChart','line',{
+      labels,
+      datasets:[
+        Object.assign({label:'AC'}, lineSeries(ac,'#2f80ed')),
+        Object.assign({label:'DC'}, lineSeries(dc,'#27ae60')),
+      ]
+    },{
+      plugins:{ legend:{display:true, labels:{boxWidth:12}}, datalabels:{display:false} },
+      scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:8}}, y:{beginAtZero:true, ticks:{callback:v=>v+' kW'}} },
+      maintainAspectRatio:false
+    });
+
+    // Yield (bars) – make single-point cases visible and labeled
+    const yLabels = (yldPts||[]).map(p=>String(p.x||p.label||''));
+    const yVals   = (yldPts||[]).map(p=>+p.y||+p.value||0);
+    ensure('#yieldChart','bar',{
+      labels: yLabels,
+      datasets:[{
+        label:'Yield', data:yVals,
+        borderColor:'#4f46e5', backgroundColor:'#4f46e5aa',
+        borderWidth:1.5, barPercentage:0.6, categoryPercentage:0.6, maxBarThickness:48
+      }]
+    },{
+      plugins:{
+        legend:{display:true, labels:{boxWidth:12}},
+        datalabels:{ align:'end', anchor:'end', formatter:(v)=>fmtMWh(v), clip:true },
+        tooltip:{ callbacks:{ label: ctx => ' '+fmtMWh(ctx.raw) } }
+      },
+      scales:{
+        x:{ grid:{display:false}, ticks:{maxTicksLimit: Math.min(yLabels.length,12)}},
+        y:{ beginAtZero:true, ticks:{ callback:v=> (v>=1000? (v/1000)+' GWh' : v+' MWh') } }
+      },
+      maintainAspectRatio:false
+    });
+  };
+
+  // If data already fetched earlier, re-draw
+  if (window.__lastIA) {
+    const {ac=[],dc=[],yldPts=[]} = window.__lastIA;
+    window.__drawInverterCharts(ac,dc,yldPts);
+  }
+})();
+</script>
+
+
+
+
+
+
+

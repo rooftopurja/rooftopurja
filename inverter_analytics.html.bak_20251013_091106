@@ -1,0 +1,194 @@
+﻿<div id="ia-ui">
+  <div style="display:grid;grid-template-columns:repeat(3,minmax(220px,1fr));gap:12px;margin:8px 0 16px">
+    <div class="ia-card" style="background:#fff;border:1px solid #e7e7e9;border-radius:12px;padding:12px">
+      <div style="font-weight:600;color:#6b7280">TOTAL YIELD</div>
+      <div><span id="kpi_total_yield" style="font-size:2rem;font-weight:800">0</span>
+           <span id="kpi_total_yield_unit" style="margin-left:.35rem;color:#6b7280">MWh</span></div>
+    </div>
+    <div class="ia-card" style="background:#fff;border:1px solid #e7e7e9;border-radius:12px;padding:12px">
+      <div style="font-weight:600;color:#6b7280">CUF</div>
+      <div>—</div><div style="color:#6b7280;font-size:.85rem">Coming soon</div>
+    </div>
+    <div class="ia-card" style="background:#fff;border:1px solid #e7e7e9;border-radius:12px;padding:12px">
+      <div style="font-weight:600;color:#6b7280">PR</div>
+      <div>—</div><div style="color:#6b7280;font-size:.85rem">Coming soon</div>
+    </div>
+  </div>
+  <div class="ia-card" style="background:#fff;border:1px solid #e7e7e9;border-radius:12px;padding:12px;min-height:320px">
+    <h4 style="margin:0 0 8px 0">Daily Power Curve</h4>
+    <div id="powerChart" style="height:320px"><canvas></canvas></div>
+  </div>
+  <div class="ia-card" style="background:#fff;border:1px solid #e7e7e9;border-radius:12px;padding:12px;min-height:320px">
+    <h4 id="yieldTitle" style="margin:0 0 8px 0">Yield Curve</h4>
+    <div id="yieldChart" style="height:320px"><canvas></canvas></div>
+  </div>
+</div>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<script id="api-proxy-7071">
+(function(){
+  const API_BASE = "http://127.0.0.1:7071";
+  const _fetch = window.fetch;
+  window.fetch = function(u,opt){
+    if (typeof u === "string" && u.startsWith("/api/")) return _fetch(API_BASE + u, opt);
+    return _fetch(u, opt);
+  };
+})();
+</script>
+
+<script id="ia-safe-insert">
+(function(){
+  const orig = Node.prototype.insertBefore;
+  Node.prototype.insertBefore = function(newChild, refChild){
+    try{
+      if (newChild && this && typeof newChild.contains==="function" && newChild.contains(this)){
+        console.warn("[IA] blocked unsafe insertBefore");
+        return newChild;
+      }
+    }catch(_){}
+    return orig.call(this,newChild,refChild);
+  };
+})();
+</script><!-- removed broken moveFilterToToolbar script --><style id="ia_hide_legacy_select">
+#plantFilter ~ select, select#plantSelect, select#plants, select#meterPlantSelect,
+select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<style id="ia_plant_selectlike">
+  #plantFilter>label{display:none!important;}
+  #plantBtn{
+    display:inline-flex;align-items:center;gap:.5rem;
+    padding:.375rem .75rem;border:1px solid #ced4da;border-radius:.375rem;
+    background:#fff;min-width:220px;height:36px;line-height:1.2;
+  }
+  #plantBtn:after{content:"";} /* keep arrow we put in text ( ▾ ) */
+</style><!-- removed broken moveFilterToToolbar script --><!-- removed broken moveFilterToToolbar script -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    </script>
+
+
+<script id="ia-loader-fix">
+(function(){
+  const $ = s=>document.querySelector(s);
+  // small debug badge
+  const dbgEl = document.getElementById('ia-debug') || (function(){
+    const d = document.createElement('div');
+    d.id='ia-debug'; d.style.cssText='position:fixed;top:4px;left:4px;z-index:9999;background:#111;color:#0f0;padding:2px 6px;border-radius:6px;font:12px/1.4 monospace';
+    d.textContent='IA ready'; document.body.appendChild(d); return d;
+  })();
+  const log = m=>{ console.log('[IA]',m); if(dbgEl) dbgEl.textContent=m; };
+
+  function labelsFromDates(isoArr){
+    return isoArr.map(t=>{ const d=new Date(t); return `${String(d.getHours()).padStart(2,'0')}:${String(d.getMinutes()).padStart(2,'0')}`;});
+  }
+  function ensureChart(sel, type, data, options){
+    if(!window.Chart){ log('Chart.js missing'); return; }
+    window.__iaCharts = window.__iaCharts || {};
+    if (window.__iaCharts[sel]) { try{ window.__iaCharts[sel].destroy(); }catch(e){} }
+    const host = document.querySelector(sel);
+    const canvas = host?.querySelector('canvas') || host;
+    if (!canvas) return;
+    window.__iaCharts[sel] = new Chart(canvas.getContext('2d'), { type, data, options, plugins:[window.ChartDataLabels||{}] });
+  }
+  function drawLine(sel, labels, ac, dc){
+    ensureChart(sel,'line',{labels,datasets:[
+      {label:'AC', data:ac, borderColor:'#2f80ed', backgroundColor:'#2f80ed33', fill:true, tension:.25, pointRadius:0, borderWidth:2},
+      {label:'DC', data:dc, borderColor:'#27ae60', backgroundColor:'#27ae6033', fill:true, tension:.25, pointRadius:0, borderWidth:2},
+    ]},{
+      plugins:{legend:{display:true}, datalabels:{display:false}},
+      scales:{x:{grid:{display:false}}, y:{beginAtZero:true, ticks:{callback:v=>v+' kW'}}},
+      maintainAspectRatio:false
+    });
+  }
+  function drawBar(sel, labels, vals){
+    ensureChart(sel,'bar',{labels,datasets:[
+      {label:'Yield', data:vals, borderColor:'#4f46e5', backgroundColor:'#4f46e5aa', borderWidth:1.5}
+    ]},{
+      plugins:{legend:{display:true}, datalabels:{align:'top', anchor:'end', formatter:v=> (v>=1000?(v/1000).toFixed(3)+' GWh':v.toFixed(3)+' MWh')}},
+      scales:{x:{grid:{display:false}}, y:{beginAtZero:true, ticks:{callback:v=> (v>=1000?(v/1000)+' GWh':v+' MWh')}}},
+      maintainAspectRatio:false
+    });
+  }
+  function setKPI(totalMWh){
+    const v = +totalMWh||0;
+    const out = v>=1000? {val:(v/1000).toFixed(3), unit:'GWh'} : {val:v.toFixed(3), unit:'MWh'};
+    const valEl = document.getElementById('kpi_total_yield');
+    const unitEl= document.getElementById('kpi_total_yield_unit');
+    if(valEl) valEl.textContent = out.val;
+    if(unitEl) unitEl.textContent = out.unit;
+  }
+
+  async function refresh(){
+    const viewEl = document.querySelector('.btn.active, .active');
+    const view = (viewEl?.textContent||'day').trim().toLowerCase();
+    const dateEl = document.querySelector('input[type="date"], input[name="date"]');
+    const date = (dateEl && dateEl.value) ? dateEl.value : (new Date()).toISOString().slice(0,10);
+    const plant = 'all'; // hook to your picker later if needed
+
+    const url = `/api/inverter-analytics?view=${encodeURIComponent(view)}&plantId=${encodeURIComponent(plant)}&date=${encodeURIComponent(date)}&_ts=${Date.now()}`;
+    log('fetch '+url);
+
+    let raw; try {
+      const res = await fetch(url);
+      raw = await res.text();
+    } catch(e){ log('fetch failed: '+e.message); return; }
+
+    let data; try { data = JSON.parse(raw); }
+    catch(e){ log('not JSON from API'); console.error(raw); return; }
+
+    const totalMWh = Array.isArray(data?.yield)? data.yield.reduce((s,r)=> s+(+r.value||0),0):0;
+    setKPI(totalMWh);
+
+    const power = Array.isArray(data?.power)? data.power : [];
+    const labels = power.length? labelsFromDates(power.map(p=>p.t)) : [];
+    const ac = power.map(p=> +(+p.ac||0).toFixed(0));
+    const dc = power.map(p=> +(+p.dc||0).toFixed(0));
+    drawLine('#powerChart', labels, ac, dc);
+
+    const y = Array.isArray(data?.yield)? data.yield: [];
+    const yl = y.map(d=> String(d.label||'')); const yv = y.map(d=> +(+d.value||0).toFixed(3));
+    const yt = document.getElementById('yieldTitle');
+    if (yt) yt.textContent = (view==='week'?'Yield (Last 7 days)':view==='month'?'Yield (Last 6 months)':view==='year'?'Yield (Last 5 years)':'Yield (Day)');
+    drawBar('#yieldChart', yl, yv);
+  }
+
+  window.window_IA_refresh = refresh;
+  document.addEventListener('click', (e)=>{
+    const t = e.target; if (!t || !t.textContent) return;
+    const txt = t.textContent.toLowerCase().trim();
+    if (['day','week','month','year','refresh'].includes(txt)) setTimeout(refresh,0);
+  });
+  document.addEventListener('change', (e)=>{
+    const t = e.target;
+    if (t && t.tagName==='INPUT' && (t.type||'').toLowerCase()==='date') setTimeout(refresh,0);
+    if ((t as any)?.classList?.contains?.('plant_cb')) setTimeout(refresh,0);
+  });
+
+  // first paint + auto rollover to new day
+  document.addEventListener('DOMContentLoaded', ()=> refresh());
+  function msToMidnight(){ const n=new Date(), m=new Date(n); m.setHours(24,0,0,0); return m.getTime()-n.getTime(); }
+  setTimeout(()=>{ refresh(); setInterval(refresh, 24*60*60*1000); }, msToMidnight());
+})();
+</script>
+

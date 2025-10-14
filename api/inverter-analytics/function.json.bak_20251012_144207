@@ -1,17 +1,17 @@
 ﻿{
   "bindings": [
     {
-      "authLevel": "Function",
+      "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
       "methods": [ "get" ],
-      "route": "GetPlantDirectory"
+      "route": "inverter-analytics/{*path}"
     },
     {
       "type": "http",
       "direction": "out",
-      "name": "res"
+      "name": "\"
     }
   ]
 }

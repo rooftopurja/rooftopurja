@@ -1,7 +1,7 @@
 ﻿{
   "bindings": [
-    { "authLevel": "anonymous", "type": "httpTrigger", "direction": "in", "name": "req",
-      "methods": [ "get" ], "route": "inverter/analytics/{*path}" },
+    { "authLevel": "anonymous", "type": "httpTrigger", "direction": "in", "name": "req", "methods": ["get","options"], "route": "inverter-analytics" },
     { "type": "http", "direction": "out", "name": "res" }
-  ]
+  ],
+  "scriptFile": "index.js"
 }

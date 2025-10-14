@@ -1,0 +1,831 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Inverter Analytics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;background:#fafafa;color:#111}
+    header{padding:12px 16px;border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .kpi{flex:1 1 220px}
+    .kpi .label{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em}
+    .kpi .value{font-size:28px;font-weight:700;margin-top:4px}
+    .controls{gap:8px;align-items:center}
+    select,input,button{padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff}
+    .seg button{padding:8px 12px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+    .seg button.active{background:#111;color:#fff;border-color:#111}
+    .chart-card{flex:1 1 520px;min-width:320px}
+    .muted{color:#6b7280;font-size:12px}
+    .spinner{display:none}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<link rel="stylesheet" href="/nav.css"><div id="global-nav"></div><script src="/nav.js" defer></script>
+<header>
+  <div class="wrap row controls">
+    <div style="font-weight:700;">Inverter Analytics</div>
+    <div style="flex:1"></div>
+    <label>Plant</label>
+    <select id="plantSel">
+      <option value="all">All Plants</option>
+      <!-- you can append more options later via PlantDirectory -->
+    </select>
+    <label>Date</label>
+    <input type="date" id="dayPicker" />
+    <div class="seg" id="viewSeg">
+      <button data-view="day"   class="active">Day</button>
+      <button data-view="week">Week</button>
+      <button data-view="month">Month</button>
+      <button data-view="year">Year</button>
+    </div>
+    <button id="refreshBtn">Refresh</button>
+    <div id="spin" class="muted spinner">Loading…</div>
+  </div>
+</header>
+<main class="wrap">
+  <div class="row">
+    <div class="card kpi">
+      <div class="label">Total Yield</div>
+      <div class="value"><span id="kpiYieldValue">0</span> <span id="kpiYieldUnit">kWh</span></div>
+      <div class="muted" id="kpiDate"></div>
+    </div>
+    <div class="card kpi">
+      <div class="label">CUF</div>
+      <div class="value">—</div>
+      <div class="muted">Coming soon</div>
+    </div>
+    <div class="card kpi">
+      <div class="label">PR</div>
+      <div class="value">—</div>
+      <div class="muted">Coming soon</div>
+    </div>
+  </div>
+
+  <div class="row" style="margin-top:12px;">
+    <div class="card chart-card">
+      <div class="muted" style="margin-bottom:6px;">Power (AC/DC) vs Time</div>
+      <canvas id="powerChart" height="220"></canvas>
+    </div>
+    <div class="card chart-card">
+      <div class="muted" style="margin-bottom:6px;">Yield</div>
+      <canvas id="yieldChart" height="220"></canvas>
+    </div>
+  </div>
+</main>
+
+<script>
+const spin = document.getElementById('spin');
+const dayPicker = document.getElementById('dayPicker');
+const plantSel = document.getElementById('plantSel');
+const viewSeg = document.getElementById('viewSeg');
+const refreshBtn = document.getElementById('refreshBtn');
+
+function todayYMDIST(){
+  // Build IST "today" Y-M-D from client time (simple)
+  const now = new Date();
+  const y = now.getFullYear();
+  const m = String(now.getMonth()+1).padStart(2,'0');
+  const d = String(now.getDate()).padStart(2,'0');
+  return `${y}-${m}-${d}`;
+}
+dayPicker.value = todayYMDIST();
+
+let currentView = 'day';
+viewSeg.addEventListener('click', (e)=>{
+  if(e.target.tagName==='BUTTON'){
+    [...viewSeg.querySelectorAll('button')].forEach(b=>b.classList.remove('active'));
+    e.target.classList.add('active');
+    currentView = e.target.dataset.view;
+  }
+});
+
+let powerChart, yieldChart;
+function ensureCharts(){
+  if(!powerChart){
+    const ctx = document.getElementById('powerChart').getContext('2d');
+    powerChart = new Chart(ctx,{
+      type:'line',
+      data:{ labels:[], datasets:[
+        { label:'AC Power (kW)', data:[], fill:false, tension:0.2 },
+        { label:'DC Power (kW)', data:[], fill:false, tension:0.2 }
+      ]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        scales:{ x:{ ticks:{ maxRotation:0, autoSkip:true } }, y:{} },
+        plugins:{ legend:{ position:'bottom' } }
+      }
+    });
+  }
+  if(!yieldChart){
+    const ctx = document.getElementById('yieldChart').getContext('2d');
+    yieldChart = new Chart(ctx,{
+      type:'bar',
+      data:{ labels:[], datasets:[ { label:'Yield', data:[] } ]},
+      options:{ responsive:true, maintainAspectRatio:false,
+        plugins:{ legend:{ display:false } },
+        scales:{ x:{ }, y:{ beginAtZero:true } }
+      }
+    });
+  }
+}
+
+async function fetchAnalytics(){
+  const plantId = plantSel.value || 'all';
+  const date = dayPicker.value; // Y-M-D
+  const url = new URL(location.origin + '/api/inverter-analytics');
+  url.searchParams.set('view', currentView);
+  url.searchParams.set('plantId', plantId);
+  if (currentView === 'day' || currentView === 'week' || currentView === 'month' || currentView === 'year') {
+    // day param accepted for all; backend uses IST
+    if (date) url.searchParams.set('date', date);
+  }
+  spin.style.display = 'inline';
+  const res = await fetch(url.toString(), { headers: { 'Accept':'application/json' }});
+  spin.style.display = 'none';
+  if(!res.ok){
+    alert('API error: '+res.status);
+    return null;
+  }
+  return await res.json();
+}
+
+function updateUI(payload){
+  // KPIs
+  const k = payload?.kpis || {};
+  document.getElementById('kpiYieldValue').textContent = (k.total_yield ?? 0);
+  document.getElementById('kpiYieldUnit').textContent  = (k.unit || 'kWh');
+  document.getElementById('kpiDate').textContent = `View: ${payload?.parameters?.view} • Date: ${payload?.parameters?.date}`;
+
+  ensureCharts();
+
+  // Power chart (only for day view)
+  if (payload?.power && Array.isArray(payload.power)) {
+    const labels = payload.power.map(p => new Date(p.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
+    const ac = payload.power.map(p => p.ac ?? 0);
+    const dc = payload.power.map(p => p.dc ?? 0);
+    powerChart.data.labels = labels;
+    powerChart.data.datasets[0].data = ac;
+    powerChart.data.datasets[1].data = dc;
+    powerChart.update();
+  } else {
+    powerChart.data.labels = [];
+    powerChart.data.datasets[0].data = [];
+    powerChart.data.datasets[1].data = [];
+    powerChart.update();
+  }
+
+  // Yield chart (bars)
+  if (payload?.yield && Array.isArray(payload.yield)) {
+    yieldChart.data.labels = payload.yield.map(y => y.label);
+    yieldChart.data.datasets[0].data = payload.yield.map(y => y.value ?? 0);
+    yieldChart.update();
+  } else {
+    yieldChart.data.labels = [];
+    yieldChart.data.datasets[0].data = [];
+    yieldChart.update();
+  }
+}
+
+async function run(){ const data = await fetchAnalytics(); if(data) updateUI(data); }
+refreshBtn.addEventListener('click', run);
+
+// Initial load
+run();
+</script>
+  <!-- Inverter Analytics scripts -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="assets/js/inverter-analytics.js"></script>
+<script>
+(() => {
+  const $ = (sel) => document.querySelector(sel);
+
+  // Elements
+  const plantSel = document.querySelector("#plantSelect, #plants, #meterPlantSelect, select[name='plant'], select[data-role='plant']");
+  const dateInput  = $("#dateInput");
+  const btnDay     = $("#btnDay");
+  const btnWeek    = $("#btnWeek");
+  const btnMonth   = $("#btnMonth");
+  const btnYear    = $("#btnYear");
+  const btnRefresh = $("#btnRefresh");
+  const loading    = $("#loadingBadge");
+  const totalBox   = $("#totalYieldValue");
+  const powerHost  = $("#powerChart");
+  const yieldHost  = $("#yieldChart");
+
+  // State
+  let view = "day";
+  let plantId = "all";
+  let dateStr = toYMDIST(new Date());
+
+  function toYMDIST(d) {
+    // IST date (UTC+5:30) flattened to YYYY-MM-DD
+    const ist = new Date(d.getTime() + 330*60000);
+    const y = ist.getUTCFullYear();
+    const m = String(ist.getUTCMonth()+1).padStart(2,"0");
+    const da = String(ist.getUTCDate()).padStart(2,"0");
+    return `${y}-${m}-${da}`;
+  }
+
+  function setActive(v) {
+    for (const b of [btnDay,btnWeek,btnMonth,btnYear]) { if (b) b.classList.remove("active"); }
+    if (v==="day"   && btnDay)   btnDay.classList.add("active");
+    if (v==="week"  && btnWeek)  btnWeek.classList.add("active");
+    if (v==="month" && btnMonth) btnMonth.classList.add("active");
+    if (v==="year"  && btnYear)  btnYear.classList.add("active");
+  }
+
+  async function loadPlants(){ console.log("plantSel found?", !!plantSel);
+  try {
+    const r = await fetch("/api/GetPlantDirectory?_ts=" + Date.now());
+    const j = await r.json();
+    if (!j.success || !Array.isArray(j.data)) throw new Error("plant list failed");
+    const opts = [`<option value="all">All Plants</option>`]
+      .concat(j.data.map(p => `<option value="${p.Plant_ID}">${p.Plant_Name}</option>`));
+    plantSel.innerHTML = opts.join("");
+    // keep a map for later (optional)
+    window.__PLANT_MAP__ = Object.fromEntries(j.data.map(p => [String(p.Plant_ID), p]));
+  } catch (e) {
+    if (plantSel) if(!plantSel?.dataset?.plantsBound){ plantSel.innerHTML = `<option value="all">All Plants</option>`; }
+    console.warn("plants fallback:", e);
+  }
+} ] }
+    if (!j.success || !Array.isArray(j.data)) throw new Error("plant list failed");
+    const plantsArr = j.data;
+window.__PLANT_MAP__ = Object.fromEntries(plantsArr.map(p => [String(p.Plant_ID), p]));
+const opts = [`<option value="all">All Plants</option>`]
+  .concat(plantsArr.map(p => `<option value="${p.Plant_ID}">${p.Plant_Name}</option>`));
+plantSel.innerHTML = opts.join("");
+  } catch (e) {
+    if (plantSel) if(!plantSel?.dataset?.plantsBound){ plantSel.innerHTML = `<option value="all">All Plants</option>`; }
+    console.warn("plants fallback:", e);
+  }
+}">${p.Plant_Name}</option>`));
+      plantSel.innerHTML = opts.join("");
+    } catch (e) {
+      // graceful fallback
+      if (plantSel) if(!plantSel?.dataset?.plantsBound){ plantSel.innerHTML = `<option value="all">All Plants</option>`; }
+      console.warn("plants fallback:", e);
+    }
+  }
+
+  function showLoading(b) {
+    if (!loading) return;
+    loading.style.display = b ? "inline-flex" : "none";
+  }
+
+  function numberLabel(val, unit) {
+    if (val == null) return "—";
+    const n = +val;
+    if (!isFinite(n)) return "—";
+    return `${n.toLocaleString(undefined,{maximumFractionDigits:2})} ${unit||""}`.trim();
+  }
+
+  async function runQuery() {
+    try {
+      showLoading(true);
+      const url = `/api/inverter-analytics?view=${encodeURIComponent(view)}&plantId=${encodeURIComponent(plantId)}&date=${encodeURIComponent(dateStr)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json();
+
+      // KPIs
+      if (totalBox) totalBox.textContent = numberLabel(data?.kpis?.total_yield, data?.kpis?.unit || "kWh");
+
+      // Charts — provide data to your existing renderers if you have them
+      // Expect data.power = [{t, ac, dc}], data.yield = [{label, value}]
+      if (powerHost) {
+        powerHost.textContent = ""; // clear
+        // TODO: call your line/bar chart renderer here
+        // renderPowerChart(powerHost, data.power || []);
+      }
+      if (yieldHost) {
+        yieldHost.textContent = "";
+        // TODO: call your column chart renderer here
+        // renderYieldChart(yieldHost, data.yield || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  // Event wiring
+  if (plantSel)  plantSel.addEventListener("change",  () => { plantId = plantSel.value || "all"; runQuery(); });
+  if (dateInput) dateInput.addEventListener("change", () => { dateStr = (dateInput.value || dateStr).slice(0,10); runQuery(); });
+
+  if (btnDay)   btnDay.addEventListener("click",   () => { view="day";   setActive(view); runQuery(); });
+  if (btnWeek)  btnWeek.addEventListener("click",  () => { view="week";  setActive(view); runQuery(); });
+  if (btnMonth) btnMonth.addEventListener("click", () => { view="month"; setActive(view); runQuery(); });
+  if (btnYear)  btnYear.addEventListener("click",  () => { view="year";  setActive(view); runQuery(); });
+  if (btnRefresh) btnRefresh.addEventListener("click", runQuery);
+
+  // Init
+  async function init(){
+    // defaults
+    if (dateInput) dateInput.value = dateStr;
+    setActive(view);
+    await loadPlants();
+    await runQuery();
+  })();
+})();
+</script>
+<script>
+(() => {
+  const $ = (sel) => document.querySelector(sel);
+
+  // Elements
+  const plantSel = document.querySelector("#plantSelect, #plants, #meterPlantSelect, select[name='plant'], select[data-role='plant']");
+  const dateInput  = $("#dateInput");
+  const btnDay     = $("#btnDay");
+  const btnWeek    = $("#btnWeek");
+  const btnMonth   = $("#btnMonth");
+  const btnYear    = $("#btnYear");
+  const btnRefresh = $("#btnRefresh");
+  const loading    = $("#loadingBadge");
+  const totalBox   = $("#totalYieldValue");
+  const powerHost  = $("#powerChart");
+  const yieldHost  = $("#yieldChart");
+
+  // State
+  let view = "day";
+  let plantId = "all";
+  let dateStr = toYMDIST(new Date());
+
+  function toYMDIST(d) {
+    // IST date (UTC+5:30) flattened to YYYY-MM-DD
+    const ist = new Date(d.getTime() + 330*60000);
+    const y = ist.getUTCFullYear();
+    const m = String(ist.getUTCMonth()+1).padStart(2,"0");
+    const da = String(ist.getUTCDate()).padStart(2,"0");
+    return `${y}-${m}-${da}`;
+  }
+
+  function setActive(v) {
+    for (const b of [btnDay,btnWeek,btnMonth,btnYear]) { if (b) b.classList.remove("active"); }
+    if (v==="day"   && btnDay)   btnDay.classList.add("active");
+    if (v==="week"  && btnWeek)  btnWeek.classList.add("active");
+    if (v==="month" && btnMonth) btnMonth.classList.add("active");
+    if (v==="year"  && btnYear)  btnYear.classList.add("active");
+  }
+
+  async function loadPlants(){ console.log("plantSel found?", !!plantSel);
+  try {
+    const r = await fetch("/api/GetPlantDirectory?_ts=" + Date.now());
+    const j = await r.json();
+    if (!j.success || !Array.isArray(j.data)) throw new Error("plant list failed");
+    const opts = [`<option value="all">All Plants</option>`]
+      .concat(j.data.map(p => `<option value="${p.Plant_ID}">${p.Plant_Name}</option>`));
+    plantSel.innerHTML = opts.join("");
+    // keep a map for later (optional)
+    window.__PLANT_MAP__ = Object.fromEntries(j.data.map(p => [String(p.Plant_ID), p]));
+  } catch (e) {
+    if (plantSel) if(!plantSel?.dataset?.plantsBound){ plantSel.innerHTML = `<option value="all">All Plants</option>`; }
+    console.warn("plants fallback:", e);
+  }
+} ] }
+    if (!j.success || !Array.isArray(j.data)) throw new Error("plant list failed");
+    const plantsArr = j.data;
+window.__PLANT_MAP__ = Object.fromEntries(plantsArr.map(p => [String(p.Plant_ID), p]));
+const opts = [`<option value="all">All Plants</option>`]
+  .concat(plantsArr.map(p => `<option value="${p.Plant_ID}">${p.Plant_Name}</option>`));
+plantSel.innerHTML = opts.join("");
+  } catch (e) {
+    if (plantSel) if(!plantSel?.dataset?.plantsBound){ plantSel.innerHTML = `<option value="all">All Plants</option>`; }
+    console.warn("plants fallback:", e);
+  }
+}">${p.Plant_Name}</option>`));
+      plantSel.innerHTML = opts.join("");
+    } catch (e) {
+      // graceful fallback
+      if (plantSel) if(!plantSel?.dataset?.plantsBound){ plantSel.innerHTML = `<option value="all">All Plants</option>`; }
+      console.warn("plants fallback:", e);
+    }
+  }
+
+  function showLoading(b) {
+    if (!loading) return;
+    loading.style.display = b ? "inline-flex" : "none";
+  }
+
+  function numberLabel(val, unit) {
+    if (val == null) return "—";
+    const n = +val;
+    if (!isFinite(n)) return "—";
+    return `${n.toLocaleString(undefined,{maximumFractionDigits:2})} ${unit||""}`.trim();
+  }
+
+  async function runQuery() {
+    try {
+      showLoading(true);
+      const url = `/api/inverter-analytics?view=${encodeURIComponent(view)}&plantId=${encodeURIComponent(plantId)}&date=${encodeURIComponent(dateStr)}`;
+      const res = await fetch(url, { cache: "no-store" });
+      const data = await res.json();
+
+      // KPIs
+      if (totalBox) totalBox.textContent = numberLabel(data?.kpis?.total_yield, data?.kpis?.unit || "kWh");
+
+      // Charts — provide data to your existing renderers if you have them
+      // Expect data.power = [{t, ac, dc}], data.yield = [{label, value}]
+      if (powerHost) {
+        powerHost.textContent = ""; // clear
+        // TODO: call your line/bar chart renderer here
+        // renderPowerChart(powerHost, data.power || []);
+      }
+      if (yieldHost) {
+        yieldHost.textContent = "";
+        // TODO: call your column chart renderer here
+        // renderYieldChart(yieldHost, data.yield || []);
+      }
+    } catch (e) {
+      console.error(e);
+    } finally {
+      showLoading(false);
+    }
+  }
+
+  // Event wiring
+  if (plantSel)  plantSel.addEventListener("change",  () => { plantId = plantSel.value || "all"; runQuery(); });
+  if (dateInput) dateInput.addEventListener("change", () => { dateStr = (dateInput.value || dateStr).slice(0,10); runQuery(); });
+
+  if (btnDay)   btnDay.addEventListener("click",   () => { view="day";   setActive(view); runQuery(); });
+  if (btnWeek)  btnWeek.addEventListener("click",  () => { view="week";  setActive(view); runQuery(); });
+  if (btnMonth) btnMonth.addEventListener("click", () => { view="month"; setActive(view); runQuery(); });
+  if (btnYear)  btnYear.addEventListener("click",  () => { view="year";  setActive(view); runQuery(); });
+  if (btnRefresh) btnRefresh.addEventListener("click", runQuery);
+
+  // Init
+  async function init(){
+    // defaults
+    if (dateInput) dateInput.value = dateStr;
+    setActive(view);
+    await loadPlants();
+    await runQuery();
+  })();
+})();
+</script>
+
+<!-- ANALYTICS-WIRING -->
+<script>
+(() => {
+  const $ = s => document.querySelector(s);
+  const plantSel  = $("#plantSelect");
+  const dateInput = $("#dateInput");
+  const totalBox  = $("#totalYieldValue");
+
+  let view = "day";
+  let plantId = "all";
+  let dateStr = (new Date()).toISOString().slice(0,10);
+
+  async function loadPlants(){ console.log("plantSel found?", !!plantSel);
+  try {
+    const r = await fetch("/api/GetPlantDirectory?_ts=" + Date.now());
+    const j = await r.json();
+    if (!j.success || !Array.isArray(j.data)) throw new Error("plant list failed");
+    const opts = [`<option value="all">All Plants</option>`]
+      .concat(j.data.map(p => `<option value="${p.Plant_ID}">${p.Plant_Name}</option>`));
+    plantSel.innerHTML = opts.join("");
+    // keep a map for later (optional)
+    window.__PLANT_MAP__ = Object.fromEntries(j.data.map(p => [String(p.Plant_ID), p]));
+  } catch (e) {
+    if (plantSel) if(!plantSel?.dataset?.plantsBound){ plantSel.innerHTML = `<option value="all">All Plants</option>`; }
+    console.warn("plants fallback:", e);
+  }
+};
+    const opts = ['<option value="all">All Plants</option>']
+      .concat(j.plants.map(p => `<option value="${p.Plant_ID}">${p.Plant_Name}</option>`));
+    if (plantSel) plantSel.innerHTML = opts.join("");
+  }
+
+  function numberLabel(v, unit){ if(v==null) return "—"; const n=+v; if(!isFinite(n)) return "—"; return `${n.toLocaleString(undefined,{maximumFractionDigits:2})} ${unit||""}`.trim(); }
+
+  async function runQuery(){
+    const url = `/api/inverter-analytics?view=${encodeURIComponent(view)}&plantId=${encodeURIComponent(plantId)}&date=${encodeURIComponent(dateStr)}`;
+    const r = await fetch(url, { cache: "no-store" });
+    const data = await r.json();
+    if (totalBox) totalBox.textContent = numberLabel(data?.kpis?.total_yield, data?.kpis?.unit || "kWh");
+    // TODO: render charts with data.power and data.yield
+  }
+
+  if (plantSel)  plantSel.addEventListener("change",  () => { plantId = plantSel.value || "all"; runQuery(); });
+  if (dateInput) dateInput.addEventListener("change", () => { dateStr = (dateInput.value || dateStr).slice(0,10); runQuery(); });
+
+  async function init(){
+    if (dateInput) dateInput.value = dateStr;
+    await loadPlants();
+    await runQuery();
+  })();
+})();
+</script>
+<script>
+(function(){
+  // Find the actual plant dropdown on this page
+  function findPlantSelect(){
+    // prefer known ids if they exist
+    let s = document.querySelector("#plantSelect, #plants, #meterPlantSelect, select[name='plant'], select[data-role='plant']");
+    if (s) return s;
+    // otherwise: the first <select> that already has an "All Plants" option
+    const all = Array.from(document.querySelectorAll("select"))
+      .find(sel => sel && sel.options && sel.options.length && /all\s*plants/i.test(sel.options[0].textContent||""));
+    return all || document.querySelector("select"); // last resort
+  }
+
+  async function loadPlantsIntoSelect(sel){
+    try {
+      const r = await fetch("/api/GetPlantDirectory?_ts=" + Date.now());
+      const j = await r.json();
+      if (!j || !j.success || !Array.isArray(j.data)) throw new Error("Plant API failed");
+
+      const opts = ['<option value="all">All Plants</option>']
+        .concat(j.data.map(p => `<option value="${p.Plant_ID}">${p.Plant_Name}</option>`));
+      sel.innerHTML = opts.join("");
+
+      // keep a quick lookup
+      window.__PLANT_MAP__ = Object.fromEntries(j.data.map(p => [String(p.Plant_ID), p]));
+
+      // If your page has a data refresh function, trigger it once
+      if (typeof refresh === "function") { try { refresh(); } catch(e){} }
+      if (typeof loadView === "function") { try { loadView(); } catch(e){} }
+    } catch (e) {
+      console.warn("Plant dropdown load failed:", e);
+      if (sel && !sel.options.length) sel.innerHTML = '<option value="all">All Plants</option>';
+    }
+  }
+
+  function init(){
+    const sel = findPlantSelect();
+    if (!sel) return console.warn("Plant select not found");
+    // ensure the default "All Plants" exists
+    if (!sel.options.length || !/all\s*plants/i.test(sel.options[0].textContent||"")) {
+      sel.insertAdjacentHTML("afterbegin", '<option value="all">All Plants</option>');
+    }
+    loadPlantsIntoSelect(sel);
+    // when the user changes plant, refresh visuals if those hooks exist
+    sel.addEventListener("change", () => {
+      if (typeof refresh === "function") { try { refresh(); } catch(e){} }
+      if (typeof loadView === "function") { try { loadView(); } catch(e){} }
+    });
+  }
+
+  if (document.readyState === "loading") {
+    document.addEventListener("DOMContentLoaded", init);
+  } else {
+    init();
+  }
+})();
+</script>
+<!-- Multi-Plant Filter -->
+<div id="plantFilter" style="display:flex;align-items:center;gap:.5rem;margin:.25rem 0 .75rem 0;">
+  <label style="font-weight:600;">Plant</label>
+  <button id="plantBtn" type="button" class="btn" style="min-width:180px;">All Plants ▾</button>
+  <div id="plantMenu" style="position:relative;">
+    <div id="plantPanel" hidden
+         style="position:absolute;z-index:20;background:#fff;border:1px solid #ddd;border-radius:8px;box-shadow:0 8px 24px rgba(0,0,0,.08);padding:.5rem;max-height:260px;overflow:auto;min-width:260px;">
+      <label style="display:flex;align-items:center;gap:.5rem;padding:.25rem .5rem;">
+        <input type="checkbox" id="plant_all" checked> <strong>All Plants</strong>
+      </label>
+      <div id="plantList"></div>
+      <div style="display:flex;justify-content:flex-end;gap:.5rem;padding-top:.5rem;">
+        <button id="plantApply" class="btn">Apply</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div style="display:none" id="ia_fallback_mounts">
+  <div class="kpi-total-yield">
+    <span id="kpi_total_yield">0</span> <span id="kpi_total_yield_unit">kWh</span>
+  </div>
+  <div id="powerChart" style="height:320px;margin-top:8px;"></div>
+  <div id="yieldChart" style="height:320px;margin-top:8px;"></div>
+</div>
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script>document.addEventListener("DOMContentLoaded", ()=>{ try{ typeof init==="function" && init(); }catch(e){ console.warn(e);} });</script>
+
+
+
+
+
+
+<style id="hide-old-plant-select">
+/* scope to inverter page only via body title text seen on your page */
+body:has(h1, h2, .heading, .title){}
+/* likely ids/classes; safe to include multiple */
+select#plantSelect, select#plants, select#meterPlantSelect, select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<script id="inverter-analytics-multiplant">
+(function(){
+  const fmt = {
+    mwhAuto(v){ if(!isFinite(v)) v=0; return v>=1000 ? {value:+(v/1000).toFixed(3),unit:"GWh"} : {value:+(+v).toFixed(3),unit:"MWh"}; }
+  };
+  const $ = (s,d=document)=>d.querySelector(s);
+  const $$= (s,d=document)=>[...d.querySelectorAll(s)];
+  const btn   = $("#plantBtn");
+  const panel = $("#plantPanel");
+  const list  = $("#plantList");
+  const allCb = $("#plant_all");
+  const apply = $("#plantApply");
+
+  let PLANTS = [];             // [{id,name}]
+  let SELECTED = new Set();    // '' => means All
+
+  async function loadPlants(){
+    const r = await fetch("/api/GetPlantDirectory?_ts="+Date.now());
+    const j = await r.json();
+    if(!j.success || !Array.isArray(j.data)) throw new Error("Plant list failed");
+    PLANTS = j.data.map(p=>({ id:String(p.Plant_ID), name:p.Plant_Name }));
+    renderPlantMenu();
+  }
+  function renderPlantMenu(){
+    list.innerHTML = PLANTS.map(p=>`
+      <label style="display:flex;align-items:center;gap:.5rem;padding:.25rem .5rem;">
+        <input type="checkbox" class="plant_cb" value="${p.id}" ${!SELECTED.size||SELECTED.has(p.id)?"checked":""}>
+        <span>${p.name}</span>
+      </label>`).join("");
+  }
+  function labelFromSelection(){
+    if (!SELECTED.size || SELECTED.size===PLANTS.length) return "All Plants ▾";
+    if (SELECTED.size===1){ const id=[...SELECTED][0]; const p=PLANTS.find(x=>x.id===id); return (p?.name||"1 selected")+" ▾"; }
+    return `${SELECTED.size} selected ▾`;
+  }
+
+  async function loadAnalytics(){
+    // read date + view if present
+    const dateInp = $('input[type="date"], input[name="date"]'); 
+    const date = dateInp ? dateInp.value : new Date().toISOString().slice(0,10);
+    const active = $('.active[data-view]') || $('[data-view].active');
+    const view = active ? active.getAttribute('data-view')||'day':'day';
+
+    const all = (!SELECTED.size || SELECTED.size===PLANTS.length);
+    const plantParam = all ? "all" : [...SELECTED].join(",");
+    const url=`/api/inverter-analytics?view=${encodeURIComponent(view)}&plantId=${encodeURIComponent(plantParam)}&date=${encodeURIComponent(date)}&_ts=${Date.now()}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    // KPI total yield (sum MWh then auto-unit)
+    const totalMWh = Array.isArray(data?.yield)? data.yield.reduce((s,r)=>s+(+r.value||0),0) : 0;
+    const {value,unit} = fmt.mwhAuto(totalMWh);
+    const kpiVal = $("#kpi_total_yield, .kpi-total-yield .value, [data-kpi='total-yield']");
+    const kpiUni = $("#kpi_total_yield_unit, .kpi-total-yield .unit, [data-kpi='total-yield-unit']");
+    if(kpiVal) kpiVal.textContent = value.toLocaleString();
+    if(kpiUni) kpiUni.textContent = unit;
+
+    // charts: call your existing updaters if they exist
+    const power = Array.isArray(data?.power)? data.power:[]; // [{t,ac,dc}]
+    const ac = power.map(p=>({x:new Date(p.t), y:+(p.ac||0)}));
+    const dc = power.map(p=>({x:new Date(p.t), y:+(p.dc||0)}));
+    const yld = Array.isArray(data?.yield)? data.yield : [];  // [{label,value(MWh)}]
+    const yldPts = yld.map(d=>({x:d.label, y:+(d.value||0)}));
+
+    if (typeof window.updatePowerChart === "function") window.updatePowerChart(ac,dc);
+    if (typeof window.updateYieldChart === "function") window.updateYieldChart(yldPts);
+  }
+
+  // UI wiring
+  btn?.addEventListener("click", ()=> panel.hidden = !panel.hidden);
+  allCb?.addEventListener("change", (e)=>{
+    const on=e.target.checked; $$(".plant_cb", panel).forEach(cb=>cb.checked=on);
+  });
+  apply?.addEventListener("click", ()=>{
+    const chosen = $$(".plant_cb", panel).filter(cb=>cb.checked).map(cb=>cb.value);
+    SELECTED = new Set(chosen);
+    btn.textContent = labelFromSelection();
+    panel.hidden = true;
+    loadAnalytics().catch(console.warn);
+  });
+  document.addEventListener("click", (e)=>{
+    if (panel && !panel.contains(e.target) && e.target!==btn) panel.hidden = true;
+  });
+
+  // bootstrap
+  document.addEventListener("DOMContentLoaded", ()=>{
+    SELECTED = new Set(); // empty => All
+    loadPlants().then(()=>{
+      btn.textContent = labelFromSelection();
+      loadAnalytics();
+    }).catch(console.warn);
+  });
+})();
+</script>
+
+
+
+
+
+
+<script id="ia_domfix">
+(function(){
+  const $ = (s,d=document)=>d.querySelector(s);
+  const $$= (s,d=document)=>[...d.querySelectorAll(s)];
+
+  function moveFilterToToolbar(){
+    const filter = $("#plantFilter");
+    if(!filter) return;
+
+    // Find the existing "Plant" control row (near the top)
+    const topSelect = $("#plantSelect, #plants, #meterPlantSelect, select[name='plant'], select[data-role='plant']");
+    const plantLabel = [...document.querySelectorAll("label")].find(l=>/^\s*Plant\s*$/i.test(l.textContent||""));
+    const toolbar = topSelect?.parentElement || plantLabel?.parentElement || document.body;
+
+    // Hide original single-select (if present)
+    if (topSelect) topSelect.style.setProperty("display","none","important");
+
+    // If filter is already in toolbar, stop. Else move it just after the label/select.
+    if (toolbar && filter.parentElement !== toolbar) {
+      if (plantLabel && plantLabel.nextSibling) {
+        toolbar.insertBefore(filter, plantLabel.nextSibling);
+      } else {
+        toolbar.prepend(filter);
+      }
+    }
+
+    // Remove stray duplicates at the bottom (keep only the first instance)
+    const dups = $$("#plantFilter");
+    dups.slice(1).forEach(n=>n.remove());
+  }
+
+  // Ensure KPI/Chart placeholders exist so visuals are never blank
+  function ensureMounts(){
+    // TOTAL YIELD card: find the card that mentions "TOTAL YIELD"
+    const kpiCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /TOTAL\s*YIELD/i.test(x.textContent||""));
+    if (kpiCard && !kpiCard.querySelector("[data-kpi='total-yield']")){
+      const slot = document.createElement("div");
+      slot.style.fontSize = "36px";
+      slot.style.fontWeight = "700";
+      slot.innerHTML = '<span data-kpi="total-yield">0</span> <span data-kpi="total-yield-unit">kWh</span>';
+      kpiCard.prepend(slot);
+    }
+
+    // Power card
+    const powerCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /Power\s*\(AC\/DC\)\s*vs\s*Time/i.test(x.textContent||""));
+    if (powerCard && !powerCard.querySelector("#powerChart")){
+      const div = document.createElement("div");
+      div.id = "powerChart"; div.style.height = "320px"; div.style.marginTop = "8px";
+      powerCard.appendChild(div);
+    }
+
+    // Yield card
+    const yieldCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /^\s*Yield\s*$/i.test((x.querySelector("h2,h3,h4,header")?.textContent)||"") || /(^|\s)Yield(\s|$)/i.test(x.textContent||""));
+    if (yieldCard && !yieldCard.querySelector("#yieldChart")){
+      const div = document.createElement("div");
+      div.id = "yieldChart"; div.style.height = "320px"; div.style.marginTop = "8px";
+      yieldCard.appendChild(div);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", ()=>{ try{
+    moveFilterToToolbar();
+    ensureMounts();
+  }catch(e){ console.warn(e); }});
+})();
+</script>
+<style id="ia_hide_legacy_select">
+#plantFilter ~ select, select#plantSelect, select#plants, select#meterPlantSelect,
+select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<style id="ia_plant_selectlike">
+  #plantFilter>label{display:none!important;}
+  #plantBtn{
+    display:inline-flex;align-items:center;gap:.5rem;
+    padding:.375rem .75rem;border:1px solid #ced4da;border-radius:.375rem;
+    background:#fff;min-width:220px;height:36px;line-height:1.2;
+  }
+  #plantBtn:after{content:"";} /* keep arrow we put in text ( ▾ ) */
+</style>
+<script id="ia_cleanup_once">
+(function(){
+  document.addEventListener("DOMContentLoaded", ()=>{
+    const filters=[...document.querySelectorAll("#plantFilter")];
+    filters.slice(1).forEach(n=>n.remove()); // keep only the first
+  });
+})();
+</script>

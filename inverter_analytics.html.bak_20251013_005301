@@ -1,0 +1,135 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<script id="api-proxy-7071">
+(function(){
+  const API_BASE = "http://127.0.0.1:7071";
+  const _fetch = window.fetch;
+  window.fetch = function(u,opt){
+    if (typeof u === "string" && u.startsWith("/api/")) return _fetch(API_BASE + u, opt);
+    return _fetch(u, opt);
+  };
+})();
+</script>
+
+<script id="ia-safe-insert">
+(function(){
+  const orig = Node.prototype.insertBefore;
+  Node.prototype.insertBefore = function(newChild, refChild){
+    try{
+      if (newChild && this && typeof newChild.contains==="function" && newChild.contains(this)){
+        console.warn("[IA] blocked unsafe insertBefore");
+        return newChild;
+      }
+    }catch(_){}
+    return orig.call(this,newChild,refChild);
+  };
+})();
+</script><!-- removed broken moveFilterToToolbar script --><style id="ia_hide_legacy_select">
+#plantFilter ~ select, select#plantSelect, select#plants, select#meterPlantSelect,
+select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<style id="ia_plant_selectlike">
+  #plantFilter>label{display:none!important;}
+  #plantBtn{
+    display:inline-flex;align-items:center;gap:.5rem;
+    padding:.375rem .75rem;border:1px solid #ced4da;border-radius:.375rem;
+    background:#fff;min-width:220px;height:36px;line-height:1.2;
+  }
+  #plantBtn:after{content:"";} /* keep arrow we put in text ( ▾ ) */
+</style><!-- removed broken moveFilterToToolbar script --><!-- removed broken moveFilterToToolbar script -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+    const url=`/api/inverter-analytics?view=${encodeURIComponent(view)}&plantId=${encodeURIComponent(plant)}&date=${encodeURIComponent(date)}&_ts=${Date.now()}`;
+    dbg(`fetch: ${url}`);
+    let res, json;
+    try {
+      res = await fetch(url);
+      const raw = await res.text();
+      try { json = JSON.parse(raw); }
+      catch(e){
+        dbg("server did not return JSON (got HTML?)");
+        console.error(raw);
+        $('#powerChart')?.replaceChildren(document.createTextNode("No JSON from API"));
+        $('#yieldChart')?.replaceChildren(document.createTextNode("No JSON from API"));
+        return;
+      }
+    } catch (err) {
+      dbg("fetch failed: "+err.message);
+      return;
+    }
+
+    // KPI
+    const totalMWh = Array.isArray(json?.yield) ? json.yield.reduce((s,r)=> s + (+r.value||0), 0) : 0;
+    updKPI(totalMWh);
+
+    // POWER: [{t,ac,dc}]
+    const power = Array.isArray(json?.power) ? json.power : [];
+    const pLabels = power.length ? labelsFromDates(power.map(p=>p.t)) : [];
+    const ac = power.map(p=> +(+p.ac||0).toFixed(0));
+    const dc = power.map(p=> +(+p.dc||0).toFixed(0));
+    drawLine('#powerChart', pLabels, ac, dc);
+
+    // YIELD: bars; label depends on view
+    const yp = Array.isArray(json?.yield) ? json.yield : [];
+    const yLabels = yp.map(d=> String(d.label||""));
+    const yVals   = yp.map(d=> +(+d.value||0).toFixed(3));
+    const yTitle = view==='week' ? 'Yield (Last 7 days)'
+                 : view==='month'? 'Yield (Last 6 months)'
+                 : view==='year' ? 'Yield (Last 5 years)'
+                 : 'Yield (Day)';
+    const yt = document.getElementById('yieldTitle'); if(yt) yt.textContent = yTitle;
+    drawBar('#yieldChart', yLabels, yVals);
+  }
+
+  // expose manual refresh for your "Refresh" button if any
+  window.window_IA_refresh = refresh;
+
+  // hook date/plant/view controls if present
+  document.addEventListener('click', (e)=>{
+    const t = e.target;
+    if (!(t instanceof HTMLElement)) return;
+    const txt = (t.textContent||'').toLowerCase();
+    if (['day','week','month','year','refresh'].includes(txt)) {
+      setTimeout(refresh, 0);
+    }
+  });
+  document.addEventListener('change', (e)=>{
+    const t = e.target;
+    if (t && (t as HTMLInputElement).type === 'date') setTimeout(refresh,0);
+    if ((t as HTMLInputElement).classList?.contains('plant_cb')) setTimeout(refresh,0);
+  });
+
+  // auto show today and refresh once at midnight local
+  function msToMidnight(){
+    const n=new Date(), m=new Date(n); m.setHours(24,0,0,0); return m.getTime()-n.getTime();
+  }
+  setTimeout(()=>{ refresh(); setInterval(refresh, 24*60*60*1000); }, msToMidnight());
+
+  // initial paint
+  document.addEventListener('DOMContentLoaded', ()=> {
+    try { refresh(); } catch(e){ console.error(e); }
+  });
+})();
+</script>
+

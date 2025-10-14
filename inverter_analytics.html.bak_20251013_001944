@@ -1,0 +1,190 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<script id="api-proxy-7071">
+(function(){
+  const API_BASE = "http://127.0.0.1:7071";
+  const _fetch = window.fetch;
+  window.fetch = function(u,opt){
+    if (typeof u === "string" && u.startsWith("/api/")) {
+      return _fetch(API_BASE + u, opt);
+    }
+    return _fetch(u, opt);
+  };
+})();
+</script>
+<script id="ia-safe-insert">
+(function(){
+  const orig = Node.prototype.insertBefore;
+  Node.prototype.insertBefore = function(newChild, refChild){
+    try{
+      if (newChild && this && typeof newChild.contains==="function" && newChild.contains(this)){
+        console.warn("[IA] blocked unsafe insertBefore");
+        return newChild;
+      }
+    }catch(_){}
+    return orig.call(this,newChild,refChild);
+  };
+})();
+</script><!-- removed broken moveFilterToToolbar script --><style id="ia_hide_legacy_select">
+#plantFilter ~ select, select#plantSelect, select#plants, select#meterPlantSelect,
+select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<style id="ia_plant_selectlike">
+  #plantFilter>label{display:none!important;}
+  #plantBtn{
+    display:inline-flex;align-items:center;gap:.5rem;
+    padding:.375rem .75rem;border:1px solid #ced4da;border-radius:.375rem;
+    background:#fff;min-width:220px;height:36px;line-height:1.2;
+  }
+  #plantBtn:after{content:"";} /* keep arrow we put in text ( ▾ ) */
+</style><!-- removed broken moveFilterToToolbar script --><!-- removed broken moveFilterToToolbar script --><script id="ia-loader">
+(function(){
+  function ready(cb){ if(document.readyState!=="loading") cb(); else document.addEventListener("DOMContentLoaded",cb); }
+  function todayISO(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+  function parseDate(){
+    const i=document.querySelector('input[type="date"], input[name="date"], input[placeholder*="dd"]');
+    if(!i||!i.value) return todayISO();
+    if(/^\d{2}-\d{2}-\d{4}$/.test(i.value)){ const p=i.value.split('-'); return p[2]+'-'+p[1]+'-'+p[0]; }
+    return i.value.slice(0,10);
+  }
+  function selectedPlantIds(){
+    const cbs=document.querySelectorAll('#plantPanel .plant_cb');
+    if(cbs.length){ const vals=[...cbs].filter(cb=>cb.checked).map(cb=>cb.value); return (!vals.length||vals.length===cbs.length)?"all":vals.join(','); }
+    return "all";
+  }
+  function setYieldTitle(view){
+    const t=document.getElementById('yieldTitle'); if(!t) return;
+    t.textContent = view==='week' ? 'Yield – Last 7 Days'
+                 : view==='month'? 'Yield – Last 6 Months'
+                 : view==='year' ? 'Yield – Last 5 Years'
+                 : 'Yield – Selected Day';
+  }
+  function fmtMWh(x){ x=+x||0; return x>=1000 ? (x/1000).toFixed(3)+" GWh" : x.toFixed(3)+" MWh"; }
+  function updateKPI(total){
+    const v=document.getElementById('kpi_total_yield'), u=document.getElementById('kpi_total_yield_unit'); if(!v||!u) return;
+    if(total>=1000){ v.textContent=(total/1000).toFixed(3); u.textContent="GWh"; }
+    else { v.textContent=total.toFixed(3); u.textContent="MWh"; }
+  }
+  function kill(sel){
+    try{
+      const c=document.querySelector(sel+' canvas'); if(!c || !window.Chart) return;
+      const inst=Chart.getChart(c); if(inst) inst.destroy();
+    }catch(_){}
+  }
+  function ensureLine(sel, labels, acData, dcData){
+    kill(sel);
+    const c=document.querySelector(sel+' canvas'); if(!c||!window.Chart) return;
+    return new Chart(c.getContext('2d'), {
+      type:'line',
+      data:{
+        labels,
+        datasets:[
+          {label:'AC', data:acData, borderColor:'#2f80ed', backgroundColor:'#2f80ed33', tension:.25, pointRadius:0, fill:true, borderWidth:2},
+          {label:'DC', data:dcData, borderColor:'#27ae60', backgroundColor:'#27ae6033', tension:.25, pointRadius:0, fill:true, borderWidth:2}
+        ]
+      },
+      options:{
+        plugins:{ legend:{labels:{boxWidth:12}}, datalabels:{display:false} },
+        scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:8}}, y:{beginAtZero:true, ticks:{callback:v=>v+' kW'}} },
+        maintainAspectRatio:false
+      },
+      plugins:[ChartDataLabels]
+    });
+  }
+  function ensureBar(sel, labels, vals){
+    kill(sel);
+    const c=document.querySelector(sel+' canvas'); if(!c||!window.Chart) return;
+    return new Chart(c.getContext('2d'), {
+      type:'bar',
+      data:{ labels, datasets:[{label:'Yield', data:vals, borderColor:'#4f46e5', backgroundColor:'#4f46e5aa'}]},
+      options:{
+        plugins:{
+          legend:{labels:{boxWidth:12}},
+          datalabels:{ align:'top', anchor:'end', formatter:(v)=>fmtMWh(v), clip:true },
+          tooltip:{ callbacks:{ label:(ctx)=>' '+fmtMWh(ctx.raw) } }
+        },
+        scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, ticks:{callback:v=>(v>=1000?(v/1000)+' GWh':v+' MWh')}} },
+        maintainAspectRatio:false
+      },
+      plugins:[ChartDataLabels]
+    });
+  }
+  function labelsFromDates(arr){
+    return arr.map(p=>{ const d=(p.x instanceof Date)?p.x:new Date(p.x); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0'); });
+  }
+  function fetchAndRender(view){
+  setYieldTitle(view);
+
+  const url = "/api/inverter-analytics"
+    + "?view=" + encodeURIComponent(view)
+    + "&plantId=" + encodeURIComponent(selectedPlantIds())
+    + "&date=" + encodeURIComponent(parseDate())
+    + "&_ts=" + Date.now();
+
+  return fetch(url).then(async (r)=>{
+    const ct = (r.headers.get("content-type") || "").toLowerCase();
+    const txt = await r.text();
+
+    if (!r.ok) {
+      throw new Error("HTTP " + r.status + " – " + txt.slice(0,200));
+    }
+
+    // If server returned HTML (e.g., from the static server), show a clear hint
+    const looksHtml = /^\s*</.test(txt) && !/^\s*[{[]/.test(txt);
+    if (looksHtml || (!ct.includes("json") && !/^\s*[{[]/.test(txt))) {
+      console.error("[IA] Expected JSON but got:", txt.slice(0,300));
+      throw new Error("Expected JSON but received HTML. Check that /api/* is hitting 7071.");
+    }
+
+    let j;
+    try { j = JSON.parse(txt); }
+    catch(e){ console.error("[IA] JSON parse failed:", txt.slice(0,300)); throw e; }
+
+    const power = Array.isArray(j.power)? j.power : [];
+    const ac = power.map(p=>({x:new Date(p.t), y:+(p.ac||0)}));
+    const dc = power.map(p=>({x:new Date(p.t), y:+(p.dc||0)}));
+
+    const yld = Array.isArray(j.yield)? j.yield : [];
+    updateKPI(yld.reduce((s,r)=>s+(+r.value||0),0));
+
+    ensureLine('#powerChart', labelsFromDates(ac.length?ac:dc), ac.map(p=>p.y), dc.map(p=>p.y));
+    ensureBar('#yieldChart', yld.map(d=>d.label), yld.map(d=>+d.value||0));
+  }).catch(err=>{
+    console.error("[IA] fetchAndRender failed:", err);
+    alert("Analytics call failed: " + err.message + "\nEnsure Functions is running on 7071.");
+  });
+}));
+      const dc = power.map(p=>({x:new Date(p.t), y:+(p.dc||0)}));
+      const yld = Array.isArray(j.yield)? j.yield : [];
+      updateKPI(yld.reduce((s,r)=>s+(+r.value||0),0));
+      ensureLine('#powerChart', labelsFromDates(ac.length?ac:dc), ac.map(p=>p.y), dc.map(p=>p.y));
+      ensureBar('#yieldChart', yld.map(d=>d.label), yld.map(d=>+d.value||0));
+    }).catch(console.warn);
+  }
+  function findBtn(text){
+    const t=String(text).trim().toLowerCase();
+    return [...document.querySelectorAll('button,.btn')].find(b=> (b.textContent||'').trim().toLowerCase()===t) || null;
+  }
+  function setActive(btn){ document.querySelectorAll('button,.btn').forEach(b=>b.classList&&b.classList.remove('active')); if(btn&&btn.classList) btn.classList.add('active'); }
+  ready(function(){
+    [['day','Day'],['week','Week'],['month','Month'],['year','Year']].forEach(([v,l])=>{
+      const b=findBtn(l); if(b && !b.__ia){ b.__ia=true; b.addEventListener('click',()=>{ setActive(b); fetchAndRender(v); }); }
+    });
+    const r=findBtn('Refresh'); if(r && !r.__ia){ r.__ia=true; r.addEventListener('click',()=>{ const act=document.querySelector('.btn.active,button.active'); const v=act?act.textContent.trim().toLowerCase():'day'; fetchAndRender(v); }); }
+    const dateInp=document.querySelector('input[type="date"], input[name="date"], input[placeholder*="dd"]');
+    if(dateInp && !dateInp.__ia){ dateInp.__ia=true; dateInp.addEventListener('change',()=>{ const act=document.querySelector('.btn.active,button.active'); const v=act?act.textContent.trim().toLowerCase():'day'; fetchAndRender(v); }); }
+    const apply=document.getElementById('plantApply');
+    if(apply && !apply.__ia){ apply.__ia=true; apply.addEventListener('click',()=>{ const act=document.querySelector('.btn.active,button.active'); const v=act?act.textContent.trim().toLowerCase():'day'; fetchAndRender(v); }); }
+    const d=findBtn('Day'); if(d) setActive(d);
+    fetchAndRender('day');
+  });
+})();
+</script>
+
+
+
+
+
+
+

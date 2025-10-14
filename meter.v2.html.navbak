@@ -1,0 +1,561 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <script>window.bust=Date.now();</script>
+
+  <meta charset="utf-8" />
+  <title>Meter — Solar Plant Dashboard</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <style>
+    /* ========= simple knobs (change just these) ========= */
+    :root{
+      --h-kpi: 81px;     /* shorter KPI                          */
+      --h-pie: 81px;     /* smaller pie                          */
+      --h-bar: 315px;     /* big bar/line                         */
+      --h-table: 315px;   /* big table                            */
+
+      --bg:#fff; --fg:#0f172a; --muted:#64748b; --card:#f8fafc; --border:#e5e7eb;
+      --accent:#2563eb; --chip:#eef2ff; --chip-fg:#1e3a8a;
+    }
+
+    *{box-sizing:border-box}
+    html,body{height:100%}
+    body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+    .wrap{max-width:1400px;margin:10px auto 20px;padding:0 16px}
+    header{font-size:20px;font-weight:800;letter-spacing:.2px;margin:2px 0 8px}
+
+    /* filters */
+    .filters{display:grid;grid-template-columns:1.2fr auto auto 1fr 1fr auto;gap:10px;align-items:center;
+      background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:10px}
+    .filters label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+    .filters input[type="date"]{padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;width:100%}
+    .preset{display:flex;gap:6px}
+    .preset .chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 10px;font-size:13px;cursor:pointer}
+    .preset .chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+    .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+
+    /* plant dropdown */
+    .plant-select{position:relative}
+    .plant-btn{width:100%;text-align:left;padding:10px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer}
+    .dropdown{position:absolute;z-index:20;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:10px;margin-top:6px;max-height:320px;overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,.08);display:none}
+    .dropdown.open{display:block}
+    .dd-row{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid #f1f5f9}
+    .dd-row:last-child{border-bottom:none}
+    .dd-row input{transform:scale(1.1)}
+    .dd-h{font-weight:700}
+
+    /* 2×2 layout — no viewport clipping */
+    .grid{
+      display:grid;
+      grid-template-columns:1fr 1fr;
+      grid-template-rows:auto auto;
+      gap:12px;
+    }
+    .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;overflow:hidden}
+    .card-title{font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+    .badge{background:#eef2ff;color:#3730a3;border-radius:999px;padding:4px 8px;font-size:12px}
+    .hint{font-size:12px;color:var(--muted);margin-top:2px}
+
+    /* KPI compact */
+    .kpi-wrap{height:var(--h-kpi);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+    .kpi-label{color:var(--muted);letter-spacing:.04em}
+    .kpi-value{font-size:42px;font-weight:800;line-height:1;margin-top:4px}
+    .kpi-sub{color:var(--muted);margin-top:2px;font-size:13px}
+
+    /* charts & table boxes */
+    .pie-wrap{display:flex;align-items:center;justify-content:center;height:var(--h-pie)}
+    .bar-wrap{height:var(--h-bar)}
+    table{width:max(100%, 1200px);border-collapse:collapse;font-size:13px;table-layout:auto;white-space:nowrap}
+    thead th{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--border);padding:8px;text-align:left;font-weight:800}
+    tbody td{border-bottom:1px solid var(--border);padding:8px}
+    .muted{color:var(--muted)}
+    .scroll{height:calc(var(--h-table) - 36px);overflow:auto;overflow-x:auto}
+  </style>
+<style>.wrap{margin-top:6px}</style>
+  <script>
+    // Fills DisplayPlant for every row, and back-fills Plant_Name if missing.
+    function hydrateDisplayPlant(rows){
+      const map = Object.create(null);
+
+      // Learn plant names from any row that already has one
+      for (const r of rows){
+        const name = ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || "").trim();
+        if (!name) continue;
+        if (r.Meter_Serial_No) map["SN:"+r.Meter_Serial_No] = name;
+        if (r.Meter_ID)        map["ID:"+r.Meter_ID]        = name;
+        if (r.Plant_ID != null && r.Plant_ID !== "") map["PID:"+r.Plant_ID] = name;
+      }
+
+      // Stamp DisplayPlant on every row (and back-fill Plant_Name if empty)
+      for (const r of rows){
+        r.DisplayPlant =
+          ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) && (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) ||
+          (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
+          (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
+          (r.Plant_ID != null && map["PID:"+r.Plant_ID]) ||
+          "Unknown";
+
+        if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || !(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) {
+  const __nm = r.DisplayPlant || r.Plant_Name || "Unknown";
+  if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = __nm;
+  if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = __nm;
+}
+      }
+      return rows;
+    }
+  </script>
+<script>
+// --- Plant name enrichment ----------------------------------------------
+// Build a name map from directory + any rows that already have names
+function buildPlantNameMap(dirRows, meterRows){
+  const map = Object.create(null);
+  const add = (k,v)=>{ if(k && v){ map[k]=v; } };
+
+  // From Plant Directory (prefer canonical names)
+  for (const d of (dirRows||[])) {
+    const name = ((d.DisplayPlant||(d.DisplayPlant||d.Plant_Name))||"").trim();
+    if (!name) continue;
+    if (d.Plant_ID!=null && d.Plant_ID!=="") add("PID:"+d.Plant_ID, name);
+    if (d.Meter_Serial_No)                  add("SN:"+d.Meter_Serial_No, name);
+    if (d.Meter_ID)                         add("ID:"+d.Meter_ID, name);
+  }
+
+  // Also learn from any meter rows that already have names
+  for (const r of (meterRows||[])) {
+    const name = ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name))||"").trim();
+    if (!name) continue;
+    if (r.Plant_ID!=null && r.Plant_ID!=="") add("PID:"+r.Plant_ID, name);
+    if (r.Meter_Serial_No)                  add("SN:"+r.Meter_Serial_No, name);
+    if (r.Meter_ID)                         add("ID:"+r.Meter_ID, name);
+  }
+  return map;
+}
+
+// Enrich rows: back-fill Plant_Name and set DisplayPlant
+function enrichRowsWithPlantNames(rows, dirRows){
+  const map = buildPlantNameMap(dirRows, rows);
+  for (const r of (rows||[])) {
+    // Figure out best name
+    const learned =
+      ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) && (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) ||
+      (r.Plant_ID!=null && map["PID:"+r.Plant_ID]) ||
+      (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
+      (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
+      "";
+
+    // Back-fill Plant_Name if missing
+    if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || !(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) {
+  const __nm = learned || "Unknown";
+  if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = __nm;
+  if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = __nm;
+}
+
+    // Set DisplayPlant used by UI
+    r.DisplayPlant = (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || learned || "Unknown";
+  }
+  return rows;
+}
+</script>
+  <script id="plant-hydrator">
+    // Pulls PlantDirectory once and back-fills Plant_Name/DisplayPlant on all rows
+    async function backfillPlantNames(rows){
+  try {
+    const safe = Array.isArray(rows) ? rows : [];
+    for (let i=0;i<safe.length;i++){
+      const r = safe[i] || {};
+      const name = ((r.DisplayPlant||r.Plant_Name) && String((r.DisplayPlant||r.Plant_Name)).trim()) ||
+                   (r.DisplayPlant && String(r.DisplayPlant).trim()) ||
+                   "Unknown";
+      safe[i] = { ...r, DisplayPlant: name, Plant_Name: ((r.DisplayPlant||r.Plant_Name) && String((r.DisplayPlant||r.Plant_Name)).trim()) ? (r.DisplayPlant||r.Plant_Name) : name };
+    }
+    return safe;
+  } catch(e) {
+    console.warn("backfillPlantNames failed:", e);
+    return rows || [];
+  }
+}
+</script>
+<!-- ===== End Top Nav ===== -->
+  <header class="sp-top">
+  <div class="inner">
+    <div class="brand">Solar Plant Dashboard</div>
+    <nav>
+      <a href="/meter.v2.html" class="active">Meter</a>
+      <a href="/inverter_analytics.html">Inverter Analytics</a>
+      <a href="/inverter_overview.html">Inverter Data Overview</a>
+      <a href="/inverter_faults.html">Inverter Faults</a>
+      <a href="/maintenance.html">Maintenance</a>
+    </nav>
+  </div>
+</header>
+<style>
+  .sp-top{background:#fff;border-bottom:1px solid #e5e7eb}
+  .sp-top .inner{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
+  .sp-top .brand{font-weight:800;font-size:18px;margin-right:8px}
+  .sp-top nav a{display:inline-block;margin-right:8px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:999px;
+                text-decoration:none;color:#0f172a;font-weight:600}
+  .sp-top nav a.active{background:#2563eb;color:#fff;border-color:#2563eb}
+  .sp-top nav a:hover{background:#eef2ff}
+</style><div class="wrap">
+    
+
+    <!-- FILTERS -->
+    <div class="filters">
+      <div class="plant-select">
+        <label>Plants</label>
+        <button id="plantBtn" class="plant-btn">All Plants</button>
+        <div id="plantDD" class="dropdown">
+          <div class="dd-row dd-h"><input type="checkbox" id="allPlants" checked> <label for="allPlants">All Plants</label></div>
+          <div id="plantList"></div>
+        </div>
+      </div>
+
+      <div>
+        <label>Preset</label>
+        <div class="preset">
+          <div class="chip" data-preset="day">Day</div>
+          <div class="chip" data-preset="month">Month</div>
+          <div class="chip" data-preset="year">Year</div>
+          <div class="chip active" data-preset="custom">Custom</div>
+        </div>
+      </div>
+
+      <div><label>Start</label><input type="date" id="startDate"></div>
+      <div><label>End</label><input type="date" id="endDate"></div>
+      <div style="align-self:end"><button class="btn" id="applyBtn">Apply</button></div>
+    </div>
+
+    <!-- TOP: KPI + PIE -->
+    <div id="nodata" style="display:none;background:#fff3cd;border:1px solid #ffe69c;color:#664d03;border-radius:10px;padding:10px;margin:8px 0;font-size:14px">
+  No data in the selected date range.
+</div>
+<div class="grid">
+      <div class="card">
+        <div class="kpi-wrap">
+          <div class="kpi-label">TOTAL YIELD</div>
+          <div class="kpi-value" id="kpiTotal">0</div>
+          <div class="kpi-sub" id="kpiUnit">(MWh)</div>
+          <div class="hint" id="kpiHint">Range & selection</div>
+        </div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Yield Share by Plant <span class="badge" id="pieBadge">MWh</span></div>
+        <div class="pie-wrap"><canvas id="pieChart"></canvas></div>
+      </div>
+
+      <!-- BOTTOM: BAR+LINE + TABLE -->
+      <div class="card">
+        <div class="card-title">Last 9 Days — Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
+        <div class="hint">Bars = end-of-day cumulative total across selected plants (unit). Line = Daily kWh.</div>
+        <div class="bar-wrap"><canvas id="barLine"></canvas></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Latest Reading per Meter</div>
+        <div class="scroll">
+          <table>
+            <thead>
+              <tr>
+                <th>Plant_Name</th><th>Meter_Make</th><th>Meter_Model</th><th>Type</th>
+                <th>Meter_Serial_No</th><th>Meter_Reading</th><th>Total_Yield_Unit</th><th>Date_Time</th>
+              </tr>
+            </thead>
+            <tbody id="latestBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    /* ---------- helpers ---------- */
+    const API_BASE = ''; // SWA + emulator both proxy /api
+    const $ = sel => document.querySelector(sel);
+    const fmt = (n, d=3) => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:d});
+    const ymd = d => d.toISOString().slice(0,10);
+    const sum = (a, fn= x=>x) => a.reduce((t,v)=> t + (+fn(v)||0), 0);
+
+    function bestUnit(mwh){ return mwh>=1000 ? {unit:'GWh', scale:1/1000} : {unit:'MWh', scale:1}; }
+    function unitToMWh(v, unit){
+      const u=String(unit||"MWh").toLowerCase();
+      if(u.includes("kwh"))return (Number(v)||0)/1000;
+      if(u.includes("gwh"))return (Number(v)||0)*1000;
+      return Number(v)||0;
+    }
+    function getTotalMWh(r){
+      const unit = r.Total_Yield_Unit || r.Yield_Unit;
+      return unitToMWh(r.Total_Yield, unit);
+    }
+    function getDateOnly(r){ return r.Date || (r.Date_Time ? r.Date_Time.slice(0,10) : ""); }
+
+    function latestBy(rows, keyFn){
+      const m=new Map();
+      for(const r of rows){
+        const k=keyFn(r); const ts = new Date(r.Date_Time||0).getTime();
+        const cur=m.get(k); if(!cur || ts>cur._ts) m.set(k,{...r,_ts:ts});
+      } return m;
+    }
+    function latestPerPlantForDay(rows, dayStr){
+      const filtered = rows.filter(r => getDateOnly(r)===dayStr);
+      return latestBy(filtered, r=>r.Plant_ID);
+    }
+
+    /* ---------- state ---------- */
+    let plants=[], plantMap=new Map(), selected=new Set();
+    let start=new Date(), end=new Date(), preset='custom';
+    let pie, barline, kpiUnit='MWh';
+
+    /* ---------- dropdown ---------- */
+    function closeDD(e){ const dd=$('#plantDD'); if(!dd.contains(e.target)&&e.target!==$('#plantBtn')) dd.classList.remove('open'); }
+    $('#plantBtn').addEventListener('click',()=>$('#plantDD').classList.toggle('open'));
+    document.addEventListener('click', closeDD);
+
+    async function loadPlants(){
+      const res = await fetch(`${API_BASE}/api/GetPlantDirectory?${window.bust}`);
+      const js = await res.json();
+      plants = (js?.data||[]).map(p=>({Plant_ID:Number(p.Plant_ID), Plant_Name:String((p.DisplayPlant||(p.DisplayPlant||p.Plant_Name)))}));
+      plantMap = new Map(plants.map(p=>[p.Plant_ID,(p.DisplayPlant||(p.DisplayPlant||p.Plant_Name))])); // from PlantDirectory schema (Plant_ID, Plant_Name) :contentReference[oaicite:2]{index=2}
+      const host=$('#plantList'); host.innerHTML='';
+      plants.sort((a,b)=>(a.DisplayPlant||(a.DisplayPlant||a.Plant_Name)).localeCompare((b.DisplayPlant||(b.DisplayPlant||b.Plant_Name))));
+      for(const p of plants){
+        const id='pl_'+p.Plant_ID;
+        const row=document.createElement('div'); row.className='dd-row';
+        row.innerHTML=`<input type="checkbox" id="${id}" data-id="${p.Plant_ID}"> <label for="${id}">${(p.DisplayPlant||(p.DisplayPlant||p.Plant_Name))}</label>`;
+        row.querySelector('input').addEventListener('change', onPlantChange);
+        host.appendChild(row);
+      }
+      $('#allPlants').addEventListener('change',()=>{
+        selected.clear();
+        document.querySelectorAll('#plantList input[type="checkbox"]').forEach(cb=>cb.checked=false);
+        $('#plantBtn').textContent='All Plants';
+      });
+    }
+    function onPlantChange(){
+      $('#allPlants').checked=false;
+      const cbs=document.querySelectorAll('#plantList input[type="checkbox"]');
+      selected=new Set(Array.from(cbs).filter(cb=>cb.checked).map(cb=>Number(cb.dataset.id)));
+      if(selected.size===0){ $('#allPlants').checked=true; $('#plantBtn').textContent='All Plants'; }
+      else if(selected.size===1){ const pid=[...selected][0]; $('#plantBtn').textContent=plantMap.get(pid)||'1 plant'; }
+      else { $('#plantBtn').textContent=`${selected.size} plants`; }
+    }
+
+    /* ---------- presets ---------- */
+    function setDefaults(){ const now=new Date(); end=now; start=new Date(now); start.setDate(now.getDate()-30);
+      $('#startDate').value=ymd(start); $('#endDate').value=ymd(end); }
+    document.querySelectorAll('.preset .chip').forEach(ch=>{
+      ch.addEventListener('click',()=>{
+        document.querySelectorAll('.preset .chip').forEach(x=>x.classList.remove('active')); ch.classList.add('active'); preset=ch.dataset.preset;
+        const now=new Date();
+        if(preset==='day'){ start=new Date(now); end=new Date(now); }
+        if(preset==='month'){ start=new Date(now.getFullYear(), now.getMonth(),1); end=new Date(now.getFullYear(), now.getMonth()+1,0); }
+        if(preset==='year'){ start=new Date(now.getFullYear(),0,1); end=new Date(now.getFullYear(),11,31); }
+        $('#startDate').value=ymd(start); $('#endDate').value=ymd(end);
+      });
+    });
+    $('#startDate').addEventListener('change',e=> start=new Date(e.target.value));
+    $('#endDate').addEventListener('change',e=> end=new Date(e.target.value));
+
+    /* ---------- data ---------- */
+    async function fetchJSON(url){ const r=await fetch(url); const t=await r.text(); return t?JSON.parse(t):null; }
+    async function loadMeters(){
+      const s=ymd(start), e=ymd(end);
+      const js = await fetchJSON(`${API_BASE}/api/GetPremier300MeterAll?start=${s}&end=${e}&top=100000&${window.bust}`);
+      const rows = js?.data||[];
+      // fill Plant_Name when missing using PlantDirectory
+      for (const r of rows) {
+  if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()==="") {
+    const nm = plantMap.get(Number(r.Plant_ID));
+    if (nm) {
+      if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = nm;
+      if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = nm;
+    }
+  }
+}
+      return rows;
+    }
+    function filterByPlants(rows){ if($('#allPlants').checked || selected.size===0) return rows; return rows.filter(r=>selected.has(Number(r.Plant_ID))); }
+    function uniqueSortedDays(rows){ return [...new Set(rows.map(r=> r.Date || (r.Date_Time?.slice(0,10)||"")))].filter(Boolean).sort(); }
+
+    /* ---------- render ---------- */
+    function renderKPI(rows){
+      const latestPerPlant = latestBy(rows, r=>r.Plant_ID);
+      const totalMWh = [...latestPerPlant.values()].reduce((t,r)=> t + getTotalMWh(r), 0);
+      const u = bestUnit(totalMWh);
+      kpiUnit = u.unit;
+      $('#kpiTotal').textContent = fmt(totalMWh*u.scale,3);
+      $('#kpiUnit').textContent  = `(${u.unit})`;
+      $('#pieBadge').textContent = u.unit;   // keep Pie in sync with KPI
+      $('#kpiHint').textContent  = `Range: ${ymd(start)} ? ${ymd(end)} • Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
+    }
+
+    function renderTable(rows){
+      const latest = Array.from(latestBy(rows, r=>r.Meter_ID).values()).sort((a,b)=> b._ts-a._ts);
+      const tb=$('#latestBody'); tb.innerHTML='';
+      for(const r of latest){
+        const nm=(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || plantMap.get(Number(r.Plant_ID)) || '';
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td>${nm}</td><td>${r.Meter_Make||''}</td><td>${r.Meter_Model||''}</td><td>${r.Meter_Type||''}</td>
+          <td class="muted">${r.Meter_Serial_No||''}</td>
+          <td style="text-align:right">${fmt(r.Meter_Reading,3)}</td>
+          <td>${r.Total_Yield_Unit || r.Yield_Unit || 'MWh'}</td>
+          <td class="muted">${String(r.Date_Time||'').replace('T',' ')}</td>`;
+        tb.appendChild(tr);
+      }
+    }
+
+    function renderPie(rows){
+      const latestPerPlant = latestBy(rows, r=>r.Plant_ID);
+      const labels=[], values=[];
+      latestPerPlant.forEach(r=>{
+        labels.push((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || plantMap.get(Number(r.Plant_ID)) || `Plant ${r.Plant_ID}`);
+        values.push(getTotalMWh(r)); // always MWh first
+      });
+      // convert slice values to KPI unit
+      const scale = (kpiUnit==='GWh') ? (1/1000) : 1;
+      const valScaled = values.map(v=> v*scale);
+
+      if(pie) pie.destroy();
+      pie = new Chart($('#pieChart'), {
+        type:'pie',
+        data:{ labels, datasets:[{ data: valScaled, radius:'99%' }] },
+        options:{
+          plugins:{
+            legend:{ display:false },
+            tooltip:{ callbacks:{ label: ctx=>{
+              const tot = valScaled.reduce((a,c)=>a+c,0)||1;
+              const pct = (ctx.parsed/tot*100).toFixed(1);
+              return `${ctx.label}: ${fmt(ctx.parsed,2)} ${kpiUnit} (${pct}%)`;
+            }}},
+            datalabels:{ display:false }
+          },
+          maintainAspectRatio:false, layout:{padding:0} }
+      });
+    }
+
+    function renderBarLine(rows){
+      const days = uniqueSortedDays(rows).slice(-9);
+      const barTotalsMWh=[], lineKwh=[];
+      for(const d of days){
+        const latestMap = latestPerPlantForDay(rows, d);
+        barTotalsMWh.push([...latestMap.values()].reduce((t,r)=> t + getTotalMWh(r), 0));
+
+        // Sum daily kWh per plant (take max-per-plant to avoid duplicate rows)
+        const dayRows = rows.filter(r => (r.Date || r.Date_Time?.slice(0,10))===d);
+        const byPlant = new Map();
+        for(const r of dayRows){
+          const pid=r.Plant_ID;
+          const val = Number(r.Incremental_Daily_Yield_KWH || 0); // from Premier300Meter schema :contentReference[oaicite:3]{index=3}
+          byPlant.set(pid, Math.max(byPlant.get(pid)||0, val));
+        }
+        lineKwh.push([...byPlant.values()].reduce((a,b)=>a+b,0));
+      }
+
+      const maxBar = Math.max(...barTotalsMWh, 0);
+      const {unit, scale} = bestUnit(maxBar); // choose bar unit by selection
+      $('#barBadge').textContent = unit;
+      const barVals = barTotalsMWh.map(v=> v*scale);
+
+      if(barline) barline.destroy();
+      barline = new Chart($('#barLine'), {
+        type:'bar',
+        data:{
+          labels: days.map(d=> new Date(d).toLocaleDateString()),
+          datasets:[
+            { type:'bar',  label:`Total (${unit})`, data:barVals, order:2, borderWidth:1 },
+            { type:'line', label:'Daily (kWh)', data:lineKwh, yAxisID:'y2', tension:.25, order:1,
+              borderWidth:2.5, pointRadius:3, pointHoverRadius:4, fill:false }
+          ]
+        },
+        options:{
+          maintainAspectRatio:false,
+          scales:{
+            y:{ beginAtZero:true },
+            y2:{ position:'right', beginAtZero:true, grid:{ drawOnChartArea:false } } // kWh axis
+          },
+          plugins:{
+            legend:{ position:'bottom' },
+            tooltip:{ enabled:true },
+            datalabels:{ color:'#111', anchor:'end', align:'end',
+              formatter:(v,ctx)=> ctx.dataset.type==='bar' ? fmt(v,1) : (v>0?fmt(v,0):'') }
+          }
+        },
+        plugins:[ChartDataLabels]
+      });
+    }
+
+    /* ---------- main ---------- */
+    async function run(){
+      try{
+        $('#applyBtn').disabled=true;
+        let all = await loadMeters();
+/* already hydrated */
+        const sel = filterByPlants(all);
+        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); console.log("After hydrate:", all.length, "rows"); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); renderKPI(sel);
+        renderPie(sel);
+        renderBarLine(sel);
+        renderTable(sel);
+      }catch(e){
+        console.error(e); alert('Failed to load data: '+(e.message||e));
+      }finally{ $('#applyBtn').disabled=false; }
+    }
+
+    document.addEventListener('DOMContentLoaded', async ()=>{
+      setDefaults();
+      await loadPlants();
+      $('#applyBtn').addEventListener('click', run);
+      await run();
+    });
+  </script>
+<!-- ===== Small Footer ===== -->
+<style>
+  .sp-footer{margin-top:12px;border-top:1px solid #e5e7eb;background:#fff}
+  .sp-footer .inner{max-width:1400px;margin:0 auto;padding:10px 16px;
+    display:flex;gap:10px;justify-content:space-between;align-items:center;
+    font:500 12px/1.4 Inter,system-ui,sans-serif;color:#64748b}
+  .sp-footer a{color:#2563eb;text-decoration:none}
+  .sp-footer a:hover{text-decoration:underline}
+</style>
+<footer class="sp-footer">
+  <div class="inner">
+    <div>© Solar Plant Dashboard</div>
+  </div>
+</footer>
+<!-- ===== End Footer ===== -->
+</body>
+</html>
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<!-- redeploy 2025-10-10T05:19:21 -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+

@@ -1,107 +1,195 @@
-﻿/* inverter-analytics — SAFE JSON RESPONSES */
-const { ManagedIdentityCredential } = require("@azure/identity");
+﻿// Inverter Analytics — fast RK window + column projection
+// npm i @azure/data-tables
 const { TableClient } = require("@azure/data-tables");
 
-const ACCOUNT_NAME = process.env.STORAGE_ACCOUNT_NAME || "solariothubstorage";
-const ENDPOINT = `https://${ACCOUNT_NAME}.table.core.windows.net`;
-const IST_OFFSET_MIN = 330;
+const DATA_CONN =
+  process.env.TABLES_CONN_STRING ||
+  process.env.STORAGE_CONN ||
+  process.env.AzureWebJobsStorage;
 
-const CANDIDATE_TABLES = (process.env.SVI_TABLES
-  ? process.env.SVI_TABLES.split(",").map(s => s.trim()).filter(Boolean)
-  : ["SungrowInverter125KW","SungrowInverter100KW","SungrowInverter110KW","SungrowInverter80KW","SungrowInverter60KW","SungrowInverter50KW"]);
+const SUNGROW_TABLES = (process.env.SVI_TABLES || "")
+  .split(",").map(s=>s.trim()).filter(Boolean);
+if (!SUNGROW_TABLES.length) {
+  // fallback if env not set
+  SUNGROW_TABLES.push("SungrowInverter125KW");
+}
 
-/* ---------- utils ---------- */
-const cache = new Map(), cacheTTLms = 60*1000;
-const cacheGet = k => { const h=cache.get(k); if(!h) return null; if(Date.now()-h.t>cacheTTLms){ cache.delete(k); return null; } return h.v; };
-const cacheSet = (k,v) => cache.set(k,{t:Date.now(),v});
-const json = (context, status, obj) => {
-  context.res = { status, body: JSON.stringify(obj), headers: { "Content-Type": "application/json" } };
+const SELECT_POWER = [
+  "PartitionKey","RowKey","Date_Time",
+  "Total_AC_Power_KW","Total_DC_Power_KW"
+];
+const SELECT_YIELD = [
+  "PartitionKey","RowKey","Date_Time",
+  "Daily_Yield_KWH","Monthly_Yield_KWH"
+];
+const SELECT_LIFE  = [
+  "PartitionKey","Total_Yield","Yield_Unit"
+];
+
+const pickNum = (o, names, dv = 0) => { for (const n of names) if (o[n] != null) return Number(o[n]); return dv; };
+const unitToKWh = (val, unit) => {
+  const u = String(unit || "").toUpperCase(); const v = Number(val) || 0;
+  if (u === "WH") return v / 1000; if (u === "KWH") return v; if (u === "MWH") return v * 1000; if (u === "GWH") return v * 1000 * 1000;
+  return v;
 };
 
-function toUtcISOStringFromIST(y,m,d,hh,mm){ const ist=Date.UTC(y,m-1,d,hh,mm); const utc=ist-IST_OFFSET_MIN*60*1000; return new Date(utc).toISOString(); }
-function istFloor(date){ const utc=Date.UTC(date.getUTCFullYear(),date.getUTCMonth(),date.getUTCDate()); const ist=utc+IST_OFFSET_MIN*60*1000; return new Date(ist); }
-function parseDateParamIST(s){ const [y,m,d]=s.split("-").map(Number); const utc=Date.UTC(y,m-1,d,0,0)-IST_OFFSET_MIN*60*1000; return new Date(utc); }
-function toYMD(istDate){ const y=istDate.getUTCFullYear(); const m=String(istDate.getUTCMonth()+1).padStart(2,"0"); const d=String(istDate.getUTCDate()).padStart(2,"0"); return `${y}-${m}-${d}`; }
-const round2 = x => Math.round(x*100)/100;
-function formatTotalYield(kWh){ if(kWh==null) return {value:null,unit:null}; if(kWh>=1_000_000) return {value:kWh/1_000_000,unit:"GWh"}; if(kWh>=1_000) return {value:kWh/1_000,unit:"MWh"}; return {value:kWh,unit:"kWh"}; }
-function istDayUtcRange(istDay){ const y=istDay.getUTCFullYear(), m=istDay.getUTCMonth()+1, d=istDay.getUTCDate(); return [toUtcISOStringFromIST(y,m,d,0,0), toUtcISOStringFromIST(y,m,d,23,59)]; }
-function lastNMonths(refIst,n){ const out=[]; const y0=refIst.getUTCFullYear(), m0=refIst.getUTCMonth()+1; for(let i=n-1;i>=0;i--){ let y=y0, m=m0-i; while(m<=0){m+=12;y-=1;} out.push({y,m}); } return out; }
+const pad = (n) => String(n).padStart(2, "0");
+const ymdIST = (d) => { const ist = new Date(d.getTime() + 330*60*1000);
+  return `${ist.getUTCFullYear()}${pad(ist.getUTCMonth()+1)}${pad(ist.getUTCDate())}`; };
+const rowkeyWindow = (start, end) => ({ rkStart: ymdIST(start), rkEnd: ymdIST(end) });
+const toISTiso19 = (tsUtc) => { const ms = typeof tsUtc === "string" ? Date.parse(tsUtc) : tsUtc.getTime();
+  return new Date(ms + 330*60*1000).toISOString().slice(0,19); };
 
-const credential = new ManagedIdentityCredential();
-async function tableExists(name){ try{ const c=new TableClient(ENDPOINT,name,credential); for await (const _ of c.listEntities({queryOptions:{top:1}})){} return true; } catch(e){ return false; } }
-async function getActiveTables(){ const ok=[]; for(const n of CANDIDATE_TABLES){ if(await tableExists(n)) ok.push(n); } return ok; }
-async function fetchEntitiesInRange(name, fromIso, toIso){
-  const c=new TableClient(ENDPOINT,name,credential);
-  const f=`Timestamp ge datetime'${fromIso}' and Timestamp le datetime'${toIso}'`;
-  const out=[]; for await (const e of c.listEntities({queryOptions:{filter:f}})) out.push(e); return out;
+function yieldWindowFor(view, date, dateFrom, dateTo) {
+  const d0 = new Date(date + "T00:00:00Z");
+  if (view === "week")  return { start: new Date(d0.getTime()-6*86400000), end:new Date(d0.getTime()+86400000) };
+  if (view === "month") return { start:new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth()-5,1)),
+                                 end:  new Date(Date.UTC(d0.getUTCFullYear(), d0.getUTCMonth()+1,1)) };
+  if (view === "year")  return { start:new Date(Date.UTC(d0.getUTCFullYear()-4,0,1)),
+                                 end:  new Date(Date.UTC(d0.getUTCFullYear()+1,0,1)) };
+  if (view === "custom" && dateFrom && dateTo) {
+    const s = new Date(dateFrom + "T00:00:00Z");
+    const e = new Date(new Date(dateTo + "T00:00:00Z").getTime()+86400000);
+    return { start:s, end:e };
+  }
+  return { start:d0, end:new Date(d0.getTime()+86400000) };
 }
-function buildMapping(ents){ const m=new Map(); for(const e of ents){ const inv=e.Inverter_ID||e.InverterId||e.inverter_id; const pid=e.Plant_ID||e.PlantId||e.plant_id; if(inv&&pid&&!m.has(String(inv))) m.set(String(inv),String(pid)); } return m; }
-function filterByPlant(ents, plantId, map){ if(!plantId||plantId.toLowerCase()==="all") return ents; const pid=String(plantId); const out=[]; for(const e of ents){ const p=e.Plant_ID||e.PlantId||e.plant_id; if(p){ if(String(p)===pid) out.push(e); continue; } const inv=e.Inverter_ID||e.InverterId||e.inverter_id; if(inv && map.has(String(inv)) && map.get(String(inv))===pid) out.push(e); } return out; }
-function aggregatePowerDayIST(ents, dayIST){ const y=dayIST.getUTCFullYear(), m=dayIST.getUTCMonth()+1, d=dayIST.getUTCDate(); const sIso=toUtcISOStringFromIST(y,m,d,5,0), eIso=toUtcISOStringFromIST(y,m,d,19,0); const s=new Date(sIso), e=new Date(eIso); const buckets=[]; for(let t=s.getTime(); t<=e.getTime(); t+=20*60*1000) buckets.push({t,ac:0,dc:0,n:0}); const idx=ts=>{ const i=Math.round((ts-s.getTime())/(20*60*1000)); return (i<0||i>=buckets.length)?-1:i; }; for(const e1 of ents){ const ts=new Date(e1.timestamp||e1.Timestamp); if(ts<s||ts>e) continue; const i=idx(ts.getTime()); if(i<0) continue; const ac=Number(e1.AC_Power ?? e1.AC_Power_kW ?? e1.AC ?? 0); const dc=Number(e1.DC_Power ?? e1.DC_Power_kW ?? e1.DC ?? 0); if(!isFinite(ac) && !isFinite(dc)) continue; buckets[i].ac += isFinite(ac)?ac:0; buckets[i].dc += isFinite(dc)?dc:0; buckets[i].n++; } return buckets.map(b=>({t:new Date(b.t).toISOString(), ac:b.n?b.ac:0, dc:b.n?b.dc:0})); }
-function sumByFilter(ents, fromIso, toIso){ const from=new Date(fromIso), to=new Date(toIso); let s=0; for(const e of ents){ const ts=new Date(e.timestamp||e.Timestamp); if(ts<from||ts>to) continue; const v=Number(e.Daily_Yield_KWH ?? e.Daily_Yield_kWh ?? e.Daily_Yield ?? 0); if(isFinite(v)) s+=v; } return s; }
-function sumMonthly(ents, y, m){ let s=0; for(const e of ents){ const ts=new Date(e.timestamp||e.Timestamp); const ty=ts.getUTCFullYear(), tm=ts.getUTCMonth()+1; if(ty===y && tm===m){ const v=Number(e.Monthly_Yield_KWH ?? e.Monthly_Yield_kWh ?? e.Monthly_Yield ?? e.Daily_Yield_KWH ?? 0); if(isFinite(v)) s+=v; } } return s; }
-function aggregateYields(ents, view, refIst){ const results=[]; if(view==="day"){ let sum=0; for(const e of ents){ const v=Number(e.Daily_Yield_KWH ?? e.Daily_Yield_kWh ?? e.Daily_Yield ?? 0); if(isFinite(v)) sum+=v; } results.push({label: toYMD(refIst), value: round2(sum)}); } else if(view==="week"){ for(let i=6;i>=0;i--){ const d=new Date(refIst.getTime()-i*86400000); const [f,t]=istDayUtcRange(d); results.push({label: toYMD(d), value: round2(sumByFilter(ents,f,t))}); } } else if(view==="month"){ for(const ym of lastNMonths(refIst,6)){ const v=sumMonthly(ents, ym.y, ym.m); results.push({label: `${ym.y}-${String(ym.m).padStart(2,"0")}`, value: round2(v)}); } } else if(view==="year"){ let total=0; for(const e of ents){ const v=Number(e.Total_Yield ?? e.Total_Yield_kWh ?? 0); if(isFinite(v)) total=Math.max(total,v); } const {value,unit}=formatTotalYield(total); results.push({label: `${refIst.getUTCFullYear()}`, value: round2(value), unit}); } return results; }
 
-/* --------- MAIN --------- */
-module.exports = async function (context, req) {
-  const path = (context.bindingData && context.bindingData.path || "").toLowerCase();
+const filterRK   = (inv, a, b) => `PartitionKey eq '${inv}' and RowKey ge '${a}' and RowKey lt '${b}'`;
+const filterPart = (inv)        => `PartitionKey eq '${inv}'`;
 
-  if (path === "ping") { context.res = { status: 200, body: "ok" }; return; }
+async function runLimited(items, limit, fn) {
+  const out = []; let i=0, running=0;
+  return new Promise((resolve) => {
+    const next = () => {
+      if (i>=items.length && running===0) return resolve(out);
+      while (running<limit && i<items.length) {
+        const idx=i++, it=items[idx]; running++;
+        Promise.resolve(fn(it, idx)).then(v=>out[idx]=v).catch(()=>out[idx]=null)
+          .finally(()=>{ running--; next(); });
+      }
+    };
+    next();
+  });
+}
 
-  if (path === "env") {
-    const tables = (process.env.SVI_TABLES || "").split(",").map(s => s.trim()).filter(Boolean);
-    return json(context, 200, { ok:true, node:process.version, account:ACCOUNT_NAME, tables });
-  }
+const cache = new Map(); const CACHE_MS = 10000;
 
-  if (path === "token") {
-    try {
-      const tok = await credential.getToken("https://storage.azure.com/.default");
-      return json(context, 200, { ok:true, tokenAcquired: !!tok, expiresOn: tok?.expiresOnTimestamp || null });
-    } catch (e) {
-      return json(context, 200, { ok:false, error: String(e) });
+module.exports = async (context, req) => {
+  const reply = (obj) => (context.res = { status:200, headers:{ "Content-Type":"application/json","Cache-Control":"no-store" }, body:obj });
+
+  if (!DATA_CONN) return reply({ power:[], yield:[], cards:{TotalYield_MWh:0}, meta:{ error:"no-connection-string" } });
+
+  const date = req.query.date || new Date().toISOString().slice(0,10);
+  const view = ["day","week","month","year","lifetime","custom"].includes((req.query.view||"day").toLowerCase())
+    ? (req.query.view||"day").toLowerCase() : "day";
+  const dateFrom=req.query.dateFrom, dateTo=req.query.dateTo;
+
+  const invIds = (req.query.invIds||"").split(",").map(s=>s.trim()).filter(Boolean);
+  if (!invIds.length) return reply({ power:[], yield:[], cards:{TotalYield_MWh:0}, meta:{warn:"no-invIds"} });
+
+  const ck = JSON.stringify({ view, date, dateFrom, dateTo, invIds, v:"rk+select" });
+  const hit = cache.get(ck); if (hit && Date.now()-hit.t<CACHE_MS) return reply(hit.v);
+
+  const dayStart = new Date(date+"T00:00:00Z"), dayEnd = new Date(dayStart.getTime()+86400000);
+  const { start:yStart, end:yEnd } = yieldWindowFor(view, date, dateFrom, dateTo);
+  const { rkStart:rkDayStart, rkEnd:rkDayEnd } = rowkeyWindow(dayStart, dayEnd);
+  const { rkStart:rkYStart,   rkEnd:rkYEnd   } = rowkeyWindow(yStart, yEnd);
+
+  const powerMap      = new Map();  // time -> {t, ac, dc}
+  const maxDayByInv   = new Map();  // inv|YYYY-MM-DD -> max Daily_Yield_KWH
+  const maxMonthByInv = new Map();  // inv|YYYY-MM    -> max Monthly_Yield_KWH
+  const maxTotalByInv = new Map();  // inv            -> max lifetime (MWh)
+  const bumpMax = (m,k,v)=>{ const cur=m.get(k)||0; if (v>cur) m.set(k,v); };
+
+  async function scan(table) {
+    const client = TableClient.fromConnectionString(DATA_CONN, table);
+
+    // Power — per day
+    await runLimited(invIds, 8, async (inv) => {
+      const iter = client.listEntities({ queryOptions:{ filter: filterRK(inv, rkDayStart, rkDayEnd), select: SELECT_POWER } });
+      for await (const row of iter) {
+        const ts = row.Date_Time || row.RowKey || row.Timestamp; if (!ts) continue;
+        const iso = toISTiso19(new Date(ts));
+        const ac  = pickNum(row, ["Total_AC_Power_KW"], 0);
+        const dc  = pickNum(row, ["Total_DC_Power_KW"], 0);
+        if (ac || dc) {
+          const cur = powerMap.get(iso) || { t: iso, ac: 0, dc: 0 };
+          cur.ac += ac; cur.dc += dc; powerMap.set(iso, cur);
+        }
+      }
+    });
+
+    // Yield window
+    if (view !== "lifetime") {
+      await runLimited(invIds, 8, async (inv) => {
+        const iter = client.listEntities({ queryOptions:{ filter: filterRK(inv, rkYStart, rkYEnd), select: SELECT_YIELD } });
+        for await (const row of iter) {
+          const ts = row.Date_Time || row.RowKey || row.Timestamp; if (!ts) continue;
+          const iso = toISTiso19(new Date(ts));
+          const d = iso.slice(0,10), m = iso.slice(0,7);
+          const dy = pickNum(row, ["Daily_Yield_KWH"], null);
+          if (dy != null) bumpMax(maxDayByInv, `${inv}|${d}`, dy);
+          const mo = pickNum(row, ["Monthly_Yield_KWH"], null);
+          if (mo != null) bumpMax(maxMonthByInv, `${inv}|${m}`, mo);
+        }
+      });
     }
+
+    // Lifetime
+    await runLimited(invIds, 8, async (inv) => {
+      const iter = client.listEntities({ queryOptions:{ filter: filterPart(inv), select: SELECT_LIFE } });
+      for await (const row of iter) {
+        if (row.Total_Yield != null && row.Yield_Unit != null) {
+          const mwh = unitToKWh(row.Total_Yield, row.Yield_Unit)/1000;
+          bumpMax(maxTotalByInv, inv, mwh);
+        }
+      }
+    });
   }
 
-  if (path === "diag") {
-    try {
-      await credential.getToken("https://storage.azure.com/.default");
-      const c = new TableClient(ENDPOINT, (CANDIDATE_TABLES[0] || "SungrowInverter125KW"), credential);
-      return json(context, 200, { ok:true, account:ACCOUNT_NAME, node:process.version, tables:CANDIDATE_TABLES });
-    } catch (e) {
-      return json(context, 500, { ok:false, error: String(e) });
-    }
+  await Promise.all(SUNGROW_TABLES.map(scan));
+
+  // Yield series
+  let yieldArr=[], yieldUnit="kWh";
+  if (view === "day") {
+    const kwh = [...maxDayByInv.entries()]
+      .filter(([k])=>k.split("|")[1]===date)
+      .reduce((s,[,v])=>s+v,0);
+    if (kwh>0) yieldArr=[{ d:date, val:kwh }];
+  } else if (view==="week" || view==="custom") {
+    const s=yStart.getTime(), e=yEnd.getTime(); const dayMap=new Map();
+    for (const [k,v] of maxDayByInv) { const d=k.split("|")[1]; const t=Date.parse(d+"T00:00:00Z");
+      if (t>=s && t<e) dayMap.set(d,(dayMap.get(d)||0)+v); }
+    yieldArr=[...dayMap.entries()].sort((a,b)=>a[0].localeCompare(b[0])).map(([d,val])=>({ d,val }));
+  } else if (view==="month") {
+    const monthMap=new Map();
+    if (maxMonthByInv.size) for (const [k,v] of maxMonthByInv) { const m=k.split("|")[1]; monthMap.set(m,(monthMap.get(m)||0)+v); }
+    else for (const [k,v] of maxDayByInv) { const m=k.split("|")[1].slice(0,7); monthMap.set(m,(monthMap.get(m)||0)+v); }
+    yieldArr=[...monthMap.entries()].sort((a,b)=>a[0].localeCompare(b[0])).slice(-6).map(([ym,val])=>({ ym,val }));
+  } else if (view==="year") {
+    const byYear=new Map(), add=(y,v)=>byYear.set(y,(byYear.get(y)||0)+v);
+    if (maxMonthByInv.size) for (const [k,v] of maxMonthByInv) add(k.split("|")[1].slice(0,4), v);
+    else for (const [k,v] of maxDayByInv) add(k.split("|")[1].slice(0,4), v);
+    yieldArr=[...byYear.entries()].sort((a,b)=>a[0].localeCompare(b[0])).slice(-5).map(([y,val])=>({ y:Number(y), val }));
+  } else if (view==="lifetime") {
+    const totalMWh=[...maxTotalByInv.values()].reduce((s,v)=>s+v,0);
+    let display=totalMWh*1000; yieldUnit="kWh";
+    if (totalMWh>=1000) { display=(totalMWh/1000)*1000*1000; yieldUnit="GWh"; }
+    else if (totalMWh>=1) { display=totalMWh*1000; yieldUnit="MWh"; }
+    yieldArr=[{ title:"Lifetime", val:display }];
   }
 
-  if (path === "health") {
-    try {
-      const names = await getActiveTables();
-      return json(context, 200, { ok:true, tables:names, account:ACCOUNT_NAME });
-    } catch (e) {
-      return json(context, 500, { ok:false, error: String(e) });
-    }
-  }
+  const power = [...powerMap.values()].sort((a,b)=>a.t.localeCompare(b.t));
+  const totalMWh = [...maxTotalByInv.values()].reduce((s,v)=>s+v,0);
 
-  // ==== analytics ====
-  try {
-    const view=(req.query.view||"day").toLowerCase();
-    const plantId=req.query.plantId||"all";
-    const refIst=(req.query.date?parseDateParamIST(req.query.date):istFloor(new Date()));
-    const key=JSON.stringify({view,plantId,date:toYMD(refIst)}); const cached=cacheGet(key); if(cached) return json(context,200,cached);
-
-    let fromIso,toIso;
-    if(view==="day"){ const y=refIst.getUTCFullYear(), m=refIst.getUTCMonth()+1, d=refIst.getUTCDate(); fromIso=toUtcISOStringFromIST(y,m,d,5,0); toIso=toUtcISOStringFromIST(y,m,d,19,0); }
-    else if(view==="week"){ const s=new Date(refIst.getTime()-6*86400000); fromIso=toUtcISOStringFromIST(s.getUTCFullYear(),s.getUTCMonth()+1,s.getUTCDate(),0,0); toIso=toUtcISOStringFromIST(refIst.getUTCFullYear(),refIst.getUTCMonth()+1,refIst.getUTCDate(),23,59); }
-    else if(view==="month"){ const earliest=new Date(refIst); earliest.setUTCMonth(earliest.getUTCMonth()-5,1); fromIso=toUtcISOStringFromIST(earliest.getUTCFullYear(), earliest.getUTCMonth()+1,1,0,0); const lastDay=new Date(refIst.getUTCFullYear(), refIst.getUTCMonth()+1,0).getUTCDate(); toIso=toUtcISOStringFromIST(refIst.getUTCFullYear(),refIst.getUTCMonth()+1,lastDay,23,59); }
-    else if(view==="year"){ const s=new Date(Date.UTC(refIst.getUTCFullYear(),0,1)), e=new Date(Date.UTC(refIst.getUTCFullYear(),11,31,23,59)); fromIso=toUtcISOStringFromIST(s.getUTCFullYear(),s.getUTCMonth()+1,s.getUTCDate(),0,0); toIso=toUtcISOStringFromIST(e.getUTCFullYear(),e.getUTCMonth()+1,e.getUTCDate(),23,59); }
-    else return json(context,400,{error:"invalid view"});
-
-    const names=await getActiveTables(); let all=[]; for(const n of names){ const ents=await fetchEntitiesInRange(n, fromIso, toIso); all=all.concat(ents); }
-    const map=buildMapping(all); const filtered=filterByPlant(all, plantId, map);
-    const power=(view==="day")?aggregatePowerDayIST(filtered,refIst):[]; const yld=aggregateYields(filtered,view,refIst);
-    let totalKWh=0; for(const e of filtered){ const v=Number(e.Total_Yield ?? e.Total_Yield_KWh ?? e.Total_Yield_kWh ?? 0); if(isFinite(v)) totalKWh=Math.max(totalKWh,v); }
-    const {value:totalValue, unit:totalUnit}=formatTotalYield(totalKWh);
-    const response={ serverTimeUtc:new Date().toISOString(), parameters:{view,plantId,date:toYMD(refIst)}, kpis:{ total_yield:totalValue, unit:totalUnit, cuf:null, pr:null }, power, yield:yld };
-    cacheSet(key,response); return json(context,200,response);
-
-  } catch (e) { return json(context,500,{ ok:false, error:String(e) }); }
+  const out = {
+    power, yield:yieldArr,
+    cards:{ TotalYield_MWh: Number(totalMWh.toFixed(2)) },
+    meta:{ serverTs:new Date().toISOString(), view, date,
+           range:{ start:yStart.toISOString(), end:yEnd.toISOString() },
+           invIds, yieldUnit, filter:"PartitionKey+RowKey+select" }
+  };
+  cache.set(ck, { t:Date.now(), v:out });
+  reply(out);
 };

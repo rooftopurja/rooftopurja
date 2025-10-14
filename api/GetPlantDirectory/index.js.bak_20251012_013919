@@ -1,0 +1,52 @@
+﻿const { TableClient } = require("@azure/data-tables");
+
+const TABLE = process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
+const CONN  = process.env.TABLES_CONN_STRING
+          || process.env.TABLES_CONNECTION_STRING
+          || process.env.AZURE_STORAGE_CONNECTION_STRING;
+
+function toArray(v) {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v.map(String).filter(Boolean);
+  const s = String(v).trim();
+  if (!s) return [];
+  try { const j = JSON.parse(s); if (Array.isArray(j)) return j.map(String).filter(Boolean); } catch {}
+  return s.split(/[,;]\s*/).map(x => x.trim()).filter(Boolean);
+}
+
+module.exports = async function (context, req) {
+  try {
+    if (!CONN) throw new Error("TABLES_CONN_STRING not set in local.settings.json");
+
+    // ✅ Allow HTTP (Azurite)
+    const client = TableClient.fromConnectionString(CONN, TABLE, { allowInsecureConnection: true });
+
+    const out = [];
+    for await (const e of client.listEntities()) {
+      const Plant_ID   = e.Plant_ID ?? e.PlantId ?? e.RowKey ?? null;
+      const Plant_Name = e.Plant_Name ?? e.plant_name ?? null;
+
+      const Meters     = toArray(e.Meters    ?? e.Meter_ID);
+      const Inverters  = toArray(e.Inverters ?? e.Inverter_ID);
+      const Sensors    = toArray(e.Sensors   ?? e.Sensors_ID);
+      const PLC_AC     = toArray(e.PLC_AC    ?? e.plcaccontrol_id);
+      const PLC_Pump   = toArray(e.PLC_Pump  ?? e.plcpump_id);
+      const LoRa       = toArray(e.LoRa      ?? e.LoRa_ID ?? e.Lora);
+
+      out.push({ Plant_ID, Plant_Name, Meters, Inverters, PLC_AC, PLC_Pump, LoRa, Sensors });
+    }
+
+    context.res = {
+      status: 200,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: { success: true, data: out, count: out.length }
+    };
+  } catch (err) {
+    context.log("GetPlantDirectory error:", err);
+    context.res = {
+      status: 500,
+      headers: { "Content-Type": "application/json; charset=utf-8" },
+      body: { success: false, error: String(err) }
+    };
+  }
+};

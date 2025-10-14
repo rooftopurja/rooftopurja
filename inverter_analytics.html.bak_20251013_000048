@@ -1,0 +1,513 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<script id="ia-safe-insert">
+(function(){
+  const orig = Node.prototype.insertBefore;
+  Node.prototype.insertBefore = function(newChild, refChild){
+    try{
+      if (newChild && this && typeof newChild.contains==="function" && newChild.contains(this)){
+        console.warn("[IA] blocked unsafe insertBefore");
+        return newChild;
+      }
+    }catch(_){}
+    return orig.call(this,newChild,refChild);
+  };
+})();
+</script><script id="fetch-shim-7071">
+  // Route all relative /api/* to local Functions (7071)
+  (function(){
+    const API_BASE = "http://127.0.0.1:7071";
+    const _fetch = window.fetch;
+    window.fetch = (u,o)=> (typeof u==="string" && u.startsWith("/api/"))
+      ? _fetch(API_BASE + u, o) : _fetch(u,o);
+  })();
+</script>
+  <meta charset="utf-8" />
+  <title>Inverter Analytics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;background:#fafafa;color:#111}
+    header{padding:12px 16px;border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .kpi{flex:1 1 220px}
+    .kpi .label{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em}
+    .kpi .value{font-size:28px;font-weight:700;margin-top:4px}
+    .controls{gap:8px;align-items:center}
+    select,input,button{padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff}
+    .seg button{padding:8px 12px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+    .seg button.active{background:#111;color:#fff;border-color:#111}
+    .chart-card{flex:1 1 520px;min-width:320px}
+    .muted{color:#6b7280;font-size:12px}
+    .spinner{display:none}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<style id="ia-fix-h">
+  #powerChart, #yieldChart { min-height: 280px; }
+</style><style id="ia-top-fixes">
+  /* put our IA block at top and give space */
+  body #ia-wrap{ margin:12px 8px 24px; }
+  /* attempt to hide the legacy single-number header if it exists */
+  .kpi, .stats, .header-kpi, .summary-bar { display:none !important; }
+</style><style id="ia-kpi-css">
+  .ia-wrap{display:flex;flex-direction:column;gap:16px;margin:12px 0 20px}
+  .ia-kpis{display:grid;grid-template-columns:repeat(3,minmax(200px,1fr));gap:12px}
+  .ia-card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;box-shadow:0 6px 18px rgba(0,0,0,.04)}
+  .ia-kpi{padding:16px}
+  .ia-kpi .label{font-size:.9rem;color:#6b7280;font-weight:600}
+  .ia-kpi .value{font-size:2rem;font-weight:800}
+  .ia-kpi .unit{font-size:1rem;margin-left:.35rem;color:#6b7280}
+  #powerChart,#yieldChart{min-height:320px}
+</style>
+<script id="ia-chartjs-cdn" src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+<script id="ia-chartjs-datalabels" src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+</head>
+<body>
+<!-- IA UI (auto) -->
+<style id="ia-autostyles">
+  #ia-wrap{margin:12px;font-family:system-ui,Segoe UI,Arial}
+  #ia-kpis{display:flex;gap:12px;margin:8px 0}
+  .kpi{padding:10px 14px;border:1px solid #ddd;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,.06)}
+  .kpi .v{font-size:26px;font-weight:700;margin-right:6px}
+  #plantFilter{display:flex;align-items:center;gap:.5rem;margin:.5rem 0}
+  #plantPanel{position:absolute;z-index:20;background:#fff;border:1px solid #ddd;border-radius:8px;
+              box-shadow:0 8px 24px rgba(0,0,0,.08);padding:.5rem;max-height:260px;overflow:auto;min-width:280px;}
+  #powerChart,#yieldChart{height:280px;border:1px solid #eee;border-radius:10px;margin:8px 0;padding:6px}
+  /* hide legacy selects to avoid duplicates */
+  select#plantSelect, select#plants, select#meterPlantSelect, select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<div id="ia-wrap">
+  <div id="plantFilter">
+    <label style="font-weight:600;">Plant</label>
+    <button id="plantBtn" type="button" class="btn" style="min-width:220px;">All Plants ▾</button>
+    <div style="position:relative;">
+      <div id="plantPanel" hidden>
+        <label style="display:flex;align-items:center;gap:.5rem;padding:.25rem .5rem;">
+          <input type="checkbox" id="plant_all" checked> <strong>All Plants</strong>
+        </label>
+        <div id="plantList"></div>
+        <div style="display:flex;justify-content:flex-end;gap:.5rem;padding-top:.5rem;">
+          <button id="plantApply" class="btn">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ia-kpis">
+    <div class="kpi"><span class="v" data-kpi="total-yield">0</span><span data-kpi="total-yield-unit">MWh</span></div>
+  </div>
+
+  <div id="powerChart"></div>
+  <div id="yieldChart"></div>
+</div>
+<!-- /IA UI -->
+<link rel="stylesheet" href="/nav.css"><div id="global-nav"></div><script src="/nav.js" defer></script>
+<header>
+<script id="ia-safe-insert">
+(function(){
+  const orig = Node.prototype.insertBefore;
+  Node.prototype.insertBefore = function(newChild, refChild){
+    try{
+      if (newChild && this && typeof newChild.contains==="function" && newChild.contains(this)){
+        console.warn("[IA] blocked unsafe insertBefore");
+        return newChild;
+      }
+    }catch(_){}
+    return orig.call(this,newChild,refChild);
+  };
+})();
+</script><div class="wrap row controls">
+    <div style="font-weight:700;">Inverter Analytics</div>
+    <div style="flex:1"></div>
+    <label>Plant</label>
+    <select id="plantSel">
+      <option value="all">All Plants</option>
+      <!-- you can append more options later via PlantDirectory -->
+    </select>
+    <label>Date</label>
+    <input type="date" id="dayPicker" />
+    <div class="seg" id="viewSeg">
+      <button data-view="day"   class="active">Day</button>
+      <button data-view="week">Week</button>
+      <button data-view="month">Month</button>
+      <button data-view="year">Year</button>
+    </div>
+    <button id="refreshBtn">Refresh</button>
+    <div id="spin" class="muted spinner">Loading…</div>
+  </div>
+</header>
+
+
+
+
+
+
+<script id="ia_domfix">
+(function(){
+  const $ = (s,d=document)=>d.querySelector(s);
+  const $$= (s,d=document)=>[...d.querySelectorAll(s)];
+
+  function moveFilterToToolbar(){
+    const filter = $("#plantFilter");
+    if(!filter) return;
+
+    // Find the existing "Plant" control row (near the top)
+    const topSelect = $("#plantSelect, #plants, #meterPlantSelect, select[name='plant'], select[data-role='plant']");
+    const plantLabel = [...document.querySelectorAll("label")].find(l=>/^\s*Plant\s*$/i.test(l.textContent||""));
+    const toolbar = topSelect?.parentElement || plantLabel?.parentElement || document.body;
+
+    // Hide original single-select (if present)
+    if (topSelect) topSelect.style.setProperty("display","none","important");
+
+    // If filter is already in toolbar, stop. Else move it just after the label/select.
+    if (toolbar && filter.parentElement !== toolbar) {
+      if (plantLabel && plantLabel.nextSibling) {
+        toolbar.insertBefore(filter, plantLabel.nextSibling);
+      } else {
+        toolbar.prepend(filter);
+      }
+    }
+
+    // Remove stray duplicates at the bottom (keep only the first instance)
+    const dups = $$("#plantFilter");
+    dups.slice(1).forEach(n=>n.remove());
+  }
+
+  // Ensure KPI/Chart placeholders exist so visuals are never blank
+  function ensureMounts(){
+    // TOTAL YIELD card: find the card that mentions "TOTAL YIELD"
+    const kpiCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /TOTAL\s*YIELD/i.test(x.textContent||""));
+    if (kpiCard && !kpiCard.querySelector("[data-kpi='total-yield']")){
+      const slot = document.createElement("div");
+      slot.style.fontSize = "36px";
+      slot.style.fontWeight = "700";
+      slot.innerHTML = '<span data-kpi="total-yield">0</span> <span data-kpi="total-yield-unit">kWh</span>';
+      kpiCard.prepend(slot);
+    }
+
+    // Power card
+    const powerCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /Power\s*\(AC\/DC\)\s*vs\s*Time/i.test(x.textContent||""));
+    if (powerCard && !powerCard.querySelector("#powerChart")){
+      const div = document.createElement("div");
+      div.id = "powerChart"; div.style.height = "320px"; div.style.marginTop = "8px";
+      powerCard.appendChild(div);
+    }
+
+    // Yield card
+    const yieldCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /^\s*Yield\s*$/i.test((x.querySelector("h2,h3,h4,header")?.textContent)||"") || /(^|\s)Yield(\s|$)/i.test(x.textContent||""));
+    if (yieldCard && !yieldCard.querySelector("#yieldChart")){
+      const div = document.createElement("div");
+      div.id = "yieldChart"; div.style.height = "320px"; div.style.marginTop = "8px";
+      yieldCard.appendChild(div);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", ()=>{ try{
+    moveFilterToToolbar();
+    ensureMounts();
+  }catch(e){ console.warn(e); }});
+})();
+</script>
+<style id="ia_hide_legacy_select">
+#plantFilter ~ select, select#plantSelect, select#plants, select#meterPlantSelect,
+select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<style id="ia_plant_selectlike">
+  #plantFilter>label{display:none!important;}
+  #plantBtn{
+    display:inline-flex;align-items:center;gap:.5rem;
+    padding:.375rem .75rem;border:1px solid #ced4da;border-radius:.375rem;
+    background:#fff;min-width:220px;height:36px;line-height:1.2;
+  }
+  #plantBtn:after{content:"";} /* keep arrow we put in text ( ▾ ) */
+</style>
+<script id="ia_cleanup_once">
+(function(){
+  document.addEventListener("DOMContentLoaded", ()=>{
+    const filters=[...document.querySelectorAll("#plantFilter")];
+    filters.slice(1).forEach(n=>n.remove()); // keep only the first
+  });
+})();
+</script>
+
+<style id="hide-legacy-plant">
+  select#plantSelect, select#plants, select#meterPlantSelect { display:none !important; }
+</style><script id="ia-guard-toolbar">
+(function(){
+  try{
+    if (typeof window.moveFilterToToolbar==='function') {
+      const _orig=window.moveFilterToToolbar;
+      window.moveFilterToToolbar=function(){
+        try{ _orig(); }catch(e){ /* ignore DOM move errors */ }
+      };
+    }
+  }catch(_){}
+})();
+</script>
+
+<script id="ia-yield-patch">
+(function(){
+  function ready(cb){ if (document.readyState!=="loading") cb(); else document.addEventListener("DOMContentLoaded",cb); }
+  function fmtMWh(x){ x=+x||0; return x>=1000 ? (x/1000).toFixed(3)+" GWh" : x.toFixed(3)+" MWh"; }
+  function parseDateFromUI(){
+    var inp=document.querySelector('input[type="date"], input[name="date"]');
+    if (!inp || !inp.value){
+      var t=document.querySelector('input[placeholder*="dd"]'); 
+      if (t && /^\d{2}-\d{2}-\d{4}$/.test(t.value)){ var p=t.value.split('-'); return p[2]+"-"+p[1]+"-"+p[0]; }
+      return "2025-06-18";
+    }
+    if (/^\d{2}-\d{2}-\d{4}$/.test(inp.value)){ var a=inp.value.split('-'); return a[2]+"-"+a[1]+"-"+a[0]; }
+    return inp.value;
+  }
+  function selectedPlantIds(){
+    var cbs=document.querySelectorAll('#plantPanel .plant_cb');
+    if (cbs.length){ var vals=[...cbs].filter(cb=>cb.checked).map(cb=>cb.value); return (!vals.length || vals.length===cbs.length)?"all":vals.join(','); }
+    return "all";
+  }
+  function ensureCanvas(sel){
+    var host=document.querySelector(sel); if (!host) return null;
+    var c=host.querySelector('canvas'); if(!c){ host.innerHTML=''; c=document.createElement('canvas'); host.appendChild(c); }
+    return c.getContext ? c.getContext('2d') : null;
+  }
+  function drawYield(view, points){
+    var ctx=ensureCanvas('#yieldChart'); if(!ctx || !window.Chart) return;
+    var labels=points.map(p=>String(p.label||p.x||'')), vals=points.map(p=>+p.value||+p.y||0);
+    var maxVal=Math.max(0, ...vals), useGWh=maxVal>=1000;
+    var ttl=document.getElementById('yieldTitle'); if(ttl){ ttl.textContent = view==='week'?'Yield – Last 7 Days':view==='month'?'Yield – Last 6 Months':view==='year'?'Yield – Last 5 Years':'Yield – Selected Day'; }
+    if (window.__yieldChart) window.__yieldChart.destroy();
+    window.__yieldChart = new Chart(ctx, { type:'bar',
+      data:{ labels, datasets:[{label:'Yield', data:vals, backgroundColor:'#4f46e5aa', borderColor:'#4f46e5', borderWidth:1.5}] },
+      plugins:[ChartDataLabels],
+      options:{ maintainAspectRatio:false,
+        plugins:{ legend:{display:true,labels:{boxWidth:12}},
+          datalabels:{align:'top',anchor:'end',formatter:(v)=>fmtMWh(v),clip:true},
+          tooltip:{callbacks:{label:(c)=>' '+fmtMWh(c.raw)}}},
+        scales:{ x:{grid:{display:false},ticks:{maxTicksLimit:Math.min(labels.length,12)}},
+                 y:{beginAtZero:true,ticks:{callback:(v)=>useGWh?(v/1000)+' GWh':v+' MWh'}}}
+      });
+  }
+  function drawPower(ac, dc){
+    var ctx=ensureCanvas('#powerChart'); if(!ctx || !window.Chart) return;
+    var mk=(arr,color,label)=>({label, data:arr.map(p=>+p.y||0), borderColor:color, backgroundColor:color+'33', borderWidth:2, tension:.25, fill:true, pointRadius:0});
+    var labels=(ac.length?ac:dc).map(p=>{ var d=p.x instanceof Date?p.x:new Date(p.t||p.x); return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');});
+    if (window.__powerChart) window.__powerChart.destroy();
+    window.__powerChart=new Chart(ctx,{type:'line',data:{labels,datasets:[mk(ac,'#2f80ed','AC'), mk(dc,'#27ae60','DC')]},
+      options:{maintainAspectRatio:false,plugins:{legend:{display:true}},
+        scales:{x:{grid:{display:false}},y:{beginAtZero:true,ticks:{callback:(v)=>v+' kW'}}}}});
+  }
+  function fetchAndRender(view){
+    var url="/api/inverter-analytics?view="+encodeURIComponent(view)+"&plantId="+encodeURIComponent(selectedPlantIds())+"&date="+encodeURIComponent(parseDateFromUI())+"&_ts="+Date.now();
+    return fetch(url).then(r=>r.json()).then(j=>{
+      var total = Array.isArray(j.yield)? j.yield.reduce((s,r)=>s+(+r.value||0),0):0;
+      var kVal=document.getElementById('kpi_total_yield'), kUnit=document.getElementById('kpi_total_yield_unit');
+      if (kVal && kUnit){ if (total>=1000){kVal.textContent=(total/1000).toFixed(3);kUnit.textContent='GWh';} else {kVal.textContent=(total).toFixed(3);kUnit.textContent='MWh';} }
+      if (view==='day'){
+        var ac=(j.power||[]).map(p=>({x:new Date(p.t), y:+(p.ac||0)}));
+        var dc=(j.power||[]).map(p=>({x:new Date(p.t), y:+(p.dc||0)}));
+        drawPower(ac,dc);
+      } else {
+        var host=document.querySelector('#powerChart'); if(host) host.innerHTML='<canvas></canvas>';
+        if (window.__powerChart) try{window.__powerChart.destroy();}catch(_){}
+      }
+      drawYield(view, j.yield||[]);
+      window.__lastIA={view, power:(j.power||[]), yld:(j.yield||[])};
+    }).catch(console.warn);
+  }
+  function findBtnByText(txt){
+    txt=String(txt).trim().toLowerCase();
+    return [...document.querySelectorAll('button,.btn')].find(b=>(b.textContent||'').trim().toLowerCase()===txt) || null;
+  }
+  function setActive(btn){ document.querySelectorAll('button,.btn').forEach(b=>b.classList&&b.classList.remove('active')); if(btn&&btn.classList) btn.classList.add('active'); }
+  function wire(){
+    [['day','Day'],['week','Week'],['month','Month'],['year','Year']].forEach(([v,l])=>{
+      var btn=findBtnByText(l); if(btn && !btn.__ia){ btn.__ia=true; btn.addEventListener('click',()=>{ setActive(btn); fetchAndRender(v); }); }
+    });
+    var refresh=findBtnByText('Refresh'); if (refresh && !refresh.__ia){ refresh.__ia=true; refresh.addEventListener('click',()=>{
+      var act=document.querySelector('.btn.active,button.active'); var view= act ? act.textContent.trim().toLowerCase() : 'day';
+      fetchAndRender(view);
+    });}
+    var dateInp=document.querySelector('input[type="date"], input[name="date"], input[placeholder*="dd"]');
+    if(dateInp && !dateInp.__ia){ dateInp.__ia=true; dateInp.addEventListener('change',()=>{ var act=document.querySelector('.btn.active,button.active'); var view=act?act.textContent.trim().toLowerCase():'day'; fetchAndRender(view); });}
+    var apply=document.getElementById('plantApply');
+    if(apply && !apply.__ia){ apply.__ia=true; apply.addEventListener('click',()=>{ var act=document.querySelector('.btn.active,button.active'); var view=act?act.textContent.trim().toLowerCase():'day'; fetchAndRender(view); });}
+  }
+  ready(function(){ wire(); var day=findBtnByText('Day'); if(day) setActive(day); fetchAndRender('day'); });
+})();
+</script>
+
+
+<script id="ia-fix-move">
+(function(){
+  function safe(node, target){
+    if(!node || !target) return false;
+    if (node===target) return false;
+    if (node.contains(target)) return false;   // inserting parent into its child -> crash
+    return true;
+  }
+  // override any earlier definition with a safe no-op if invalid
+  window.moveFilterToToolbar = function(){
+    try{
+      var toolbar = document.querySelector('.toolbar,.filters,.btn-toolbar,#toolbar');
+      var panel   = document.querySelector('#filterBar,.filter-bar,.filters-row,.filters');
+      if (safe(panel, toolbar) && toolbar && panel && panel.parentNode !== toolbar){
+        toolbar.insertBefore(panel, toolbar.firstChild);
+      }
+    }catch(e){ console.info('moveFilterToToolbar skipped:', e.message); }
+  };
+  // try once after DOM is ready; swallow errors
+  if (document.readyState!=='loading') { try{ window.moveFilterToToolbar(); }catch(_){ } }
+  else document.addEventListener('DOMContentLoaded', ()=>{ try{ window.moveFilterToToolbar(); }catch(_){ } });
+})();
+</script>
+
+
+
+
+<script id="ia-loader">
+(function(){
+  function ready(cb){ if(document.readyState!=="loading") cb(); else document.addEventListener("DOMContentLoaded",cb); }
+  function todayISO(){ const d=new Date(); d.setMinutes(d.getMinutes()-d.getTimezoneOffset()); return d.toISOString().slice(0,10); }
+  function parseDate(){
+    const i=document.querySelector('input[type="date"], input[name="date"], input[placeholder*="dd"]');
+    if(!i||!i.value) return todayISO();
+    if(/^\d{2}-\d{2}-\d{4}$/.test(i.value)){ const p=i.value.split('-'); return p[2]+'-'+p[1]+'-'+p[0]; }
+    return i.value.slice(0,10);
+  }
+  function selectedPlantIds(){
+    const cbs=document.querySelectorAll('#plantPanel .plant_cb');
+    if(cbs.length){ const vals=[...cbs].filter(cb=>cb.checked).map(cb=>cb.value); return (!vals.length||vals.length===cbs.length)?"all":vals.join(','); }
+    return "all";
+  }
+  function setYieldTitle(view){
+    const t=document.getElementById('yieldTitle'); if(!t) return;
+    t.textContent = view==='week' ? 'Yield – Last 7 Days'
+                 : view==='month'? 'Yield – Last 6 Months'
+                 : view==='year' ? 'Yield – Last 5 Years'
+                 : 'Yield – Selected Day';
+  }
+  function fmtMWh(x){ x=+x||0; return x>=1000 ? (x/1000).toFixed(3)+" GWh" : x.toFixed(3)+" MWh"; }
+  function updateKPI(total){
+    const v=document.getElementById('kpi_total_yield'), u=document.getElementById('kpi_total_yield_unit'); if(!v||!u) return;
+    if(total>=1000){ v.textContent=(total/1000).toFixed(3); u.textContent="GWh"; }
+    else { v.textContent=total.toFixed(3); u.textContent="MWh"; }
+  }
+
+  // --- Chart helpers (destroy before redraw)
+  function kill(sel){
+    try{
+      const c=document.querySelector(sel+' canvas'); if(!c || !window.Chart) return;
+      const inst=Chart.getChart(c); if(inst) inst.destroy();
+    }catch(_){}
+  }
+  function ensureLine(sel, labels, acData, dcData){
+    kill(sel);
+    const c=document.querySelector(sel+' canvas'); if(!c||!window.Chart) return;
+    return new Chart(c.getContext('2d'), {
+      type:'line',
+      data:{
+        labels,
+        datasets:[
+          {label:'AC', data:acData, borderColor:'#2f80ed', backgroundColor:'#2f80ed33', tension:.25, pointRadius:0, fill:true, borderWidth:2},
+          {label:'DC', data:dcData, borderColor:'#27ae60', backgroundColor:'#27ae6033', tension:.25, pointRadius:0, fill:true, borderWidth:2}
+        ]
+      },
+      options:{
+        plugins:{ legend:{labels:{boxWidth:12}}, datalabels:{display:false} },
+        scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit:8}}, y:{beginAtZero:true, ticks:{callback:v=>v+' kW'}} },
+        maintainAspectRatio:false
+      },
+      plugins:[ChartDataLabels]
+    });
+  }
+  function ensureBar(sel, labels, vals){
+    kill(sel);
+    const c=document.querySelector(sel+' canvas'); if(!c||!window.Chart) return;
+    return new Chart(c.getContext('2d'), {
+      type:'bar',
+      data:{ labels, datasets:[{label:'Yield', data:vals, borderColor:'#4f46e5', backgroundColor:'#4f46e5aa'}]},
+      options:{
+        plugins:{
+          legend:{labels:{boxWidth:12}},
+          datalabels:{ align:'top', anchor:'end', formatter:(v)=>fmtMWh(v), clip:true },
+          tooltip:{ callbacks:{ label:(ctx)=>' '+fmtMWh(ctx.raw) } }
+        },
+        scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, ticks:{callback:v=>(v>=1000?(v/1000)+' GWh':v+' MWh')}} },
+        maintainAspectRatio:false
+      },
+      plugins:[ChartDataLabels]
+    });
+  }
+
+  function labelsFromDates(arr){
+    return arr.map(p=>{
+      const d=(p.x instanceof Date)?p.x:new Date(p.x);
+      return String(d.getHours()).padStart(2,'0')+':'+String(d.getMinutes()).padStart(2,'0');
+    });
+  }
+
+  // --- Fetch + render
+  function fetchAndRender(view){
+    setYieldTitle(view);
+    const url = '/api/inverter-analytics?view='+encodeURIComponent(view)
+              + '&plantId='+encodeURIComponent(selectedPlantIds())
+              + '&date='+encodeURIComponent(parseDate())
+              + '&_ts='+Date.now();
+
+    return fetch(url).then(r=>r.json()).then(j=>{
+      const power = Array.isArray(j.power)? j.power : [];
+      const ac = power.map(p=>({x:new Date(p.t), y:+(p.ac||0)}));
+      const dc = power.map(p=>({x:new Date(p.t), y:+(p.dc||0)}));
+      const yld = Array.isArray(j.yield)? j.yield : [];
+
+      // KPI
+      const total = yld.reduce((s,r)=>s+(+r.value||0),0);
+      updateKPI(total);
+
+      // Draw
+      ensureLine('#powerChart', labelsFromDates(ac.length?ac:dc), ac.map(p=>p.y), dc.map(p=>p.y));
+      ensureBar('#yieldChart', yld.map(d=>d.label), yld.map(d=>+d.value||0));
+    }).catch(console.warn);
+  }
+
+  function findBtn(text){
+    const t=String(text).trim().toLowerCase();
+    return [...document.querySelectorAll('button,.btn')].find(b=> (b.textContent||'').trim().toLowerCase()===t) || null;
+  }
+  function setActive(btn){
+    document.querySelectorAll('button,.btn').forEach(b=>b.classList&&b.classList.remove('active'));
+    if(btn&&btn.classList) btn.classList.add('active');
+  }
+
+  ready(function(){
+    // wire buttons
+    [['day','Day'],['week','Week'],['month','Month'],['year','Year']].forEach(([view,label])=>{
+      const b=findBtn(label); if(b && !b.__ia){ b.__ia=true; b.addEventListener('click',()=>{ setActive(b); fetchAndRender(view); }); }
+    });
+    const r=findBtn('Refresh'); if(r && !r.__ia){ r.__ia=true; r.addEventListener('click',()=>{
+      const act=document.querySelector('.btn.active,button.active'); const v=act?act.textContent.trim().toLowerCase():'day';
+      fetchAndRender(v);
+    });}
+
+    const dateInp=document.querySelector('input[type="date"], input[name="date"], input[placeholder*="dd"]');
+    if(dateInp && !dateInp.__ia){ dateInp.__ia=true; dateInp.addEventListener('change',()=>{
+      const act=document.querySelector('.btn.active,button.active'); const v=act?act.textContent.trim().toLowerCase():'day';
+      fetchAndRender(v);
+    });}
+
+    const apply=document.getElementById('plantApply');
+    if(apply && !apply.__ia){ apply.__ia=true; apply.addEventListener('click',()=>{
+      const act=document.querySelector('.btn.active,button.active'); const v=act?act.textContent.trim().toLowerCase():'day';
+      fetchAndRender(v);
+    });}
+
+    // initial state: Day (today)
+    const d=findBtn('Day'); if(d) setActive(d);
+    fetchAndRender('day');
+  });
+})();
+</script>

@@ -1,205 +1,326 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="utf-8" />
-  <title>Inverter Analytics</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <style>
-    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;background:#fafafa;color:#111}
-    header{padding:12px 16px;border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0}
-    .wrap{max-width:1200px;margin:0 auto;padding:16px}
-    .row{display:flex;gap:12px;flex-wrap:wrap}
-    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
-    .kpi{flex:1 1 220px}
-    .kpi .label{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em}
-    .kpi .value{font-size:28px;font-weight:700;margin-top:4px}
-    .controls{gap:8px;align-items:center}
-    select,input,button{padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff}
-    .seg button{padding:8px 12px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
-    .seg button.active{background:#111;color:#fff;border-color:#111}
-    .chart-card{flex:1 1 520px;min-width:320px}
-    .muted{color:#6b7280;font-size:12px}
-    .spinner{display:none}
-  </style>
-  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<meta charset="utf-8" />
+<title>Inverter Analytics — Solar Plant Dashboard</title>
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
+<script>if (window.ChartDataLabels && window.Chart) { Chart.register(ChartDataLabels); }</script>
+<style>
+  :root{--b:#e6e6e6;--bg:#fafafa;--fg:#111}
+  *{box-sizing:border-box}
+  body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;margin:0;background:var(--bg);color:var(--fg)}
+  .container{max-width:1200px;margin:0 auto}
+  .topnav{display:flex;gap:16px;align-items:center;padding:10px 16px;border-bottom:1px solid var(--b);background:#fff;position:sticky;top:0;z-index:10}
+  .topnav a{color:#333;text-decoration:none;padding:6px 10px;border-radius:8px}
+  .topnav a.active{background:#efefef;font-weight:600}
+  .wrap{padding:12px 16px}
+  .bar{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:8px 0 10px}
+  select,input[type=date],button{height:34px;border-radius:8px;border:1px solid #ddd;padding:0 10px;background:#fff}
+  button{cursor:pointer}
+  .btn{padding:0 10px}
+  .seg{display:flex;border:1px solid #ddd;border-radius:8px;overflow:hidden}
+  .seg button{border:0;border-right:1px solid #ddd;background:#fff}
+  .seg button.active{background:#efefef;font-weight:600}
+  .ms{position:relative}
+  .ms>.face{min-width:220px;display:flex;align-items:center;justify-content:space-between}
+  .ms .panel{position:absolute;top:38px;left:0;background:#fff;border:1px solid #ddd;border-radius:10px;box-shadow:0 10px 30px rgba(0,0,0,.08);min-width:240px;max-height:260px;overflow:auto;display:none;padding:8px;z-index:9}
+  .ms.open .panel{display:block}
+  .ms .row{display:flex;gap:8px;align-items:center;padding:6px 4px}
+  .muted{color:#777;font-size:12px}
+  .kpis{display:grid;grid-template-columns:repeat(3, minmax(220px, 1fr));gap:10px;margin-bottom:10px}
+  .card{background:#fff;border:1px solid var(--b);border-radius:10px;padding:10px}
+  .kpi-label{font-size:11px;letter-spacing:.08em;color:#555}
+  .kpi-value{font-size:26px;font-weight:700}
+  .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}
+  @media(max-width:1000px){.grid{grid-template-columns:1fr}}
+  canvas{background:#fff;border:1px solid var(--b);border-radius:10px;padding:6px}
+  .chart-wrap{height:320px}
+</style>
 </head>
 <body>
-<link rel="stylesheet" href="/nav.css"><div id="global-nav"></div><script src="/nav.js" defer></script>
-<header>
-  <div class="wrap row controls">
-    <div style="font-weight:700;">Inverter Analytics</div>
-    <div style="flex:1"></div>
-    <label>Plant</label>
-    <select id="plantSel">
-      <option value="all">All Plants</option>
-      <!-- you can append more options later via PlantDirectory -->
-    </select>
-    <label>Date</label>
-    <input type="date" id="dayPicker" />
-    <div class="seg" id="viewSeg">
-      <button data-view="day"   class="active">Day</button>
-      <button data-view="week">Week</button>
-      <button data-view="month">Month</button>
-      <button data-view="year">Year</button>
-    </div>
-    <button id="refreshBtn">Refresh</button>
-    <div id="spin" class="muted spinner">Loading…</div>
-  </div>
-</header>
+<nav class="topnav container">
+  <strong>Solar Plant Dashboard</strong>
+  <a href="index.html">Meter</a>
+  <a class="active" href="inverter_analytics.html">Inverter_Analytics</a>
+  <a href="inverter_data_overview.html">Inverter_Data_Overview</a>
+  <a href="inverter_faults.html">Inverter_Faults</a>
+  <a href="maintenance.html">Maintenance</a>
+  <span style="flex:1"></span>
+  <span class="muted">fast day + range view</span>
+</nav>
 
-<main class="wrap">
-  <div class="row">
-    <div class="card kpi">
-      <div class="label">Total Yield</div>
-      <div class="value"><span id="kpiYieldValue">0</span> <span id="kpiYieldUnit">kWh</span></div>
-      <div class="muted" id="kpiDate"></div>
+<div class="wrap container">
+  <div class="bar">
+    <div class="ms" id="plantMS">
+      <button class="face btn" type="button">Plant: <span id="plantFace">All</span> ▾</button>
+      <div class="panel" id="plantPanel">
+        <div class="row"><input type="checkbox" id="p_all" checked> <label for="p_all"><b>All plants</b></label></div>
+        <hr/><div id="plantList"></div><hr/>
+        <div class="row"><button class="btn" id="plantApply">Apply</button><span class="muted">Esc or click outside to close</span></div>
+      </div>
     </div>
-    <div class="card kpi">
-      <div class="label">CUF</div>
-      <div class="value">—</div>
-      <div class="muted">Coming soon</div>
+
+    <div class="seg">
+      <button class="btn active" id="v_day"      data-view="day">Day</button>
+      <button class="btn"          id="v_week"     data-view="week">Week</button>
+      <button class="btn"          id="v_month"    data-view="month">Month</button>
+      <button class="btn"          id="v_year"     data-view="year">Year</button>
+      <button class="btn"          id="v_lifetime" data-view="lifetime">Lifetime</button>
+      <button class="btn"          id="v_custom"   data-view="custom">Custom</button>
     </div>
-    <div class="card kpi">
-      <div class="label">PR</div>
-      <div class="value">—</div>
-      <div class="muted">Coming soon</div>
-    </div>
+
+    <input id="dateOne" type="date">
+    <input id="dateFrom" type="date" style="display:none">
+    <span id="dash" style="display:none">—</span>
+    <input id="dateTo" type="date" style="display:none">
+    <button class="btn" id="btnToday">Today</button>
+    <button class="btn" id="btnPrev">◀</button>
+    <button class="btn" id="btnNext">▶</button>
   </div>
 
-  <div class="row" style="margin-top:12px;">
-    <div class="card chart-card">
-      <div class="muted" style="margin-bottom:6px;">Power (AC/DC) vs Time</div>
-      <canvas id="powerChart" height="220"></canvas>
+  <div class="kpis">
+    <div class="card">
+      <div class="kpi-label">TOTAL YIELD</div>
+      <div class="kpi-value"><span id="kpiTotalYield">0.00</span> <span id="kpiUnit" class="muted">MWh</span></div>
     </div>
-    <div class="card chart-card">
-      <div class="muted" style="margin-bottom:6px;">Yield</div>
-      <canvas id="yieldChart" height="220"></canvas>
+    <div class="card"><div class="kpi-label">CUF</div><div class="kpi-value">— <span class="muted">coming soon</span></div></div>
+    <div class="card"><div class="kpi-label">PR</div><div class="kpi-value">— <span class="muted">coming soon</span></div></div>
+  </div>
+
+  <div class="grid">
+    <div>
+      <div style="margin:4px 0 6px 2px;"><b>Daily Power Curve</b></div>
+      <div class="chart-wrap"><canvas id="powerChart"></canvas></div>
+    </div>
+    <div>
+      <div style="margin:4px 0 6px 2px;"><b id="yieldTitle">Yield (daily total)</b> <span class="muted" id="yieldNote"></span></div>
+      <div class="chart-wrap"><canvas id="yieldChart"></canvas></div>
     </div>
   </div>
-</main>
+</div>
 
 <script>
-const spin = document.getElementById('spin');
-const dayPicker = document.getElementById('dayPicker');
-const plantSel = document.getElementById('plantSel');
-const viewSeg = document.getElementById('viewSeg');
-const refreshBtn = document.getElementById('refreshBtn');
+(function(){
+  const $ = s=>document.querySelector(s);
+  const $$ = s=>Array.from(document.querySelectorAll(s));
+  const pad=n=>String(n).padStart(2,'0');
+  const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 
-function todayYMDIST(){
-  // Build IST "today" Y-M-D from client time (simple)
-  const now = new Date();
-  const y = now.getFullYear();
-  const m = String(now.getMonth()+1).padStart(2,'0');
-  const d = String(now.getDate()).padStart(2,'0');
-  return `${y}-${m}-${d}`;
-}
-dayPicker.value = todayYMDIST();
+  // POWER (AC below, DC above, integers)
+  const powerChart = new Chart($('#powerChart'), {
+    type:'line',
+    data:{labels:[],datasets:[
+      {label:'AC kW',data:[],borderWidth:2,tension:.25,fill:true,pointRadius:2,backgroundColor:'rgba(54,162,235,.12)',
+       datalabels:{anchor:'end',align:'bottom',offset:2,formatter:v=>v?Math.round(v):''}},
+      {label:'DC kW',data:[],borderWidth:2,tension:.25,fill:true,pointRadius:2,backgroundColor:'rgba(255,99,132,.10)',
+       datalabels:{anchor:'end',align:'top',offset:2,formatter:v=>v?Math.round(v):''}}
+    ]},
+    options:{
+      maintainAspectRatio:false,
+      scales:{y:{beginAtZero:true,ticks:{callback:v=>Math.round(v)},title:{display:true,text:'kW'}}},
+      plugins:{legend:{position:'top',labels:{padding:22}}}
+    },
+    plugins:(window.ChartDataLabels?[ChartDataLabels]:[])
+  });
 
-let currentView = 'day';
-viewSeg.addEventListener('click', (e)=>{
-  if(e.target.tagName==='BUTTON'){
-    [...viewSeg.querySelectorAll('button')].forEach(b=>b.classList.remove('active'));
-    e.target.classList.add('active');
-    currentView = e.target.dataset.view;
-  }
-});
+  // YIELD (integers)
+  const yieldChart = new Chart($('#yieldChart'), {
+    type:'bar',
+    data:{labels:[],datasets:[{label:'Yield',data:[]}]},
+    options:{
+      maintainAspectRatio:false,
+      scales:{y:{beginAtZero:true,ticks:{callback:v=>Math.round(v)},title:{display:true,text:'kWh'}}},
+      plugins:{legend:{position:'top',labels:{padding:12}},
+               datalabels:{anchor:'end',align:'top',offset:2,formatter:v=>v?Math.round(v):''}}
+    },
+    plugins:(window.ChartDataLabels?[ChartDataLabels]:[])
+  });
 
-let powerChart, yieldChart;
-function ensureCharts(){
-  if(!powerChart){
-    const ctx = document.getElementById('powerChart').getContext('2d');
-    powerChart = new Chart(ctx,{
-      type:'line',
-      data:{ labels:[], datasets:[
-        { label:'AC Power (kW)', data:[], fill:false, tension:0.2 },
-        { label:'DC Power (kW)', data:[], fill:false, tension:0.2 }
-      ]},
-      options:{ responsive:true, maintainAspectRatio:false,
-        scales:{ x:{ ticks:{ maxRotation:0, autoSkip:true } }, y:{} },
-        plugins:{ legend:{ position:'bottom' } }
-      }
+  // UI elements
+  const plantMS=$('#plantMS'), plantList=$('#plantList'), plantFace=$('#plantFace'),
+        pAll=$('#p_all'), plantApply=$('#plantApply');
+  const dateOne=$('#dateOne'), dateFrom=$('#dateFrom'), dateTo=$('#dateTo'), dash=$('#dash'),
+        btnToday=$('#btnToday'), btnPrev=$('#btnPrev'), btnNext=$('#btnNext');
+  const kpiVal=$('#kpiTotalYield'), kpiUnit=$('#kpiUnit'), yieldNote=$('#yieldNote'), yieldTitle=$('#yieldTitle');
+
+  // View buttons
+  const viewBtns = [$('#v_day'),$('#v_week'),$('#v_month'),$('#v_year'),$('#v_lifetime'),$('#v_custom')];
+
+  // State
+  let view='day';
+  let selectedPlantIds=['all'];
+  dateOne.value = ymd(new Date());
+
+  // Plant_ID -> Set(Inverter_*)
+  const plantToInv = new Map();
+
+  // Helpers
+  function fetchWithTimeout(url, ms=8000){
+    return new Promise((resolve,reject)=>{
+      const to=setTimeout(()=>reject(new Error('timeout')),ms);
+      fetch(url,{cache:'no-store'}).then(r=>{clearTimeout(to);resolve(r);},e=>{clearTimeout(to);reject(e);});
     });
   }
-  if(!yieldChart){
-    const ctx = document.getElementById('yieldChart').getContext('2d');
-    yieldChart = new Chart(ctx,{
-      type:'bar',
-      data:{ labels:[], datasets:[ { label:'Yield', data:[] } ]},
-      options:{ responsive:true, maintainAspectRatio:false,
-        plugins:{ legend:{ display:false } },
-        scales:{ x:{ }, y:{ beginAtZero:true } }
-      }
+  function parseInverters(val){
+    const out=new Set();
+    const feed=(x)=>{ if(!x) return;
+      if(Array.isArray(x)) return x.forEach(feed);
+      if(typeof x==='object') return Object.values(x).forEach(feed);
+      if(typeof x!=='string') return;
+      try{feed(JSON.parse(x));return;}catch{}
+      x.split(/[,;|\s]+/g).map(t=>t.trim()).filter(t=>/^Inverter_/i.test(t)).forEach(t=>out.add(t));
+    }; feed(val); return out;
+  }
+
+  // Plant dropdown behavior
+  plantMS.querySelector('.face').onclick=()=>plantMS.classList.toggle('open');
+  document.addEventListener('click',e=>{ if(!plantMS.contains(e.target)) plantMS.classList.remove('open'); });
+  pAll.onchange=()=>{ if(pAll.checked){ $$('#plantList input[type=checkbox]').forEach(c=>c.checked=false); plantFace.textContent='All'; } };
+  plantApply.onclick=()=>{ const ids=$$('#plantList input[type=checkbox]:checked').map(c=>c.value);
+    if(ids.length===0){ selectedPlantIds=['all']; plantFace.textContent='All'; pAll.checked=true; }
+    else { selectedPlantIds=ids; plantFace.textContent=ids.length===1?`Plant ${ids[0]}`:`${ids.length} plants`; pAll.checked=false; }
+    plantMS.classList.remove('open'); refresh();
+  };
+
+  // Load plants once
+  async function loadPlants(){
+    plantList.innerHTML="";
+    const byId=new Map();
+    function addRow(id,name){
+      const pid=String(id||"").trim(); if(!pid) return;
+      if(!byId.has(pid)) byId.set(pid, name || `Plant ${pid}`);
+    }
+    function absorb(rows){
+      rows.forEach(r=>{
+        const id=r.Plant_ID ?? r.plant_id ?? r.PartitionKey ?? r.RowKey;
+        const name=r.Plant_Name ?? r.plant_name ?? r.name ?? `Plant ${id}`;
+        const invs=parseInverters(r.Inverters ?? r.inverters ?? r.Devices ?? r.devices ?? r.Inverter_ID);
+        const pid=String(id||"").trim(); if(!pid) return;
+        if(!plantToInv.has(pid)) plantToInv.set(pid,new Set());
+        invs.forEach(x=>plantToInv.get(pid).add(x));
+        addRow(pid,name);
+      });
+    }
+    try{
+      const res=await fetchWithTimeout('/api/GetPlantDirectory',8000);
+      const rows=await res.json(); absorb(rows);
+    }catch{}
+    [...byId.entries()].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([pid,pname])=>{
+      const div=document.createElement('div'); div.className='row';
+      div.innerHTML=`<input type="checkbox" id="p_${pid}" value="${pid}"> <label for="p_${pid}">${pname}</label>`;
+      plantList.appendChild(div);
     });
   }
-}
 
-async function fetchAnalytics(){
-  const plantId = plantSel.value || 'all';
-  const date = dayPicker.value; // Y-M-D
-  const url = new URL(location.origin + '/api/inverter/analytics');
-  url.searchParams.set('view', currentView);
-  url.searchParams.set('plantId', plantId);
-  if (currentView === 'day' || currentView === 'week' || currentView === 'month' || currentView === 'year') {
-    // day param accepted for all; backend uses IST
-    if (date) url.searchParams.set('date', date);
+  function invCsvForSelection(){
+    const set=new Set();
+    if (selectedPlantIds[0]==='all') {
+      plantToInv.forEach(s=>s.forEach(x=>set.add(x)));
+    } else {
+      selectedPlantIds.forEach(pid=>{ const s=plantToInv.get(pid); if(s) s.forEach(x=>set.add(x)); });
+    }
+    return [...set].sort().join(',');
   }
-  spin.style.display = 'inline';
-  const res = await fetch(url.toString(), { headers: { 'Accept':'application/json' }});
-  spin.style.display = 'none';
-  if(!res.ok){
-    alert('API error: '+res.status);
-    return null;
+
+  // View switching
+  function setView(v){
+    view = v;
+    viewBtns.forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+    const showRange = (v==='custom');
+    dateFrom.style.display = showRange ? '' : 'none';
+    dateTo.style.display   = showRange ? '' : 'none';
+    dash.style.display     = showRange ? '' : 'none';
+    refresh();
   }
-  return await res.json();
-}
+  $('#v_day').onclick      = ()=>setView('day');
+  $('#v_week').onclick     = ()=>setView('week');
+  $('#v_month').onclick    = ()=>setView('month');
+  $('#v_year').onclick     = ()=>setView('year');
+  $('#v_lifetime').onclick = ()=>setView('lifetime');
+  $('#v_custom').onclick   = ()=>setView('custom');
 
-function updateUI(payload){
-  // KPIs
-  const k = payload?.kpis || {};
-  document.getElementById('kpiYieldValue').textContent = (k.total_yield ?? 0);
-  document.getElementById('kpiYieldUnit').textContent  = (k.unit || 'kWh');
-  document.getElementById('kpiDate').textContent = `View: ${payload?.parameters?.view} • Date: ${payload?.parameters?.date}`;
+  // Date nav
+  btnToday.onclick=()=>{ dateOne.value=ymd(new Date()); refresh(); };
+  function shiftAnchor(dir){
+    const d=new Date(dateOne.value);
+    if(view==='day'||view==='custom') d.setDate(d.getDate()+dir);
+    else if(view==='week')           d.setDate(d.getDate()+7*dir);
+    else if(view==='month')          d.setMonth(d.getMonth()+dir);
+    else if(view==='year')           d.setFullYear(d.getFullYear()+dir);
+    const today=ymd(new Date());
+    if(dir>0 && ymd(d)>today) return;
+    dateOne.value=ymd(d); refresh();
+  }
+  btnPrev.onclick=()=>shiftAnchor(-1);
+  btnNext.onclick=()=>shiftAnchor(+1);
+  dateOne.onchange=refresh; dateFrom.onchange=refresh; dateTo.onchange=refresh;
 
-  ensureCharts();
+  // Dedupe in-flight
+  let reqCounter = 0;
 
-  // Power chart (only for day view)
-  if (payload?.power && Array.isArray(payload.power)) {
-    const labels = payload.power.map(p => new Date(p.t).toLocaleTimeString([], {hour:'2-digit', minute:'2-digit'}));
-    const ac = payload.power.map(p => p.ac ?? 0);
-    const dc = payload.power.map(p => p.dc ?? 0);
-    powerChart.data.labels = labels;
-    powerChart.data.datasets[0].data = ac;
-    powerChart.data.datasets[1].data = dc;
+  async function refresh(){
+    yieldTitle.textContent =
+      view==='day'      ? 'Yield (daily total)' :
+      view==='week'     ? 'Yield (daily)' :
+      view==='month'    ? 'Yield (monthly)' :
+      view==='year'     ? 'Yield (yearly)' :
+      view==='lifetime' ? 'Yield (lifetime)' : 'Yield (range)';
+    yieldNote.textContent='';
+
+    const params={ view, date:dateOne.value };
+    const invCsv = invCsvForSelection();
+    if(invCsv) params.invIds = invCsv;
+    if(view==='custom'&&dateFrom.value&&dateTo.value){ params.dateFrom=dateFrom.value; params.dateTo=dateTo.value; }
+
+    const url='/api/inverter-analytics?'+new URLSearchParams(params).toString();
+    console.log('API:', url);
+
+    const myReq = ++reqCounter;
+    let json=null;
+    try{
+      const res = await fetch(url,{cache:'no-store'});
+      if(res.ok) json = await res.json();
+    }catch{}
+
+    if (myReq !== reqCounter) return;
+
+    if(!json){
+      powerChart.data.labels=[]; powerChart.data.datasets[0].data=[]; powerChart.data.datasets[1].data=[]; powerChart.update();
+      yieldChart.data.labels=[]; yieldChart.data.datasets[0].data=[]; yieldChart.update();
+      yieldNote.textContent='(no data)'; kpiVal.textContent='0.00'; kpiUnit.textContent=' MWh'; return;
+    }
+
+    const pw=json.power||[];
+    powerChart.data.labels=pw.map(x=>{const d=new Date(x.t);return `${pad(d.getHours())}:${pad(d.getMinutes())}`});
+    powerChart.data.datasets[0].data=pw.map(x=>x.ac||0);
+    powerChart.data.datasets[1].data=pw.map(x=>x.dc||0);
     powerChart.update();
-  } else {
-    powerChart.data.labels = [];
-    powerChart.data.datasets[0].data = [];
-    powerChart.data.datasets[1].data = [];
-    powerChart.update();
+
+    const unit=(json.meta&&json.meta.yieldUnit)||'kWh';
+    yieldChart.options.scales.y.title.text=unit;
+    let y=json.yield||[],labels=[],values=[];
+    if(view==='day'||view==='week'||view==='custom'){labels=y.map(x=>x.d||x.title||'');values=y.map(x=>x.val??x.kwh??0);}
+    if(view==='month'){labels=y.map(x=>x.ym||'');values=y.map(x=>x.val??0);}
+    if(view==='year'){labels=y.map(x=>x.y||'');values=y.map(x=>x.val??0);}
+    if(view==='lifetime'){labels=['Lifetime'];values=[(y[0]?.val??0)];}
+    yieldChart.data.labels=labels;
+    yieldChart.data.datasets[0].label=`Yield (${unit})`;
+    yieldChart.data.datasets[0].data=values;
+    yieldChart.update();
+    if(!values.length) yieldNote.textContent='(no data in range)';
+
+    const totalMWh=+((json.cards&&json.cards.TotalYield_MWh)||0);
+    let showUnit='MWh',showVal=totalMWh;
+    if(totalMWh>=1000){showUnit='GWh';showVal=totalMWh/1000;}
+    if(totalMWh<1){showUnit='kWh';showVal=totalMWh*1000;}
+    kpiVal.textContent=showVal.toFixed(2);
+    kpiUnit.textContent=' '+showUnit;
   }
 
-  // Yield chart (bars)
-  if (payload?.yield && Array.isArray(payload.yield)) {
-    yieldChart.data.labels = payload.yield.map(y => y.label);
-    yieldChart.data.datasets[0].data = payload.yield.map(y => y.value ?? 0);
-    yieldChart.update();
-  } else {
-    yieldChart.data.labels = [];
-    yieldChart.data.datasets[0].data = [];
-    yieldChart.update();
-  }
-}
-
-async function run(){ const data = await fetchAnalytics(); if(data) updateUI(data); }
-refreshBtn.addEventListener('click', run);
-
-// Initial load
-run();
+  (async()=>{ await loadPlants(); refresh(); })();
+})();
 </script>
 </body>
 </html>
-
-
-
-
-

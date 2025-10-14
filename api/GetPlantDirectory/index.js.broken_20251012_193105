@@ -1,0 +1,49 @@
+﻿/**
+ * GetPlantDirectory -> returns { success:true, data:[...], count }
+ * Table-only (no SQL), supports Azurite via allowInsecureConnection:true
+ * Uses "$return" binding in function.json (so we directly return the object).
+ */
+const { TableClient } = require("@azure/data-tables");
+
+const TABLE = process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
+const CONN  = process.env.PLANT_DIRECTORY_TABLE_CONN || process.env.TABLES_CONN_STRING
+          || process.env.TABLES_CONNECTION_STRING
+          || process.env.AZURE_STORAGE_CONNECTION_STRING;
+
+function toArray(v) {
+  if (v == null) return [];
+  if (Array.isArray(v)) return v.map(String).filter(Boolean);
+  const s = String(v).trim();
+  if (!s) return [];
+  try { const j = JSON.parse(s); if (Array.isArray(j)) return j.map(String).filter(Boolean); } catch {}
+  return s.split(/[,;]\s*/).map(x => x.trim()).filter(Boolean);
+}
+
+const\ CORS_HEADERS\ =\ \{\n\ \ "Access-Control-Allow-Origin":\ "\*",\n\ \ "Access-Control-Allow-Methods":\ "GET,OPTIONS",\n\ \ "Access-Control-Allow-Headers":\ "Content-Type"\n};\nmodule\.exports\ =\ async\ function\ \(context,\ req\)\ \{\n\ \ if\ \(req\.method\ ===\ "OPTIONS"\)\ \{\n\ \ \ \ return\ \{\ status:\ 204,\ headers:\ CORS_HEADERS\ };\n\ \ }
+  try {
+    if (!CONN) throw new Error("TABLES_CONN_STRING not set");
+    const client = TableClient.fromConnectionString(CONN, TABLE, { allowInsecureConnection: true });
+
+    const out = [];
+    for await (const e of client.listEntities()) {
+      const Plant_ID   = e.Plant_ID ?? e.PlantId ?? e.RowKey ?? null;
+      const Plant_Name = e.Plant_Name ?? e.plant_name ?? null;
+
+      out.push({
+        Plant_ID, Plant_Name,
+        Meters:    toArray(e.Meters    ?? e.Meter_ID),
+        Inverters: toArray(e.Inverters ?? e.Inverter_ID),
+        PLC_AC:    toArray(e.PLC_AC    ?? e.plcaccontrol_id),
+        PLC_Pump:  toArray(e.PLC_Pump  ?? e.plcpump_id),
+        LoRa:      toArray(e.LoRa      ?? e.LoRa_ID ?? e.Lora),
+        Sensors:   toArray(e.Sensors   ?? e.Sensors_ID)
+      });
+    }
+    return { success: true, data: out, count: out.length };
+  } catch (err) {
+    context.log("GetPlantDirectory error:", err);
+    return { success: false, error: String(err) };
+  }
+};
+
+

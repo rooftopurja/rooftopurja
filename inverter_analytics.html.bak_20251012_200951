@@ -1,0 +1,319 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<script id="fetch-shim-7071">
+  // Route all relative /api/* to local Functions (7071)
+  (function(){
+    const API_BASE = "http://127.0.0.1:7071";
+    const _fetch = window.fetch;
+    window.fetch = (u,o)=> (typeof u==="string" && u.startsWith("/api/"))
+      ? _fetch(API_BASE + u, o) : _fetch(u,o);
+  })();
+</script>
+  <meta charset="utf-8" />
+  <title>Inverter Analytics</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <style>
+    body{font-family:system-ui,-apple-system,Segoe UI,Roboto,Inter,Arial,sans-serif;margin:0;background:#fafafa;color:#111}
+    header{padding:12px 16px;border-bottom:1px solid #e5e7eb;background:#fff;position:sticky;top:0}
+    .wrap{max-width:1200px;margin:0 auto;padding:16px}
+    .row{display:flex;gap:12px;flex-wrap:wrap}
+    .card{background:#fff;border:1px solid #e5e7eb;border-radius:12px;padding:12px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+    .kpi{flex:1 1 220px}
+    .kpi .label{font-size:12px;color:#6b7280;text-transform:uppercase;letter-spacing:.06em}
+    .kpi .value{font-size:28px;font-weight:700;margin-top:4px}
+    .controls{gap:8px;align-items:center}
+    select,input,button{padding:8px 10px;border:1px solid #d1d5db;border-radius:8px;background:#fff}
+    .seg button{padding:8px 12px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+    .seg button.active{background:#111;color:#fff;border-color:#111}
+    .chart-card{flex:1 1 520px;min-width:320px}
+    .muted{color:#6b7280;font-size:12px}
+    .spinner{display:none}
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
+<body>
+<!-- IA UI (auto) -->
+<style id="ia-autostyles">
+  #ia-wrap{margin:12px;font-family:system-ui,Segoe UI,Arial}
+  #ia-kpis{display:flex;gap:12px;margin:8px 0}
+  .kpi{padding:10px 14px;border:1px solid #ddd;border-radius:10px;box-shadow:0 3px 12px rgba(0,0,0,.06)}
+  .kpi .v{font-size:26px;font-weight:700;margin-right:6px}
+  #plantFilter{display:flex;align-items:center;gap:.5rem;margin:.5rem 0}
+  #plantPanel{position:absolute;z-index:20;background:#fff;border:1px solid #ddd;border-radius:8px;
+              box-shadow:0 8px 24px rgba(0,0,0,.08);padding:.5rem;max-height:260px;overflow:auto;min-width:280px;}
+  #powerChart,#yieldChart{height:280px;border:1px solid #eee;border-radius:10px;margin:8px 0;padding:6px}
+  /* hide legacy selects to avoid duplicates */
+  select#plantSelect, select#plants, select#meterPlantSelect, select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<div id="ia-wrap">
+  <div id="plantFilter">
+    <label style="font-weight:600;">Plant</label>
+    <button id="plantBtn" type="button" class="btn" style="min-width:220px;">All Plants ▾</button>
+    <div style="position:relative;">
+      <div id="plantPanel" hidden>
+        <label style="display:flex;align-items:center;gap:.5rem;padding:.25rem .5rem;">
+          <input type="checkbox" id="plant_all" checked> <strong>All Plants</strong>
+        </label>
+        <div id="plantList"></div>
+        <div style="display:flex;justify-content:flex-end;gap:.5rem;padding-top:.5rem;">
+          <button id="plantApply" class="btn">Apply</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div id="ia-kpis">
+    <div class="kpi"><span class="v" data-kpi="total-yield">0</span><span data-kpi="total-yield-unit">MWh</span></div>
+  </div>
+
+  <div id="powerChart"></div>
+  <div id="yieldChart"></div>
+</div>
+<!-- /IA UI -->
+<link rel="stylesheet" href="/nav.css"><div id="global-nav"></div><script src="/nav.js" defer></script>
+<header>
+  <div class="wrap row controls">
+    <div style="font-weight:700;">Inverter Analytics</div>
+    <div style="flex:1"></div>
+    <label>Plant</label>
+    <select id="plantSel">
+      <option value="all">All Plants</option>
+      <!-- you can append more options later via PlantDirectory -->
+    </select>
+    <label>Date</label>
+    <input type="date" id="dayPicker" />
+    <div class="seg" id="viewSeg">
+      <button data-view="day"   class="active">Day</button>
+      <button data-view="week">Week</button>
+      <button data-view="month">Month</button>
+      <button data-view="year">Year</button>
+    </div>
+    <button id="refreshBtn">Refresh</button>
+    <div id="spin" class="muted spinner">Loading…</div>
+  </div>
+</header>
+
+
+
+
+
+
+<script id="ia_domfix">
+(function(){
+  const $ = (s,d=document)=>d.querySelector(s);
+  const $$= (s,d=document)=>[...d.querySelectorAll(s)];
+
+  function moveFilterToToolbar(){
+    const filter = $("#plantFilter");
+    if(!filter) return;
+
+    // Find the existing "Plant" control row (near the top)
+    const topSelect = $("#plantSelect, #plants, #meterPlantSelect, select[name='plant'], select[data-role='plant']");
+    const plantLabel = [...document.querySelectorAll("label")].find(l=>/^\s*Plant\s*$/i.test(l.textContent||""));
+    const toolbar = topSelect?.parentElement || plantLabel?.parentElement || document.body;
+
+    // Hide original single-select (if present)
+    if (topSelect) topSelect.style.setProperty("display","none","important");
+
+    // If filter is already in toolbar, stop. Else move it just after the label/select.
+    if (toolbar && filter.parentElement !== toolbar) {
+      if (plantLabel && plantLabel.nextSibling) {
+        toolbar.insertBefore(filter, plantLabel.nextSibling);
+      } else {
+        toolbar.prepend(filter);
+      }
+    }
+
+    // Remove stray duplicates at the bottom (keep only the first instance)
+    const dups = $$("#plantFilter");
+    dups.slice(1).forEach(n=>n.remove());
+  }
+
+  // Ensure KPI/Chart placeholders exist so visuals are never blank
+  function ensureMounts(){
+    // TOTAL YIELD card: find the card that mentions "TOTAL YIELD"
+    const kpiCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /TOTAL\s*YIELD/i.test(x.textContent||""));
+    if (kpiCard && !kpiCard.querySelector("[data-kpi='total-yield']")){
+      const slot = document.createElement("div");
+      slot.style.fontSize = "36px";
+      slot.style.fontWeight = "700";
+      slot.innerHTML = '<span data-kpi="total-yield">0</span> <span data-kpi="total-yield-unit">kWh</span>';
+      kpiCard.prepend(slot);
+    }
+
+    // Power card
+    const powerCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /Power\s*\(AC\/DC\)\s*vs\s*Time/i.test(x.textContent||""));
+    if (powerCard && !powerCard.querySelector("#powerChart")){
+      const div = document.createElement("div");
+      div.id = "powerChart"; div.style.height = "320px"; div.style.marginTop = "8px";
+      powerCard.appendChild(div);
+    }
+
+    // Yield card
+    const yieldCard = [...document.querySelectorAll("div,section,article")]
+      .find(x => /^\s*Yield\s*$/i.test((x.querySelector("h2,h3,h4,header")?.textContent)||"") || /(^|\s)Yield(\s|$)/i.test(x.textContent||""));
+    if (yieldCard && !yieldCard.querySelector("#yieldChart")){
+      const div = document.createElement("div");
+      div.id = "yieldChart"; div.style.height = "320px"; div.style.marginTop = "8px";
+      yieldCard.appendChild(div);
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", ()=>{ try{
+    moveFilterToToolbar();
+    ensureMounts();
+  }catch(e){ console.warn(e); }});
+})();
+</script>
+<style id="ia_hide_legacy_select">
+#plantFilter ~ select, select#plantSelect, select#plants, select#meterPlantSelect,
+select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<style id="ia_plant_selectlike">
+  #plantFilter>label{display:none!important;}
+  #plantBtn{
+    display:inline-flex;align-items:center;gap:.5rem;
+    padding:.375rem .75rem;border:1px solid #ced4da;border-radius:.375rem;
+    background:#fff;min-width:220px;height:36px;line-height:1.2;
+  }
+  #plantBtn:after{content:"";} /* keep arrow we put in text ( ▾ ) */
+</style>
+<script id="ia_cleanup_once">
+(function(){
+  document.addEventListener("DOMContentLoaded", ()=>{
+    const filters=[...document.querySelectorAll("#plantFilter")];
+    filters.slice(1).forEach(n=>n.remove()); // keep only the first
+  });
+})();
+</script>
+
+<style id="hide-legacy-plant">
+  select#plantSelect, select#plants, select#meterPlantSelect { display:none !important; }
+</style>
+<script id="ia-multiplant">
+(function(){
+  const $  = (s,d=document)=>d.querySelector(s);
+  const $$ = (s,d=document)=>[...d.querySelectorAll(s)];
+  const btn   = $("#plantBtn");
+  const panel = $("#plantPanel");
+  const list  = $("#plantList");
+  const allCb = $("#plant_all");
+  const apply = $("#plantApply");
+
+  let PLANTS = [];
+  let SELECTED = new Set(); // empty or "all" => all plants
+
+  function labelFromSel(){
+    if (!SELECTED.size || SELECTED.size===PLANTS.length) return "All Plants ▾";
+    if (SELECTED.size===1){
+      const id=[...SELECTED][0];
+      const p=PLANTS.find(x=>x.id===id);
+      return (p?.name||"1 selected")+" ▾";
+    }
+    return `${SELECTED.size} selected ▾`;
+  }
+
+  async function loadPlants(){
+    const r = await fetch("/api/GetPlantDirectory?_ts="+Date.now());
+    const j = await r.json();
+    if(!j.success || !Array.isArray(j.data)) throw new Error("plant list failed");
+    PLANTS = j.data.map(p=>({ id:String(p.Plant_ID), name:p.Plant_Name }));
+    list.innerHTML = PLANTS.map(p=>`
+      <label style="display:flex;align-items:center;gap:.5rem;padding:.25rem .5rem;">
+        <input type="checkbox" class="plant_cb" value="${p.id}" checked>
+        <span>${p.name}</span>
+      </label>`).join("");
+  }
+
+  async function loadAnalytics(){
+    // infer current view + date
+    let view = "day";
+    const active = document.querySelector(".btn.active, .active");
+    if (active && /week/i.test(active.textContent)) view="week";
+    else if (active && /month/i.test(active.textContent)) view="month";
+    else if (active && /year/i.test(active.textContent)) view="year";
+
+    const dateInp = document.querySelector('input[type="date"], input[name="date"]');
+    const date = dateInp ? dateInp.value : new Date().toISOString().slice(0,10);
+
+    const useAll = (!SELECTED.size || SELECTED.size===PLANTS.length);
+    const plantParam = useAll ? "all" : [...SELECTED].join(",");
+    const url = `/api/inverter-analytics-sql?view=${encodeURIComponent(view)}&plantId=${encodeURIComponent(plantParam)}&date=${encodeURIComponent(date)}&_ts=${Date.now()}`;
+    const res = await fetch(url);
+    const data = await res.json();
+
+    // KPI: sum of yield (MWh auto -> GWh)
+    const totalMWh = Array.isArray(data?.yield) ? data.yield.reduce((s,r)=>s+(+r.value||0),0) : 0;
+    const unit = totalMWh>=1000 ? "GWh" : "MWh";
+    const shown = totalMWh>=1000 ? (totalMWh/1000) : totalMWh;
+
+    const kpiVal = document.querySelector("#kpi_total_yield, .kpi-total-yield .value, [data-kpi='total-yield']");
+    const kpiUni = document.querySelector("#kpi_total_yield_unit, .kpi-total-yield .unit, [data-kpi='total-yield-unit']");
+    if (kpiVal) kpiVal.textContent = (+shown).toFixed(3);
+    if (kpiUni) kpiUni.textContent = unit;
+
+    // simple fallbacks: draw minimal SVG lines if page doesn't have chart fns
+    const power = Array.isArray(data?.power) ? data.power : []; // [{t,ac,dc}]
+    drawLine("#powerChart,[data-chart='power']", [
+      {series: power.map(p=>({x:new Date(p.t), y:+(p.ac||0)}))},
+      {series: power.map(p=>({x:new Date(p.t), y:+(p.dc||0)}))}
+    ]);
+    const yld = Array.isArray(data?.yield) ? data.yield : []; // [{label,value}]
+    drawLine("#yieldChart,[data-chart='yield']", [
+      {series: yld.map(d=>({x:d.label, y:+(d.value||0)}))}
+    ]);
+
+    function drawLine(sel, seriesArr){
+      const host = document.querySelector(sel.split(',')[0]) || document.querySelector(sel.split(',')[1]);
+      if (!host) return;
+      const W=host.clientWidth||640, H=host.clientHeight||280, pad=24;
+      host.innerHTML="";
+      const svgNS="http://www.w3.org/2000/svg";
+      const svg=document.createElementNS(svgNS,"svg"); svg.setAttribute("width",W); svg.setAttribute("height",H); host.appendChild(svg);
+      const allY = seriesArr.flatMap(s=>s.series.map(p=>p.y));
+      const maxY = Math.max(1, ...allY, 1);
+      const n    = Math.max(...seriesArr.map(s=>s.series.length));
+      const x = (i)=> pad + (W-2*pad) * (n<=1?0.5:i/(n-1));
+      const y = (v)=> H-pad - (H-2*pad)*(v/maxY);
+      seriesArr.forEach((S, idx)=>{
+        const pts = S.series.map((p,i)=>`${x(i)},${y(p.y)}`).join(" ");
+        const poly=document.createElementNS(svgNS,"polyline");
+        poly.setAttribute("points", pts);
+        poly.setAttribute("fill","none");
+        poly.setAttribute("stroke", idx? "#27ae60" : "#2f80ed");
+        poly.setAttribute("stroke-width","2");
+        svg.appendChild(poly);
+      });
+    }
+  }
+
+  // UI
+  btn?.addEventListener("click", ()=> panel.hidden = !panel.hidden);
+  allCb?.addEventListener("change", (e)=> $$(".plant_cb", panel).forEach(cb=>cb.checked=e.target.checked));
+  $("#plantApply")?.addEventListener("click", ()=>{
+    const chosen = $$(".plant_cb", panel).filter(cb=>cb.checked).map(cb=>cb.value);
+    SELECTED = new Set(chosen);
+    btn.textContent = labelFromSel(); panel.hidden = true;
+    loadAnalytics().catch(console.warn);
+  });
+  document.addEventListener("click", (e)=>{ if(panel && !panel.contains(e.target) && e.target!==btn) panel.hidden=true; });
+
+  // boot
+  document.addEventListener("DOMContentLoaded", ()=>{
+    loadPlants().then(()=>{ SELECTED.clear(); btn.textContent = labelFromSel(); loadAnalytics(); })
+                .catch(console.warn);
+  });
+})();
+</script>
+
+
+
+
+
+
+
+
+

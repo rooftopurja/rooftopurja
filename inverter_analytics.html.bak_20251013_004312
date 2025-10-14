@@ -1,0 +1,189 @@
+﻿<!DOCTYPE html>
+<html lang="en">
+<head>
+<script id="api-proxy-7071">
+(function(){
+  const API_BASE = "http://127.0.0.1:7071";
+  const _fetch = window.fetch;
+  window.fetch = function(u,opt){
+    if (typeof u === "string" && u.startsWith("/api/")) return _fetch(API_BASE + u, opt);
+    return _fetch(u, opt);
+  };
+})();
+</script>
+
+<script id="ia-safe-insert">
+(function(){
+  const orig = Node.prototype.insertBefore;
+  Node.prototype.insertBefore = function(newChild, refChild){
+    try{
+      if (newChild && this && typeof newChild.contains==="function" && newChild.contains(this)){
+        console.warn("[IA] blocked unsafe insertBefore");
+        return newChild;
+      }
+    }catch(_){}
+    return orig.call(this,newChild,refChild);
+  };
+})();
+</script><!-- removed broken moveFilterToToolbar script --><style id="ia_hide_legacy_select">
+#plantFilter ~ select, select#plantSelect, select#plants, select#meterPlantSelect,
+select[name="plant"], select[data-role="plant"] { display:none !important; }
+</style>
+<style id="ia_plant_selectlike">
+  #plantFilter>label{display:none!important;}
+  #plantBtn{
+    display:inline-flex;align-items:center;gap:.5rem;
+    padding:.375rem .75rem;border:1px solid #ced4da;border-radius:.375rem;
+    background:#fff;min-width:220px;height:36px;line-height:1.2;
+  }
+  #plantBtn:after{content:"";} /* keep arrow we put in text ( ▾ ) */
+</style><!-- removed broken moveFilterToToolbar script --><!-- removed broken moveFilterToToolbar script -->
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+<script id="ia-loader">
+(function(){
+  const $ = (s,d=document)=>d.querySelector(s);
+  const CH = {}; // chart cache
+
+  function todayStr(){
+    const d = new Date();
+    const y = d.getFullYear(), m = String(d.getMonth()+1).padStart(2,'0'), dd = String(d.getDate()).padStart(2,'0');
+    return `${y}-${m}-${dd}`;
+  }
+  function parseDate(){
+    const el = document.querySelector('input[type="date"], input[name="date"]');
+    return (el && el.value) ? el.value : todayStr();
+  }
+  function selectedPlantIds(){
+    const picks = document.querySelectorAll('.plant_cb:checked');
+    if (picks && picks.length) return [...picks].map(cb=>cb.value).join(',');
+    return 'all';
+  }
+  function setYieldTitle(view){
+    const h = $('#yieldTitle'); if (!h) return;
+    const map={day:'Yield (Today)', week:'Yield (Last 7 days)', month:'Yield (Last 6 months)', year:'Yield (Last 5 years)'};
+    h.textContent = map[view] || 'Yield';
+  }
+  function updateKPI(totalMWh){
+    const v = +totalMWh || 0;
+    const val = (v>=1000)? (v/1000).toFixed(3) : v.toFixed(3);
+    const unit = (v>=1000)? 'GWh':'MWh';
+    const elV = $('#kpi_total_yield'); if (elV) elV.textContent = val;
+    const elU = $('#kpi_total_yield_unit'); if (elU) elU.textContent = unit;
+  }
+  function labelsFromDates(arr){
+    return arr.map(p=>{
+      const d = (p.x instanceof Date)? p.x : new Date(p.x);
+      const hh = String(d.getHours()).padStart(2,"0");
+      const mm = String(d.getMinutes()).padStart(2,"0");
+      return `${hh}:${mm}`;
+    });
+  }
+  function drawLine(hostSel, labels, ac, dc){
+    const host = $(hostSel); if (!host) return;
+    const canvas = host.querySelector('canvas') || host;
+    const old = Chart.getChart(canvas); if (old) old.destroy();
+    if (!window.Chart) { host.textContent = 'Chart library not loaded'; return; }
+    CH.line = new Chart(canvas.getContext('2d'), {
+      type:'line',
+      data:{ labels, datasets:[
+        {label:'AC', data:ac, borderColor:'#2f80ed', backgroundColor:'#2f80ed22', fill:true, tension:.25, pointRadius:0, borderWidth:2},
+        {label:'DC', data:dc, borderColor:'#27ae60', backgroundColor:'#27ae6022', fill:true, tension:.25, pointRadius:0, borderWidth:2},
+      ]},
+      options:{ plugins:{ legend:{display:true}, datalabels:{display:false}},
+        scales:{ x:{grid:{display:false}}, y:{beginAtZero:true, ticks:{callback:v=>v+' kW'}}},
+        maintainAspectRatio:false
+      },
+      plugins:[ChartDataLabels]
+    });
+  }
+  function drawBar(hostSel, labels, vals){
+    const host = $(hostSel); if (!host) return;
+    const canvas = host.querySelector('canvas') || host;
+    const old = Chart.getChart(canvas); if (old) old.destroy();
+    if (!window.Chart) { host.textContent = 'Chart library not loaded'; return; }
+    CH.bar = new Chart(canvas.getContext('2d'), {
+      type:'bar',
+      data:{ labels, datasets:[{label:'Yield', data:vals, borderColor:'#4f46e5', backgroundColor:'#4f46e5aa', borderWidth:1.5}]},
+      options:{ plugins:{ legend:{display:true},
+          datalabels:{align:'top', anchor:'end', formatter:v=> (v>=1000? (v/1000).toFixed(3)+' GWh' : v.toFixed(3)+' MWh'), clip:true}},
+        scales:{ x:{grid:{display:false}, ticks:{maxTicksLimit: (labels.length>12?12:labels.length)}},
+                 y:{beginAtZero:true, ticks:{callback:v=> (v>=1000? (v/1000)+' GWh' : v+' MWh')}}},
+        maintainAspectRatio:false
+      },
+      plugins:[ChartDataLabels]
+    });
+  }
+
+  function activeView(){
+    const btn = document.querySelector('.btn.active, .active');
+    if (!btn) return 'day';
+    const t = btn.textContent.toLowerCase();
+    if (t.includes('week')) return 'week';
+    if (t.includes('month')) return 'month';
+    if (t.includes('year')) return 'year';
+    return 'day';
+  }
+
+  async function fetchAndRender(view){
+    setYieldTitle(view);
+    const url = "/api/inverter-analytics"
+      + "?view=" + encodeURIComponent(view)
+      + "&plantId=" + encodeURIComponent(selectedPlantIds())
+      + "&date=" + encodeURIComponent(parseDate())
+      + "&_ts=" + Date.now();
+
+    const r = await fetch(url);
+    const txt = await r.text();
+    if (!r.ok) throw new Error("HTTP "+r.status+" "+txt.slice(0,180));
+    if (/^\s*</.test(txt) && !/^\s*[{[]/.test(txt)) throw new Error("Got HTML (not JSON).");
+
+    const j = JSON.parse(txt);
+
+    // power
+    const power = Array.isArray(j.power)? j.power : [];
+    const labels = labelsFromDates(power.map(p=>({x:p.t})));
+    const ac = power.map(p=> +(+p.ac||0));
+    const dc = power.map(p=> +(+p.dc||0));
+    drawLine('#powerChart', labels, ac, dc);
+
+    // yield
+    const yld = Array.isArray(j.yield)? j.yield : [];
+    const yLabels = yld.map(d=> String(d.label||'')); 
+    const yVals   = yld.map(d=> +(+d.value||0));
+    updateKPI(yVals.reduce((s,v)=>s+v,0));
+    drawBar('#yieldChart', yLabels, yVals);
+  }
+
+  window.IA_refresh = ()=> fetchAndRender(activeView()).catch(e=>{
+    console.error('[IA] refresh failed:', e);
+    const pw = document.querySelector('#powerChart'); if (pw) pw.textContent = 'Failed to load: '+e.message;
+    const yw = document.querySelector('#yieldChart'); if (yw) yw.textContent = 'Failed to load: '+e.message;
+  });
+
+  document.addEventListener('DOMContentLoaded', ()=>{
+    IA_refresh();
+    // bind common buttons if present
+    ['Day','Week','Month','Year','Refresh'].forEach(lbl=>{
+      const btn = [...document.querySelectorAll('button, a, .btn')].find(x=> x.textContent.trim()===lbl);
+      if (btn) btn.addEventListener('click', ()=> setTimeout(IA_refresh,0));
+    });
+    const dateEl = document.querySelector('input[type="date"], input[name="date"]');
+    if (dateEl) dateEl.addEventListener('change', IA_refresh);
+  });
+})();
+</script>

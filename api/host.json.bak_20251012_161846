@@ -1,0 +1,13 @@
+﻿{
+  "version": "2.0",
+  "logging": {
+    "logLevel": {
+      "Function": "Information",
+      "Host.Results": "Information"
+    }
+  },
+  "functions": [
+    "GetPlantDirectory",
+    "inverter-analytics"
+  ]
+}

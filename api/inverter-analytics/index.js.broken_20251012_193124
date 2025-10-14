@@ -1,0 +1,93 @@
+﻿const { TableClient } = require("@azure/data-tables");
+
+function isHttpConnString(conn){
+  return /\b(TableEndpoint|BlobEndpoint)\s*=\s*http:\/\//i.test(conn);
+}
+function parseFields(){ try{ return JSON.parse(process.env.SVI_FIELDS || "{}"); } catch { return {}; } }
+function toIsoUtc(v){
+  if (!v) return null;
+  if (v instanceof Date) return v.toISOString();
+  const s = String(v).trim(); if (!s) return null;
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}$/.test(s)) return s.replace(" ","T")+"Z";
+  if (/^\d{4}-\d{2}-\d{2}T/.test(s) && !/[zZ]$/.test(s)) return s+"Z";
+  return s;
+}
+
+const\ CORS_HEADERS\ =\ \{\n\ \ "Access-Control-Allow-Origin":\ "\*",\n\ \ "Access-Control-Allow-Methods":\ "GET,OPTIONS",\n\ \ "Access-Control-Allow-Headers":\ "Content-Type"\n};\nmodule\.exports\ =\ async\ function\ \(context,\ req\)\ \{\n\ \ if\ \(req\.method\ ===\ "OPTIONS"\)\ \{\n\ \ \ \ return\ \{\ status:\ 204,\ headers:\ CORS_HEADERS\ };\n\ \ }
+  try {
+    const path = (req.params?.path || "").toLowerCase();
+    if (path === "ping") {
+      return { status: 200, headers: { "content-type":"text/plain" }, body: "ok" };
+    }
+
+    const CONN = process.env.TABLES_CONN_STRING
+              || process.env.TABLES_CONNECTION_STRING
+              || process.env.AZURE_STORAGE_CONNECTION_STRING;
+    if (!CONN) {
+      return { status: 500, headers:{'content-type':'application/json'}, body: JSON.stringify({ success:false, error:"TABLES_CONN_STRING missing" }) };
+    }
+
+    const view    = String(req.query.view || "day").toLowerCase();
+    const dateStr = String(req.query.date || new Date().toISOString().slice(0,10));
+    const tables  = String(process.env.SVI_TABLES || "").split(/[,;]\s*/).filter(Boolean);
+
+    const f   = parseFields();
+    const COL = {
+      time:  f.time  || "Date_Time",
+      ac:    f.ac    || "Total_AC_Power_KW",
+      dc:    f.dc    || "Total_DC_Power_KW",
+      yield: f.yield || "Daily_Yield_KWH",
+      date:  "Date"
+    };
+
+    const start = new Date(dateStr + "T00:00:00Z");
+    let   end   = new Date(start);
+    if (view === "day")   end.setUTCDate(start.getUTCDate()+1);
+    if (view === "week")  end.setUTCDate(start.getUTCDate()+7);
+    if (view === "month") end = new Date(Date.UTC(start.getUTCFullYear(), start.getUTCMonth()+1, 1));
+    if (view === "year")  end  = new Date(Date.UTC(start.getUTCFullYear()+1, 0, 1));
+
+    const powerMap = new Map(); // iso -> {ac,dc}
+    const yieldMap = new Map(); // 'YYYY-MM-DD' -> MWh
+
+    function acc(iso, ac, dc, yKwh){
+      const cur = powerMap.get(iso) || { ac:0, dc:0 };
+      cur.ac += (+ac || 0);
+      cur.dc += (+dc || 0);
+      powerMap.set(iso, cur);
+      const d = iso.slice(0,10);
+      yieldMap.set(d, (yieldMap.get(d) || 0) + ((+yKwh || 0) / 1000)); // KWH -> MWh
+    }
+
+    const clientOpts = isHttpConnString(CONN) ? { allowInsecureConnection:true } : {};
+    const dateFilter = `${COL.date} eq '${dateStr}'`;
+
+    for (const tbl of tables) {
+      const client = TableClient.fromConnectionString(CONN, tbl, clientOpts);
+      for await (const e of client.listEntities({ queryOptions: { filter: dateFilter } })) {
+        const when = new Date(toIsoUtc(e[COL.time] || e["Timestamp"]));
+        if (!(when instanceof Date) || isNaN(when)) continue;
+        if (when < start || when >= end) continue;
+
+        const iso = when.toISOString();
+        acc(
+          iso,
+          e[COL.ac]    ?? e["Total_AC_Power_KW"] ?? 0,
+          e[COL.dc]    ?? e["Total_DC_Power_KW"] ?? 0,
+          e[COL.yield] ?? e["Daily_Yield_KWH"]   ?? 0
+        );
+      }
+    }
+
+    const power = [...powerMap.entries()].sort((a,b)=>a[0].localeCompare(b[0]))
+                    .map(([t,v]) => ({ t, ac:+(v.ac||0), dc:+(v.dc||0) }));
+    const yld   = [...yieldMap.entries()].sort((a,b)=>a[0].localeCompare(b[0]))
+                    .map(([label,value]) => ({ label, value:+(+value).toFixed(3) }));
+
+    return { status: 200, headers:{'content-type':'application/json'}, body: JSON.stringify({ power, yield: yld }) };
+  } catch (err) {
+    context.log("inverter-analytics error:", err);
+    return { status: 500, headers:{'content-type':'application/json'}, body: JSON.stringify({ success:false, error:String(err) }) };
+  }
+};
+
