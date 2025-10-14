@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1" />
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-<script>if (window.ChartDataLabels && window.Chart) { Chart.register(ChartDataLabels); }</script>
+<script>if (window.Chart && window.ChartDataLabels){ Chart.register(ChartDataLabels); }</script>
 <style>
   :root{--b:#e6e6e6;--bg:#fafafa;--fg:#111}
   *{box-sizing:border-box}
@@ -42,7 +42,7 @@
 <body>
 <nav class="topnav container">
   <strong>Solar Plant Dashboard</strong>
-  <a href="index.html">Meter</a>
+  <a href="meter.v2.html">Meter</a>
   <a class="active" href="inverter_analytics.html">Inverter_Analytics</a>
   <a href="inverter_data_overview.html">Inverter_Data_Overview</a>
   <a href="inverter_faults.html">Inverter_Faults</a>
@@ -53,6 +53,7 @@
 
 <div class="wrap container">
   <div class="bar">
+    <!-- Plant multiselect -->
     <div class="ms" id="plantMS">
       <button class="face btn" type="button">Plant: <span id="plantFace">All</span> ▾</button>
       <div class="panel" id="plantPanel">
@@ -62,6 +63,7 @@
       </div>
     </div>
 
+    <!-- View selector -->
     <div class="seg">
       <button class="btn active" id="v_day"      data-view="day">Day</button>
       <button class="btn"          id="v_week"     data-view="week">Week</button>
@@ -103,12 +105,13 @@
 
 <script>
 (function(){
-  const $ = s=>document.querySelector(s);
+  // --------- small helpers ----------
+  const $  = s=>document.querySelector(s);
   const $$ = s=>Array.from(document.querySelectorAll(s));
   const pad=n=>String(n).padStart(2,'0');
   const ymd=d=>`${d.getFullYear()}-${pad(d.getMonth()+1)}-${pad(d.getDate())}`;
 
-  // POWER (AC below, DC above, integers)
+  // --------- charts ----------
   const powerChart = new Chart($('#powerChart'), {
     type:'line',
     data:{labels:[],datasets:[
@@ -117,52 +120,55 @@
       {label:'DC kW',data:[],borderWidth:2,tension:.25,fill:true,pointRadius:2,backgroundColor:'rgba(255,99,132,.10)',
        datalabels:{anchor:'end',align:'top',offset:2,formatter:v=>v?Math.round(v):''}}
     ]},
-    options:{
-      maintainAspectRatio:false,
-      scales:{y:{beginAtZero:true,ticks:{callback:v=>Math.round(v)},title:{display:true,text:'kW'}}},
-      plugins:{legend:{position:'top',labels:{padding:22}}}
-    },
+    options:{maintainAspectRatio:false,scales:{y:{beginAtZero:true,ticks:{callback:v=>Math.round(v)},title:{display:true,text:'kW'}}},
+             plugins:{legend:{position:'top',labels:{padding:22}}}},
     plugins:(window.ChartDataLabels?[ChartDataLabels]:[])
   });
 
-  // YIELD (integers)
   const yieldChart = new Chart($('#yieldChart'), {
     type:'bar',
     data:{labels:[],datasets:[{label:'Yield',data:[]}]},
-    options:{
-      maintainAspectRatio:false,
-      scales:{y:{beginAtZero:true,ticks:{callback:v=>Math.round(v)},title:{display:true,text:'kWh'}}},
-      plugins:{legend:{position:'top',labels:{padding:12}},
-               datalabels:{anchor:'end',align:'top',offset:2,formatter:v=>v?Math.round(v):''}}
-    },
+    options:{maintainAspectRatio:false,scales:{y:{beginAtZero:true,ticks:{callback:v=>Math.round(v)},title:{display:true,text:'kWh'}}},
+             plugins:{legend:{position:'top',labels:{padding:12}},
+                      datalabels:{anchor:'end',align:'top',offset:2,formatter:v=>v?Math.round(v):''}}},
     plugins:(window.ChartDataLabels?[ChartDataLabels]:[])
   });
 
-  // UI elements
+  // --------- UI refs ----------
   const plantMS=$('#plantMS'), plantList=$('#plantList'), plantFace=$('#plantFace'),
         pAll=$('#p_all'), plantApply=$('#plantApply');
   const dateOne=$('#dateOne'), dateFrom=$('#dateFrom'), dateTo=$('#dateTo'), dash=$('#dash'),
         btnToday=$('#btnToday'), btnPrev=$('#btnPrev'), btnNext=$('#btnNext');
   const kpiVal=$('#kpiTotalYield'), kpiUnit=$('#kpiUnit'), yieldNote=$('#yieldNote'), yieldTitle=$('#yieldTitle');
+  const viewBtns=[$('#v_day'),$('#v_week'),$('#v_month'),$('#v_year'),$('#v_lifetime'),$('#v_custom')];
 
-  // View buttons
-  const viewBtns = [$('#v_day'),$('#v_week'),$('#v_month'),$('#v_year'),$('#v_lifetime'),$('#v_custom')];
-
-  // State
+  // --------- state ----------
   let view='day';
   let selectedPlantIds=['all'];
-  dateOne.value = ymd(new Date());
+  const plantToInv = new Map(); // Plant_ID -> Set(Inverter_*)
 
-  // Plant_ID -> Set(Inverter_*)
-  const plantToInv = new Map();
-
-  // Helpers
-  function fetchWithTimeout(url, ms=8000){
-    return new Promise((resolve,reject)=>{
-      const to=setTimeout(()=>reject(new Error('timeout')),ms);
-      fetch(url,{cache:'no-store'}).then(r=>{clearTimeout(to);resolve(r);},e=>{clearTimeout(to);reject(e);});
-    });
+  // --------- fetch: abort old + debounce ----------
+  let currentController=null;
+  function fetchAbortable(url, ms=15000){
+    if(currentController) currentController.abort();
+    currentController=new AbortController();
+    const t=setTimeout(()=>currentController.abort(), ms);
+    return fetch(url,{signal:currentController.signal,cache:'no-store'})
+      .finally(()=>clearTimeout(t));
   }
+  let debounceTimer=null;
+  const debounced = (fn,wait=180)=>((...a)=>{clearTimeout(debounceTimer);debounceTimer=setTimeout(()=>fn(...a),wait);});
+
+  // --------- plant UI ----------
+  plantMS.querySelector('.face').onclick=()=>plantMS.classList.toggle('open');
+  document.addEventListener('click',e=>{ if(!plantMS.contains(e.target)) plantMS.classList.remove('open'); });
+  pAll.onchange=()=>{ if(pAll.checked){ $$('#plantList input[type=checkbox]').forEach(c=>c.checked=false); plantFace.textContent='All'; } };
+  plantApply.onclick=()=>{ const ids=$$('#plantList input[type=checkbox]:checked').map(c=>c.value);
+    if(ids.length===0){ selectedPlantIds=['all']; plantFace.textContent='All'; pAll.checked=true; }
+    else { selectedPlantIds=ids; plantFace.textContent=ids.length===1?`Plant ${ids[0]}`:`${ids.length} plants`; pAll.checked=false; }
+    plantMS.classList.remove('open'); refresh();
+  };
+
   function parseInverters(val){
     const out=new Set();
     const feed=(x)=>{ if(!x) return;
@@ -174,40 +180,25 @@
     }; feed(val); return out;
   }
 
-  // Plant dropdown behavior
-  plantMS.querySelector('.face').onclick=()=>plantMS.classList.toggle('open');
-  document.addEventListener('click',e=>{ if(!plantMS.contains(e.target)) plantMS.classList.remove('open'); });
-  pAll.onchange=()=>{ if(pAll.checked){ $$('#plantList input[type=checkbox]').forEach(c=>c.checked=false); plantFace.textContent='All'; } };
-  plantApply.onclick=()=>{ const ids=$$('#plantList input[type=checkbox]:checked').map(c=>c.value);
-    if(ids.length===0){ selectedPlantIds=['all']; plantFace.textContent='All'; pAll.checked=true; }
-    else { selectedPlantIds=ids; plantFace.textContent=ids.length===1?`Plant ${ids[0]}`:`${ids.length} plants`; pAll.checked=false; }
-    plantMS.classList.remove('open'); refresh();
-  };
-
-  // Load plants once
   async function loadPlants(){
     plantList.innerHTML="";
-    const byId=new Map();
-    function addRow(id,name){
-      const pid=String(id||"").trim(); if(!pid) return;
-      if(!byId.has(pid)) byId.set(pid, name || `Plant ${pid}`);
-    }
-    function absorb(rows){
-      rows.forEach(r=>{
-        const id=r.Plant_ID ?? r.plant_id ?? r.PartitionKey ?? r.RowKey;
-        const name=r.Plant_Name ?? r.plant_name ?? r.name ?? `Plant ${id}`;
-        const invs=parseInverters(r.Inverters ?? r.inverters ?? r.Devices ?? r.devices ?? r.Inverter_ID);
-        const pid=String(id||"").trim(); if(!pid) return;
-        if(!plantToInv.has(pid)) plantToInv.set(pid,new Set());
-        invs.forEach(x=>plantToInv.get(pid).add(x));
-        addRow(pid,name);
-      });
-    }
+    const seen=new Map();
+    const add=(id,name)=>{const s=String(id||"").trim();if(!s)return;if(!seen.has(s))seen.set(s,name||`Plant ${s}`);};
     try{
-      const res=await fetchWithTimeout('/api/GetPlantDirectory',8000);
-      const rows=await res.json(); absorb(rows);
+      const r=await fetchAbortable('/api/GetPlantDirectory', 8000);
+      if(r.ok){
+        const rows=await r.json();
+        rows.forEach(e=>{
+          const pid=e.Plant_ID ?? e.plant_id ?? e.PartitionKey ?? e.RowKey;
+          const pname=e.Plant_Name ?? e.plant_name ?? e.name ?? `Plant ${pid}`;
+          add(pid,pname);
+          const invs=parseInverters(e.Inverters ?? e.inverters ?? e.Devices ?? e.devices ?? e.Inverter_ID);
+          if(!plantToInv.has(String(pid))) plantToInv.set(String(pid), new Set());
+          invs.forEach(x=>plantToInv.get(String(pid)).add(x));
+        });
+      }
     }catch{}
-    [...byId.entries()].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([pid,pname])=>{
+    [...seen.entries()].sort((a,b)=>a[0].localeCompare(b[0])).forEach(([pid,pname])=>{
       const div=document.createElement('div'); div.className='row';
       div.innerHTML=`<input type="checkbox" id="p_${pid}" value="${pid}"> <label for="p_${pid}">${pname}</label>`;
       plantList.appendChild(div);
@@ -216,101 +207,91 @@
 
   function invCsvForSelection(){
     const set=new Set();
-    if (selectedPlantIds[0]==='all') {
-      plantToInv.forEach(s=>s.forEach(x=>set.add(x)));
-    } else {
-      selectedPlantIds.forEach(pid=>{ const s=plantToInv.get(pid); if(s) s.forEach(x=>set.add(x)); });
-    }
+    if(selectedPlantIds[0]==='all'){ plantToInv.forEach(s=>s.forEach(x=>set.add(x))); }
+    else { selectedPlantIds.forEach(pid=>{ const s=plantToInv.get(pid); if(s) s.forEach(x=>set.add(x)); }); }
     return [...set].sort().join(',');
   }
 
-  // View switching
+  // --------- view/date navigation ----------
   function setView(v){
-    view = v;
-    viewBtns.forEach(b=>b.classList.toggle('active', b.dataset.view===v));
-    const showRange = (v==='custom');
-    dateFrom.style.display = showRange ? '' : 'none';
-    dateTo.style.display   = showRange ? '' : 'none';
-    dash.style.display     = showRange ? '' : 'none';
+    view=v; viewBtns.forEach(b=>b.classList.toggle('active', b.dataset.view===v));
+    const show=(v==='custom'); dateFrom.style.display=show?'':'none'; dateTo.style.display=show?'':'none'; dash.style.display=show?'':'none';
     refresh();
   }
-  $('#v_day').onclick      = ()=>setView('day');
-  $('#v_week').onclick     = ()=>setView('week');
-  $('#v_month').onclick    = ()=>setView('month');
-  $('#v_year').onclick     = ()=>setView('year');
-  $('#v_lifetime').onclick = ()=>setView('lifetime');
-  $('#v_custom').onclick   = ()=>setView('custom');
+  $('#v_day').onclick=()=>setView('day');
+  $('#v_week').onclick=()=>setView('week');
+  $('#v_month').onclick=()=>setView('month');
+  $('#v_year').onclick=()=>setView('year');
+  $('#v_lifetime').onclick=()=>setView('lifetime');
+  $('#v_custom').onclick=()=>setView('custom');
 
-  // Date nav
   btnToday.onclick=()=>{ dateOne.value=ymd(new Date()); refresh(); };
   function shiftAnchor(dir){
     const d=new Date(dateOne.value);
     if(view==='day'||view==='custom') d.setDate(d.getDate()+dir);
-    else if(view==='week')           d.setDate(d.getDate()+7*dir);
-    else if(view==='month')          d.setMonth(d.getMonth()+dir);
-    else if(view==='year')           d.setFullYear(d.getFullYear()+dir);
-    const today=ymd(new Date());
-    if(dir>0 && ymd(d)>today) return;
+    else if(view==='week') d.setDate(d.getDate()+7*dir);
+    else if(view==='month') d.setMonth(d.getMonth()+dir);
+    else if(view==='year') d.setFullYear(d.getFullYear()+dir);
+    const today=ymd(new Date()); if(dir>0 && ymd(d)>today) return;
     dateOne.value=ymd(d); refresh();
   }
   btnPrev.onclick=()=>shiftAnchor(-1);
   btnNext.onclick=()=>shiftAnchor(+1);
-  dateOne.onchange=refresh; dateFrom.onchange=refresh; dateTo.onchange=refresh;
+  dateOne.onchange=()=>refresh();
+  dateFrom.onchange=()=>refresh();
+  dateTo.onchange=()=>refresh();
 
-  // Dedupe in-flight
-  let reqCounter = 0;
-
-  async function refresh(){
+  // --------- refresh (debounced) ----------
+  async function _refresh(){
     yieldTitle.textContent =
       view==='day'      ? 'Yield (daily total)' :
       view==='week'     ? 'Yield (daily)' :
       view==='month'    ? 'Yield (monthly)' :
       view==='year'     ? 'Yield (yearly)' :
       view==='lifetime' ? 'Yield (lifetime)' : 'Yield (range)';
-    yieldNote.textContent='';
+    yieldNote.textContent='(loading…)';
 
     const params={ view, date:dateOne.value };
     const invCsv = invCsvForSelection();
     if(invCsv) params.invIds = invCsv;
-    if(view==='custom'&&dateFrom.value&&dateTo.value){ params.dateFrom=dateFrom.value; params.dateTo=dateTo.value; }
+    if(view==='custom' && dateFrom.value && dateTo.value){ params.dateFrom=dateFrom.value; params.dateTo=dateTo.value; }
 
-    const url='/api/inverter-analytics?'+new URLSearchParams(params).toString();
+    const url='/api/inverter-analytics?'+new URLSearchParams(params);
     console.log('API:', url);
 
-    const myReq = ++reqCounter;
     let json=null;
-    try{
-      const res = await fetch(url,{cache:'no-store'});
-      if(res.ok) json = await res.json();
-    }catch{}
-
-    if (myReq !== reqCounter) return;
+    try{ const r=await fetchAbortable(url, 15000); if(r.ok) json=await r.json(); }catch(e){}
 
     if(!json){
       powerChart.data.labels=[]; powerChart.data.datasets[0].data=[]; powerChart.data.datasets[1].data=[]; powerChart.update();
       yieldChart.data.labels=[]; yieldChart.data.datasets[0].data=[]; yieldChart.update();
-      yieldNote.textContent='(no data)'; kpiVal.textContent='0.00'; kpiUnit.textContent=' MWh'; return;
+      yieldNote.textContent='(no data)';
+      kpiVal.textContent='0.00'; kpiUnit.textContent=' MWh';
+      return;
     }
 
+    // POWER (sum across inverters, round)
     const pw=json.power||[];
-    powerChart.data.labels=pw.map(x=>{const d=new Date(x.t);return `${pad(d.getHours())}:${pad(d.getMinutes())}`});
-    powerChart.data.datasets[0].data=pw.map(x=>x.ac||0);
-    powerChart.data.datasets[1].data=pw.map(x=>x.dc||0);
+    powerChart.data.labels = pw.map(x=>{const d=new Date(x.t); return `${pad(d.getHours())}:${pad(d.getMinutes())}`});
+    powerChart.data.datasets[0].data = pw.map(x=>Math.round(x.ac||0));
+    powerChart.data.datasets[1].data = pw.map(x=>Math.round(x.dc||0));
     powerChart.update();
 
+    // YIELD (bucketed)
     const unit=(json.meta&&json.meta.yieldUnit)||'kWh';
     yieldChart.options.scales.y.title.text=unit;
     let y=json.yield||[],labels=[],values=[];
-    if(view==='day'||view==='week'||view==='custom'){labels=y.map(x=>x.d||x.title||'');values=y.map(x=>x.val??x.kwh??0);}
-    if(view==='month'){labels=y.map(x=>x.ym||'');values=y.map(x=>x.val??0);}
-    if(view==='year'){labels=y.map(x=>x.y||'');values=y.map(x=>x.val??0);}
-    if(view==='lifetime'){labels=['Lifetime'];values=[(y[0]?.val??0)];}
+    if(view==='day'||view==='week'||view==='custom'){ labels=y.map(x=>x.d || x.title || ''); values=y.map(x=>Math.round(x.val ?? x.kwh ?? 0)); }
+    if(view==='month'){ labels=y.map(x=>x.ym || ''); values=y.map(x=>Math.round(x.val ?? 0)); }
+    if(view==='year'){  labels=y.map(x=>x.y  || ''); values=y.map(x=>Math.round(x.val ?? 0)); }
+    if(view==='lifetime'){ labels=['Lifetime']; values=[Math.round(y[0]?.val ?? 0)]; }
     yieldChart.data.labels=labels;
     yieldChart.data.datasets[0].label=`Yield (${unit})`;
     yieldChart.data.datasets[0].data=values;
     yieldChart.update();
-    if(!values.length) yieldNote.textContent='(no data in range)';
+    yieldNote.textContent = values.length ? '' : '(no data in range)';
 
+    // KPI auto-scale
     const totalMWh=+((json.cards&&json.cards.TotalYield_MWh)||0);
     let showUnit='MWh',showVal=totalMWh;
     if(totalMWh>=1000){showUnit='GWh';showVal=totalMWh/1000;}
@@ -318,8 +299,10 @@
     kpiVal.textContent=showVal.toFixed(2);
     kpiUnit.textContent=' '+showUnit;
   }
+  const refresh = debounced(_refresh, 180);
 
-  (async()=>{ await loadPlants(); refresh(); })();
+  // init
+  (async()=>{ await loadPlants(); dateOne.value=ymd(new Date()); refresh(); })();
 })();
 </script>
 </body>
