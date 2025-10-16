@@ -1,8 +1,8 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Inverter Analytics — Solar Plant Dashboard</title>
+  <title>Inverter Analytics â€” Solar Plant Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="favicon.ico" />
   <link rel="stylesheet" href="nav.css" />
@@ -31,8 +31,16 @@
     canvas { width:100%; height:300px; }
     @media (max-width: 1100px){ .grid{grid-template-columns:1fr} .cards{grid-template-columns:1fr} }
   </style>
+<!-- site-nav-head -->
+<link rel="stylesheet" href="nav.css">
+<script defer src="nav.js"></script>
+<!-- /site-nav-head -->
 </head>
 <body>
+<!-- site-nav-mount -->
+<div id="topnav" data-active=""></div>
+<!-- /site-nav-mount -->
+
   <div class="wrap">
     <div class="bar">
       <h3 style="margin:0;">Solar Plant Dashboard</h3>
@@ -70,8 +78,8 @@
 
       <!-- Date -->
       <div class="pill"><input id="datePick" type="date" /></div>
-      <button id="prevBtn" class="btn">◀</button>
-      <button id="nextBtn" class="btn">▶</button>
+      <button id="prevBtn" class="btn">â—€</button>
+      <button id="nextBtn" class="btn">â–¶</button>
       <button id="todayBtn" class="btn">Today</button>
     </div>
 
@@ -104,5 +112,16 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <script src="assets/js/inverter-analytics.js"></script>
+<!-- site-nav-active -->
+<script>
+  (function(){
+    var m = document.getElementById('topnav');
+    if(m) m.setAttribute('data-active', 'inverter_analytics');
+  })();
+</script>
+<!-- /site-nav-active -->
 </body>
 </html>
+
+
+

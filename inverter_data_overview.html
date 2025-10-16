@@ -17,8 +17,16 @@
       .muted{color:#666;font-size:13px}
       .err{color:#b00020}
     </style>
-  </head>
+  <!-- site-nav-head -->
+<link rel="stylesheet" href="nav.css">
+<script defer src="nav.js"></script>
+<!-- /site-nav-head -->
+</head>
   <body>
+<!-- site-nav-mount -->
+<div id="topnav" data-active=""></div>
+<!-- /site-nav-mount -->
+
 <!-- ===== Top Nav (auto-injected) ===== -->
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -166,8 +174,19 @@
   </div>
 </footer>
 <!-- ===== End Footer ===== -->
+<!-- site-nav-active -->
+<script>
+  (function(){
+    var m = document.getElementById('topnav');
+    if(m) m.setAttribute('data-active', 'inverter_data_overview');
+  })();
+</script>
+<!-- /site-nav-active -->
 </body>
 </html>
+
+
+
 
 
 
