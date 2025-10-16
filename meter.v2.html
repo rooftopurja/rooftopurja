@@ -611,63 +611,6 @@ async function loadPlants(){
 })();
 </script>
 <!-- /meter-align-script -->
-<!-- plant-fallback-script -->
-<script>
-(function plantsFallback(){
-  function rebuildNativeSelect(rows){
-    var select = document.querySelector('#plantSelect, select[name="plants"], select#plants');
-    if (!select) {
-      var host = document.querySelector('[data-plants-host]') ||
-                 document.querySelector('form, .filters, .wrap, header') ||
-                 document.body;
-      select = document.createElement('select');
-      select.id = 'plantSelect';
-      select.multiple = true;
-      select.style.minWidth = '280px';
-      host.insertBefore(select, host.firstChild);
-    }
-    select.innerHTML = '';
-    var optAll = new Option('All Plants','__all__', true, true);
-    select.appendChild(optAll);
-    rows.forEach(function(r){
-      var id   = r.Plant_ID || r.id;
-      var name = r.DisplayPlant || r.Plant_Name || r.name || ('Plant ' + id);
-      if (!id || !name) return;
-      select.appendChild(new Option(name, String(id)));
-    });
-  }
-
-  function needFix(){
-    var el = document.querySelector('#plantSelect, select[name="plants"], select#plants');
-    if (!el) return true;
-    var count = el.options ? el.options.length : 0;
-    return count < 2;
-  }
-
-  async function fetchDir(){
-    try{
-      var u = '/api/GetPlantDirectory?cb=' + Date.now();
-      var r = await fetch(u, { cache:'no-store' });
-      var t = await r.text();
-      var j = {};
-      try { j = JSON.parse(t); } catch(e){}
-      var rows = Array.isArray(j) ? j : (j.data || []);
-      if (rows.length) rebuildNativeSelect(rows);
-    }catch(e){ console.warn('Plant fallback failed:', e); }
-  }
-
-  if (document.readyState === 'complete') {
-    if (needFix()) fetchDir();
-    setTimeout(function(){ if (needFix()) fetchDir(); }, 1500);
-  } else {
-    window.addEventListener('load', function(){
-      if (needFix()) fetchDir();
-      setTimeout(function(){ if (needFix()) fetchDir(); }, 1500);
-    });
-  }
-})();
-</script>
-<!-- /plant-fallback-script -->
 </body>
 </html>
 
@@ -686,6 +629,7 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
