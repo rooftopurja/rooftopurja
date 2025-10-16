@@ -3,7 +3,7 @@
     "version":  "1.0.0",
     "private":  true,
     "engines":  {
-                    "node":  "\u003e=18 \u003c21"
+                    "node":  "\u003e=20 \u003c21"
                 },
     "dependencies":  {
                          "@azure/data-tables":  "^13.3.1",
