@@ -1,8 +1,8 @@
-﻿{
+{
   "bindings": [
     { "authLevel": "anonymous", "type": "httpTrigger", "direction": "in",
-      "name": "req", "methods": [ "get" ], "route": "GetPlantDirectory" },
-    { "type": "http", "direction": "out", "name": "res" }
+      "name": "req", "methods": ["get"], "route": "GetPlantDirectory" },
+    { "type": "http", "direction": "out", "name": "$return" }
   ],
   "scriptFile": "index.js"
 }

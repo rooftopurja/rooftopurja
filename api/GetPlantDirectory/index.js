@@ -1,6 +1,8 @@
-﻿const { TableClient } = require("@azure/data-tables");
+﻿function __lower(v){ return String(v ?? '').toLowerCase(); }
+const { TableClient } = require("@azure/data-tables");
 
 module.exports = async function (context, req) {
+  const q = (req.query||{}); const h = (req.headers||{});
   try {
     const conn =
       process.env.PLANT_DIRECTORY_TABLE_CONN ||
@@ -46,5 +48,7 @@ module.exports = async function (context, req) {
     };
   }
 };
+
+
 
 
