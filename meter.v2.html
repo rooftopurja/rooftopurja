@@ -623,6 +623,15 @@ async function loadPlants(){
   })();
 </script>
 <!-- /site-nav-active -->
+<script>
+(function(){
+  try{
+    var path = (location.pathname.split('/').pop() || 'meter.v2.html').toLowerCase();
+    var a = document.querySelector('.topbar .tabs a[data-page="'+path+'"]');
+    if (a) a.classList.add('active');
+  }catch(e){}
+})();
+</script>
 </body>
 </html>
 
@@ -641,6 +650,7 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 

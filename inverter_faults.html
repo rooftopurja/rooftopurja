@@ -28,7 +28,17 @@
 <script defer src="nav.js"></script>
 <!-- /site-nav-head -->
 </head>
-  <body>
+  
+<header class="topbar">
+  <h1>Solar Plant Dashboard</h1>
+  <nav class="tabs">
+    <a data-page="meter.v2.html"               href="meter.v2.html">Meter</a>
+    <a data-page="inverter_analytics.html"     href="inverter_analytics.html">Inverter Analytics</a>
+    <a data-page="inverter_data_overview.html" href="inverter_data_overview.html">Inverter Data Overview</a>
+    <a data-page="inverter_faults.html"        href="inverter_faults.html">Inverter Faults</a>
+    <a data-page="maintenance.html"            href="maintenance.html">Maintenance</a>
+  </nav>
+</header>
 <!-- site-nav-mount -->
 <div id="topnav" data-active=""></div>
 <!-- /site-nav-mount -->
@@ -196,8 +206,18 @@
   })();
 </script>
 <!-- /site-nav-active -->
+<script>
+(function(){
+  try{
+    var path = (location.pathname.split('/').pop() || 'meter.v2.html').toLowerCase();
+    var a = document.querySelector('.topbar .tabs a[data-page="'+path+'"]');
+    if (a) a.classList.add('active');
+  }catch(e){}
+})();
+</script>
 </body>
 </html>
+
 
 
 

@@ -1,8 +1,7 @@
-﻿/* Global top navigation */
-.navbar{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid #e5e7eb}
-.navwrap{max-width:1200px;margin:0 auto;padding:10px 16px;display:flex;gap:10px;align-items:center}
-.brand{font-weight:700}
-.navspacer{flex:1}
-.navlink{padding:8px 10px;border:1px solid #e5e7eb;border-radius:10px;background:#fff;text-decoration:none;color:#111}
-.navlink:hover{background:#f3f4f6}
-.navlink.active{background:#111;color:#fff;border-color:#111}
+﻿:root { --accent:#2563eb; --muted:#6b7280; --bg:#ffffff; }
+.topbar { display:flex; gap:16px; align-items:center; padding:14px 18px; border-bottom:1px solid #eee; position:sticky; top:0; background:var(--bg); z-index:10; }
+.topbar h1 { font-size:18px; font-weight:700; margin:0 8px 0 0; }
+.topbar .tabs { display:flex; flex-wrap:wrap; gap:8px; }
+.topbar .tabs a { padding:8px 14px; border-radius:999px; border:1px solid #e5e7eb; text-decoration:none; color:#111827; }
+.topbar .tabs a.active { background:#e8efff; border-color:#cfe0ff; color:#0b53e6; font-weight:600; }
+.container { padding:16px; }
