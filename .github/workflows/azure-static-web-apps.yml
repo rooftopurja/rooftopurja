@@ -25,6 +25,7 @@ jobs:
           app_location: "."
           api_location: "api"
           output_location: "."
-          skip_app_build: true   # static assets already present
-          skip_api_build: false  # we need node_modules for Functions
+  skip_app_build: false
+  skip_api_build: false
+
 
