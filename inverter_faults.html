@@ -27,6 +27,7 @@
 <link rel="stylesheet" href="nav.css">
 <script defer src="nav.js"></script>
 <!-- /site-nav-head -->
+<link rel="stylesheet" href="styles.css?v=1760658289">
 </head>
   
 <header class="topbar">
@@ -88,7 +89,7 @@
       });
     </script>
 
-    <main>
+    <main><div class="container">
       <h1>Inverter Faults</h1>
       <p class='muted'>Lists alarms from <code>/api/inverter/faults</code> (mock for now; SQL later).</p>
 
@@ -130,7 +131,7 @@
         </thead>
         <tbody id='gridBody'></tbody>
       </table>
-    </main>
+    </div></main>
 
     <script>
       const btn = document.getElementById('btnLoad');
@@ -217,6 +218,7 @@
 </script>
 </body>
 </html>
+
 
 
 

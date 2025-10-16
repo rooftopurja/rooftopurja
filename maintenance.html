@@ -28,6 +28,7 @@
 <link rel="stylesheet" href="nav.css">
 <script defer src="nav.js"></script>
 <!-- /site-nav-head -->
+<link rel="stylesheet" href="styles.css?v=1760658289">
 </head>
   
 <header class="topbar">
@@ -89,7 +90,7 @@
       });
     </script>
 
-    <main>
+    <main><div class="container">
       <h1>Maintenance</h1>
       <p class='muted'>PLC (AC & Pump) and LoRa maintenance feed from <code>/api/maintenance/overview</code>.</p>
 
@@ -132,7 +133,7 @@
         </thead>
         <tbody id='gridBody'></tbody>
       </table>
-    </main>
+    </div></main>
 
     <script>
       const btn = document.getElementById('btnLoad');
@@ -221,6 +222,7 @@
 </script>
 </body>
 </html>
+
 
 
 
