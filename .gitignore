@@ -19,3 +19,5 @@ api/node_modules/
 dist/
 build/
 *.bak
+
+api/**/*.bak_*
