@@ -1,8 +1,8 @@
 ﻿name: Azure Static Web Apps CI/CD
-concurrency:
-  group: swa-$\{{ github.ref }}
-  cancel-in-progress: true
 
+concurrency:
+  group: swa-${{ github.ref }}
+  cancel-in-progress: true
 
 on:
   push:
@@ -23,9 +23,8 @@ jobs:
           repo_token: ${{ secrets.GITHUB_TOKEN }}
           action: "upload"
           app_location: "."
+          app_build_command: "bash ./build.sh"
+          output_location: "dist"
           api_location: "api"
-          output_location: "."
-  skip_app_build: false
-  skip_api_build: false
-
-
+          skip_app_build: false
+          skip_api_build: false
