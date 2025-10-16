@@ -1,54 +1,64 @@
-﻿function __lower(v){ return String(v ?? '').toLowerCase(); }
 const { TableClient } = require("@azure/data-tables");
 
 module.exports = async function (context, req) {
-  const q = (req.query||{}); const h = (req.headers||{});
   try {
+    // Try all likely env var names used across local/emulator/prod
     const conn =
       process.env.PLANT_DIRECTORY_TABLE_CONN ||
-      process.env.TABLES_CONN_STRING;
-    const tableName =
-      process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
+      process.env.TABLES_CONNECTION_STRING ||
+      process.env.TABLES_CONN_STRING ||
+      process.env.STORAGE_CONNECTION_STRING;
 
-    context.log("TABLES_CONN_STRING:", process.env.TABLES_CONN_STRING);
-    context.log("PLANT_DIRECTORY_TABLE:", process.env.PLANT_DIRECTORY_TABLE);
+    if (!conn) throw new Error("TABLES connection string not configured");
+
+    const tableName = process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
     const client = TableClient.fromConnectionString(conn, tableName);
-    const rows = [];
-    for await (const r of client.listEntities()) {
-      if (!r.Plant_ID || !r.Plant_Name) continue;
-      const inv = (r.Inverters || "")
+
+    // Merge by Plant_ID, keep canonical name, union inverter ids
+    const byId = new Map();
+    for await (const e of client.listEntities()) {
+      const id =
+        Number(e.Plant_ID ?? e.PlantId ?? e.id ?? e.RowKey ?? e.partitionKey) || 0;
+      const name = String(e.DisplayPlant ?? e.Plant_Name ?? e.PlantName ?? "").trim();
+      const inv = String(e.Inverters ?? "")
         .split(",")
-        .map((x) => x.trim())
+        .map(s => s.trim())
         .filter(Boolean);
-      rows.push({ id: r.Plant_ID, name: r.Plant_Name, invIds: inv });
+
+      if (!id || !name) continue;
+
+      if (!byId.has(id)) {
+        byId.set(id, {
+          Plant_ID: id,
+          Plant_Name: name,
+          DisplayPlant: name,
+          Inverters: inv
+        });
+      } else {
+        const cur = byId.get(id);
+        // prefer non-empty name
+        if (!cur.Plant_Name && name) cur.Plant_Name = name;
+        if (!cur.DisplayPlant && name) cur.DisplayPlant = name;
+        // union inverter IDs
+        cur.Inverters = Array.from(new Set([...(cur.Inverters||[]), ...inv]));
+      }
     }
 
-    // merge duplicates
-    const merged = Object.values(
-      rows.reduce((a, r) => {
-        if (!a[r.id]) a[r.id] = r;
-        else {
-          a[r.id].invIds = Array.from(new Set([...a[r.id].invIds, ...r.invIds]));
-        }
-        return a;
-      }, {})
+    const data = [...byId.values()].sort((a,b) =>
+      String(a.DisplayPlant||a.Plant_Name||"").localeCompare(String(b.DisplayPlant||b.Plant_Name||""))
     );
 
-    context.res = {
+    return {
       status: 200,
-      headers: { "Content-Type": "application/json" },
-      body: merged,
+      headers: { "content-type": "application/json" },
+      body: { success: true, count: data.length, data }
     };
   } catch (err) {
     context.log.error(err);
-    context.res = {
+    return {
       status: 500,
-      headers: { "Content-Type": "application/json" },
-      body: { error: err.message },
+      headers: { "content-type": "application/json" },
+      body: { success: false, error: err.message }
     };
   }
 };
-
-
-
-
