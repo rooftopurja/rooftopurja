@@ -579,6 +579,95 @@ async function loadPlants(){
   }
 }
 </script>
+<!-- meter-align-script -->
+<script>
+(function alignLatestTable(){
+  // Find the table in the "Latest Reading per Meter" card
+  var tbl = document.getElementById('latestTable');
+  if (!tbl) {
+    var cards = Array.from(document.querySelectorAll('h3, h4, .card-title'))
+      .filter(el => /Latest Reading per Meter/i.test((el.textContent||'')));
+    if (cards.length) {
+      var card = cards[0].closest('.card, section, div');
+      if (card) tbl = card.querySelector('table');
+    }
+  }
+  if (!tbl) return;
+
+  // Which columns to center?
+  var head = Array.from(tbl.querySelectorAll('thead th')).map(th => (th.textContent||'').trim());
+  var centerCols = ['Meter_Reading', 'Total_Yield_Unit'];  // change to right-align by swapping 't-center' to 't-right' below
+  var idx = centerCols.map(n => head.indexOf(n)).filter(i => i >= 0);
+
+  // Apply alignment
+  var body = tbl.tBodies[0];
+  if (!body) return;
+  Array.from(body.rows).forEach(function(tr){
+    idx.forEach(function(i){
+      var td = tr.children[i];
+      if (td) td.classList.add('t-center');
+    });
+  });
+})();
+</script>
+<!-- /meter-align-script -->
+<!-- plant-fallback-script -->
+<script>
+(function plantsFallback(){
+  function rebuildNativeSelect(rows){
+    var select = document.querySelector('#plantSelect, select[name="plants"], select#plants');
+    if (!select) {
+      var host = document.querySelector('[data-plants-host]') ||
+                 document.querySelector('form, .filters, .wrap, header') ||
+                 document.body;
+      select = document.createElement('select');
+      select.id = 'plantSelect';
+      select.multiple = true;
+      select.style.minWidth = '280px';
+      host.insertBefore(select, host.firstChild);
+    }
+    select.innerHTML = '';
+    var optAll = new Option('All Plants','__all__', true, true);
+    select.appendChild(optAll);
+    rows.forEach(function(r){
+      var id   = r.Plant_ID || r.id;
+      var name = r.DisplayPlant || r.Plant_Name || r.name || ('Plant ' + id);
+      if (!id || !name) return;
+      select.appendChild(new Option(name, String(id)));
+    });
+  }
+
+  function needFix(){
+    var el = document.querySelector('#plantSelect, select[name="plants"], select#plants');
+    if (!el) return true;
+    var count = el.options ? el.options.length : 0;
+    return count < 2;
+  }
+
+  async function fetchDir(){
+    try{
+      var u = '/api/GetPlantDirectory?cb=' + Date.now();
+      var r = await fetch(u, { cache:'no-store' });
+      var t = await r.text();
+      var j = {};
+      try { j = JSON.parse(t); } catch(e){}
+      var rows = Array.isArray(j) ? j : (j.data || []);
+      if (rows.length) rebuildNativeSelect(rows);
+    }catch(e){ console.warn('Plant fallback failed:', e); }
+  }
+
+  if (document.readyState === 'complete') {
+    if (needFix()) fetchDir();
+    setTimeout(function(){ if (needFix()) fetchDir(); }, 1500);
+  } else {
+    window.addEventListener('load', function(){
+      if (needFix()) fetchDir();
+      setTimeout(function(){ if (needFix()) fetchDir(); }, 1500);
+    });
+  }
+})();
+</script>
+<!-- /plant-fallback-script -->
 </body>
 </html>
 
@@ -597,6 +686,7 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
