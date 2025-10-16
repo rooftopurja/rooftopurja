@@ -1,102 +1,61 @@
-﻿const fs = require("fs");
-const path = require("path");
+﻿"use strict";
 const { TableClient } = require("@azure/data-tables");
+const fs = require("fs");
+const path = require("path");
 
-function toArray(x){ return Array.isArray(x) ? x : (x?.data || []); }
+async function readAzure(context){
+  const conn  = process.env.PLANT_DIRECTORY_TABLE_CONN
+             || process.env.TABLES_CONNECTION_STRING
+             || process.env.TABLES_CONN_STRING
+             || process.env.AzureWebJobsStorage;
+  const table = process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
+  if (!conn) throw new Error("No table connection string in env");
 
-function normalize(item){
-  const id   = Number(item.Plant_ID ?? item.PlantId ?? item.id ?? item.PartitionKey ?? 0);
-  const name = String(item.DisplayPlant ?? item.Plant_Name ?? item.PlantName ?? item.name ?? "").trim();
-  const inv  = String(item.Inverters ?? "")
-                .split(",")
-                .map(s => s.trim())
-                .filter(Boolean);
-  return {
-    Plant_ID: id,
-    Plant_Name: name || "",
-    DisplayPlant: name || "",
-    Inverters: inv,
-    id: id,
-    name: name || ""
-  };
-}
+  const client = TableClient.fromConnectionString(conn, table);
+  const map = new Map();
+  let scanned = 0;
 
-async function readFromAzure(context){
-  const conn =
-    process.env.PLANT_DIRECTORY_TABLE_CONN ||
-    process.env.TABLES_CONN_STRING ||
-    process.env.TABLES_CONNECTION_STRING ||
-    process.env.AzureWebJobsStorage;
+  for await (const e of client.listEntities()){
+    scanned++;
+    const id   = Number(e.Plant_ID ?? e.PlantId ?? 0);
+    const name = String(e.Plant_Name ?? e.PlantName ?? "").trim();
+    const inv  = String(e.Inverters || "")
+                  .split(",").map(s=>s.trim()).filter(Boolean);
+    if (!id) continue;
 
-  const tableName = process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
-  if (!conn) { context.log.warn("No table connection string found"); return []; }
-
-  const client = TableClient.fromConnectionString(conn, tableName);
-  const out = [];
-  for await (const r of client.listEntities()) out.push(normalize(r));
-  return out;
-}
-
-function readFromLocal(context){
-  const fp = path.join(__dirname, "..", "_data", "plant-directory.json");
-  if (!fs.existsSync(fp)) { context.log.warn("Local plant-directory.json not found"); return []; }
-  try{
-    const raw = fs.readFileSync(fp, "utf8");
-    const arr = toArray(JSON.parse(raw)).map(normalize);
-    return arr;
-  }catch(e){
-    context.log.error("Failed reading local plant-directory.json:", e);
-    return [];
+    if (!map.has(id)) {
+      map.set(id, { Plant_ID:id, Plant_Name:name, DisplayPlant:name, Inverters:[...new Set(inv)] });
+    } else {
+      const cur = map.get(id);
+      if (!cur.Plant_Name && name) cur.Plant_Name = name, cur.DisplayPlant = name;
+      cur.Inverters = [...new Set([...(cur.Inverters||[]), ...inv])];
+    }
   }
+  context.log("PlantDirectory scanned:", scanned, "unique:", map.size);
+  return [...map.values()].sort((a,b)=>
+    String(a.DisplayPlant||a.Plant_Name||"").localeCompare(String(b.DisplayPlant||b.Plant_Name||""))
+  );
 }
 
-module.exports = async function (context, req) {
+function readLocal(){
   try{
-    // 1) Azure table
-    let rows = await readFromAzure(context);
+    const p = path.join(__dirname,"..","_data","plant-directory.json");
+    const js = JSON.parse(fs.readFileSync(p,"utf8"));
+    return Array.isArray(js) ? js : (js.data||[]);
+  }catch(_){ return []; }
+}
 
-    // merge by Plant_ID, prefer names, union Inverters
-    const byId = new Map();
-    for (const r of rows){
-      if (!r.Plant_ID) continue;
-      const cur = byId.get(r.Plant_ID);
-      if (!cur) byId.set(r.Plant_ID, { ...r });
-      else {
-        if (!cur.Plant_Name && r.Plant_Name)   cur.Plant_Name   = r.Plant_Name;
-        if (!cur.DisplayPlant && r.DisplayPlant) cur.DisplayPlant = r.DisplayPlant;
-        cur.name = cur.DisplayPlant || cur.Plant_Name || cur.name || "";
-        cur.Inverters = Array.from(new Set([...(cur.Inverters||[]), ...(r.Inverters||[])]));
-      }
-    }
+module.exports = async function(context, req){
+  try{
+    let rows = [];
+    try { rows = await readAzure(context); }
+    catch(e){ context.log.warn("Azure read failed:", e.message); rows = readLocal(); }
 
-    // 2) Fallback to local if Azure returned nothing
-    if (byId.size === 0){
-      context.log.warn("PlantDirectory from Azure returned 0 rows — using local fallback.");
-      for (const r of readFromLocal(context)){
-        if (!r.Plant_ID) continue;
-        if (!byId.has(r.Plant_ID)) byId.set(r.Plant_ID, { ...r });
-      }
-    }
-
-    const data = [...byId.values()].sort((a,b) =>
-      String(a.DisplayPlant || a.Plant_Name || "").localeCompare(String(b.DisplayPlant || b.Plant_Name || ""))
-    ).map(r => ({
-      ...r,
-      id: r.Plant_ID,
-      name: r.DisplayPlant || r.Plant_Name || r.name || ""
-    }));
-
-    return {
-      status: 200,
-      headers: { "content-type": "application/json", "cache-control": "no-store" },
-      body: { success:true, count:data.length, data }
-    };
+    const bodyObj = { success:true, count: rows.length, data: rows };
+    context.res = { status:200, headers:{ "content-type":"application/json" }, body: JSON.stringify(bodyObj) };
   }catch(err){
-    context.log.error("GetPlantDirectory error:", err);
-    return {
-      status: 500,
-      headers: { "content-type": "application/json" },
-      body: { success:false, error:String(err && err.message || err) }
-    };
+    context.log.error(err);
+    context.res = { status:500, headers:{ "content-type":"application/json" }, body: JSON.stringify({ success:false, error:String(err && err.message || err) }) };
   }
+  return;
 };
