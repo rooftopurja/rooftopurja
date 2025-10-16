@@ -527,6 +527,58 @@ function enrichRowsWithPlantNames(rows, dirRows){
   </div>
 </footer>
 <!-- ===== End Footer ===== -->
+<script>
+// === Safe JSON fetch (tolerates empty bodies & logs bad JSON) ===
+async function fetchJSONSafe(url){
+  const r = await fetch(url);
+  const txt = await r.text();
+  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
+  if (!txt) return null;                      // tolerate empty body
+  try { return JSON.parse(txt); }
+  catch(e){ console.warn('Bad JSON from', url, e, txt.slice(0,200)); return null; }
+}
+
+// Use the safe helper everywhere
+async function fetchJSON(url){ return fetchJSONSafe(url); }
+
+// Tolerant replacement for loadPlants (handles [] or {data:[…]} or null)
+async function loadPlants(){
+  try{
+    const js = await fetchJSONSafe(`${API_BASE}/api/GetPlantDirectory?cb=${Date.now()}`);
+    const arr = Array.isArray(js?.data) ? js.data
+              : Array.isArray(js)      ? js
+              : [];
+
+    // Normalize fields
+    plants = arr.map(p => {
+      const id   = Number(p.Plant_ID ?? p.id ?? p.pid ?? 0);
+      const name = String(p.DisplayPlant ?? p.Plant_Name ?? p.name ?? '').trim();
+      return { Plant_ID:id, DisplayPlant: name || `Plant ${id}`, Plant_Name: name || `Plant ${id}` };
+    });
+
+    // Build dropdown
+    plantMap = new Map(plants.map(p => [p.Plant_ID, p.DisplayPlant || p.Plant_Name]));
+    const host = document.querySelector('#plantList'); host.innerHTML = '';
+    plants.sort((a,b)=> (a.DisplayPlant||a.Plant_Name).localeCompare(b.DisplayPlant||b.Plant_Name));
+    for(const p of plants){
+      const id='pl_'+p.Plant_ID;
+      const row=document.createElement('div'); row.className='dd-row';
+      row.innerHTML = `<input type="checkbox" id="${id}" data-id="${p.Plant_ID}"> <label for="${id}">${p.DisplayPlant||p.Plant_Name}</label>`;
+      row.querySelector('input').addEventListener('change', onPlantChange);
+      host.appendChild(row);
+    }
+    document.querySelector('#allPlants').addEventListener('change',()=>{
+      selected.clear();
+      document.querySelectorAll('#plantList input[type="checkbox"]').forEach(cb=>cb.checked=false);
+      document.querySelector('#plantBtn').textContent='All Plants';
+    });
+  }catch(err){
+    console.error('loadPlants failed:', err);
+    const warn = document.getElementById('nodata');
+    if (warn){ warn.style.display='block'; warn.textContent = 'Plant list unavailable right now.'; }
+  }
+}
+</script>
 </body>
 </html>
 
@@ -545,6 +597,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
