@@ -7,7 +7,6 @@
                 },
     "dependencies":  {
                          "@azure/data-tables":  "^13.3.1",
-                         "@azure/identity":"4.x"
+                         "@azure/identity":  "4.x"
                      }
 }
-
