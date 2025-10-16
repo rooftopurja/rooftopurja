@@ -1,10 +1,7 @@
-﻿module.exports = async function () {
+﻿module.exports = async function (context, req) {
   return {
     status: 200,
-    headers: { "Content-Type": "application/json" },
-    body: { ok: true, version: "healthcheck v2", ts: new Date().toISOString() }
+    headers: { "content-type": "application/json" },
+    body: { ok: true, when: new Date().toISOString() }
   };
 };
-
-
-
