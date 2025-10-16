@@ -1,139 +1,163 @@
-﻿/* Inverter Analytics charts – talks to /api/inverter/analytics */
-(function(){
-  // DOM helpers (robust fallbacks)
-  const $ = s => document.querySelector(s);
-  const plantSel   = document.querySelector('#plantSelect') || document.querySelector('[data-plant-select]');
-  const dateInput  = document.querySelector('#dateInput')  || document.querySelector('[data-date-input]');
-  const btnDay     = document.querySelector('#btnDay')     || document.querySelector('[data-view="day"]');
-  const btnWeek    = document.querySelector('#btnWeek')    || document.querySelector('[data-view="week"]');
-  const btnMonth   = document.querySelector('#btnMonth')   || document.querySelector('[data-view="month"]');
-  const btnYear    = document.querySelector('#btnYear')    || document.querySelector('[data-view="year"]');
-  const btnRefresh = document.querySelector('#btnRefresh') || document.querySelector('[data-refresh]');
+// assets/js/inverter-analytics.js
+// Final optimized browser version
 
-  const kpiTotal   = document.querySelector('#kpiTotalYield') || document.querySelector('[data-kpi-total]');
-  const kpiMeta    = document.querySelector('#kpiMeta')       || document.querySelector('[data-kpi-meta]');
+(() => {
+  const API_BASE =
+    location.hostname === "127.0.0.1" || location.hostname === "localhost"
+      ? "http://127.0.0.1:7073"
+      : "";
 
-  // Prefer explicit ids; else pick first two canvases on the page
-  let powerCanvas  = document.getElementById('powerChart');
-  let yieldCanvas  = document.getElementById('yieldChart');
-  if (!powerCanvas || !yieldCanvas) {
-    const cvs = document.querySelectorAll('canvas');
-    if (!powerCanvas && cvs[0]) powerCanvas = cvs[0];
-    if (!yieldCanvas && cvs[1]) yieldCanvas = cvs[1];
+  const els = {
+    totalYield: document.getElementById("cardYield"),
+    yieldUnit: document.getElementById("cardYieldUnit"),
+  };
+
+  // --- Fetch Plant Directory ---
+  async function fetchPlants() {
+    try {
+      const res = await fetch(`${API_BASE}/api/GetPlantDirectory`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const plants = await res.json();
+      console.log("Plants:", plants);
+      populatePlantDropdown(plants);
+    } catch (err) {
+      console.error("fetchPlants failed:", err);
+    }
   }
 
-  function yyyy_mm_dd(d){ return d.toISOString().slice(0,10); }
-  let view = 'day';
-
-  // Load Chart.js on-demand if not already present
-  function ensureChartJs(){
-    return new Promise((resolve) => {
-      if (window.Chart) return resolve();
-      const s = document.createElement('script');
-      s.src = 'https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js';
-      s.onload = resolve;
-      document.head.appendChild(s);
+  function populatePlantDropdown(plants) {
+    const listDiv = document.getElementById("plantList");
+    if (!listDiv) return;
+    listDiv.innerHTML = "";
+    plants.forEach((p) => {
+      const row = document.createElement("div");
+      row.className = "dd-row";
+      row.innerHTML = `<label><input type="checkbox" data-id="${p.id}"> ${p.name}</label>`;
+      listDiv.appendChild(row);
     });
   }
 
-  let powerChart, yieldChart;
-  function ensureCharts(){
-    if (!powerCanvas || !yieldCanvas) return;
-    if (!powerChart) {
-      powerChart = new Chart(powerCanvas, {
-        type: 'line',
-        data: { labels: [], datasets: [
-          { label: 'AC Power (kW)', data: [], tension: 0.3, borderWidth: 2, pointRadius: 0 },
-          { label: 'DC Power (kW)', data: [], tension: 0.3, borderWidth: 2, pointRadius: 0 }
-        ]},
-        options: { responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true }}, plugins:{ legend:{ position:'bottom' } } }
-      });
-    }
-    if (!yieldChart) {
-      yieldChart = new Chart(yieldCanvas, {
-        type: 'bar',
-        data: { labels: [], datasets: [{ label: 'Yield', data: [] }]},
-        options: { responsive:true, maintainAspectRatio:false, scales:{ y:{ beginAtZero:true }}, plugins:{ legend:{ display:false } } }
-      });
-    }
-  }
-
-  function setActive(tab){
-    view = tab;
-    [btnDay,btnWeek,btnMonth,btnYear].forEach(b => b && b.classList.toggle('active', (b.dataset?.view||'')===view));
-  }
-
-  async function fetchAnalytics(){
-    const plantId = plantSel ? (plantSel.value || 'all') : 'all';
-    const dateStr = dateInput ? (dateInput.value || yyyy_mm_dd(new Date())) : yyyy_mm_dd(new Date());
-    const url = `/api/inverter/analytics?view=${encodeURIComponent(view)}&plantId=${encodeURIComponent(plantId)}&date=${encodeURIComponent(dateStr)}`;
-    const res = await fetch(url, { headers: { accept: 'application/json' }});
-    if (!res.ok) throw new Error(`API ${res.status}`);
-    return await res.json();
-  }
-
-  function render(data){
-    if (kpiTotal) kpiTotal.textContent = `${data?.kpis?.total_yield ?? 0} ${data?.kpis?.unit ?? 'kWh'}`;
-    if (kpiMeta)  kpiMeta.textContent  = `View: ${data?.parameters?.view} • Date: ${data?.parameters?.date}`;
-
-    ensureCharts();
-
-    if (powerChart) {
-      if (view==='day') {
-        const labels = (data.power||[]).map(p => new Date(p.t).toLocaleTimeString('en-IN',{hour:'2-digit',minute:'2-digit'}));
-        powerChart.data.labels = labels;
-        powerChart.data.datasets[0].data = (data.power||[]).map(p=>p.ac||0);
-        powerChart.data.datasets[1].data = (data.power||[]).map(p=>p.dc||0);
-      } else {
-        powerChart.data.labels = [];
-        powerChart.data.datasets.forEach(d=>d.data=[]);
-      }
-      powerChart.update();
-    }
-
-    if (yieldChart) {
-      const yLabels = (data.yield||[]).map(y=>y.label);
-      const yValues = (data.yield||[]).map(y=>y.value||0);
-      yieldChart.data.labels = yLabels;
-      yieldChart.data.datasets[0].data = yValues;
-      yieldChart.data.datasets[0].label =
-        (view==='day')?'Daily Yield (kWh)':
-        (view==='week')?'Last 7 days (kWh)':
-        (view==='month')?'Last 6 months':
-        'Year total';
-      yieldChart.update();
-    }
-  }
-
-  async function loadAnalytics(){
-    const badge = document.querySelector('#loadingBadge');
+  // --- Fetch Analytics ---
+  async function fetchAnalytics(view = "day", date = new Date().toISOString().split("T")[0], plantId = "all") {
     try {
-      if (badge) badge.textContent = 'Loading...';
-      const data = await fetchAnalytics();
-      await ensureChartJs();
-      render(data);
-    } catch(e){
-      console.error(e);
-      if (kpiTotal) kpiTotal.textContent='0 kWh';
-      if (kpiMeta)  kpiMeta.textContent='No data';
-    } finally {
-      if (badge) badge.textContent = '';
+      const res = await fetch(`${API_BASE}/api/inverter-analytics?view=${view}&date=${date}&plantId=${plantId}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const data = await res.json();
+      console.log("Analytics:", data);
+      updateCards(data.cards || {});
+      renderCharts(data);
+    } catch (err) {
+      console.error("fetchAnalytics failed:", err);
     }
   }
 
-  document.addEventListener('DOMContentLoaded', ()=>{
-    if (btnDay)   btnDay.dataset.view='day';
-    if (btnWeek)  btnWeek.dataset.view='week';
-    if (btnMonth) btnMonth.dataset.view='month';
-    if (btnYear)  btnYear.dataset.view='year';
+  // --- Update Yield Card ---
+  function updateCards(cards) {
+    const yieldVal = cards.TotalYield_MWh ?? 0;
+    const unit = cards.Yield_Unit || "MWh";
+    if (els.totalYield) els.totalYield.textContent = yieldVal.toFixed(2);
+    if (els.yieldUnit) els.yieldUnit.textContent = unit;
+  }
 
-    [btnDay,btnWeek,btnMonth,btnYear].forEach(b=> b && b.addEventListener('click', ()=>{ setActive(b.dataset.view); loadAnalytics(); }));
-    if (btnRefresh) btnRefresh.addEventListener('click', loadAnalytics);
-    if (plantSel)   plantSel.addEventListener('change', loadAnalytics);
-    if (dateInput)  dateInput.addEventListener('change', loadAnalytics);
+  // --- Chart Rendering ---
+  function renderCharts(data) {
+    if (!window.Chart) return;
 
-    setActive('day');
-    if (dateInput && !dateInput.value) dateInput.value = yyyy_mm_dd(new Date());
-    loadAnalytics();
+    // Hide skeletons
+    const ps = document.getElementById("powerShell");
+    const ys = document.getElementById("yieldShell");
+    const pc = document.getElementById("powerChart");
+    const yc = document.getElementById("yieldChart");
+    if (ps) ps.style.display = "none";
+    if (ys) ys.style.display = "none";
+    if (pc) pc.style.display = "block";
+    if (yc) yc.style.display = "block";
+
+    const power = Array.isArray(data.power) ? data.power : [];
+    const yieldArr = Array.isArray(data.yield) ? data.yield : [];
+
+    const times = power.map((p) => p.time || "");
+    const ac = power.map((p) => p.ac_kw || 0);
+    const dc = power.map((p) => p.dc_kw || 0);
+
+    // --- destroy safely ---
+    if (window.powerChart && typeof window.powerChart.destroy === "function") {
+      window.powerChart.destroy();
+    }
+    if (window.yieldChart && typeof window.yieldChart.destroy === "function") {
+      window.yieldChart.destroy();
+    }
+
+    const ctxPwr = pc?.getContext("2d");
+    const ctxYld = yc?.getContext("2d");
+
+    if (ctxPwr) {
+      window.powerChart = new Chart(ctxPwr, {
+        type: "line",
+        data: {
+          labels: times,
+          datasets: [
+            { label: "AC kW", data: ac, borderColor: "#2196f3", fill: false },
+            { label: "DC kW", data: dc, borderColor: "#e91e63", fill: false },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { position: "top" } },
+          scales: { x: { title: { display: true, text: "Time" } }, y: { title: { display: true, text: "kW" } } },
+        },
+      });
+    }
+
+    if (ctxYld) {
+      window.yieldChart = new Chart(ctxYld, {
+        type: "bar",
+        data: {
+          labels: yieldArr.map((y) => y.date || y.time || ""),
+          datasets: [
+            {
+              label: "Yield (kWh)",
+              data: yieldArr.map((y) => y.kwh || 0),
+              backgroundColor: "#4caf50",
+            },
+          ],
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: { legend: { display: false } },
+          scales: { y: { title: { display: true, text: "kWh" } } },
+        },
+      });
+    }
+  }
+
+  // --- Dropdown and Page Init ---
+  document.addEventListener("DOMContentLoaded", () => {
+    console.log("Inverter Analytics initializing...");
+    fetchPlants().then(() => fetchAnalytics("day"));
+
+    const btn = document.getElementById("plantBtn");
+    const menu = document.querySelector("#plant-dd .dd-menu");
+    if (btn && menu) btn.onclick = () => menu.classList.toggle("open");
+
+    const apply = document.getElementById("plantApply");
+    const cancel = document.getElementById("plantCancel");
+    if (apply && cancel) {
+      apply.onclick = () => {
+        menu.classList.remove("open");
+        fetchAnalytics("day");
+      };
+      cancel.onclick = () => menu.classList.remove("open");
+    }
   });
+// fix dropdown toggle close when clicking outside
+document.addEventListener("click", (e) => {
+  const dd = document.getElementById("plant-dd");
+  if (!dd) return;
+  const menu = dd.querySelector(".dd-menu");
+  if (!menu) return;
+  if (!dd.contains(e.target)) menu.classList.remove("open");
+});
 })();

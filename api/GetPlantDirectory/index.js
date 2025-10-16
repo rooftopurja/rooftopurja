@@ -1,50 +1,49 @@
-﻿// GetPlantDirectory — stable reader for the PlantDirectory table
-// npm i @azure/data-tables
-const { TableClient } = require("@azure/data-tables");
-
-const STORAGE_CONN = process.env.STORAGE_CONN || process.env.AzureWebJobsStorage;
-const TABLE = "PlantDirectory";
+﻿const { TableClient } = require("@azure/data-tables");
 
 module.exports = async function (context, req) {
   try {
-    if (!STORAGE_CONN) {
-      context.log.error("Missing AzureWebJobsStorage/STORAGE_CONN");
-      context.res = { status: 500, body: { error: "storage-connection-missing" } };
-      return;
-    }
+    const conn =
+      process.env.PLANT_DIRECTORY_TABLE_CONN ||
+      process.env.TABLES_CONN_STRING;
+    const tableName =
+      process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
 
-    const client = TableClient.fromConnectionString(STORAGE_CONN, TABLE);
-
+    context.log("TABLES_CONN_STRING:", process.env.TABLES_CONN_STRING);
+    context.log("PLANT_DIRECTORY_TABLE:", process.env.PLANT_DIRECTORY_TABLE);
+    const client = TableClient.fromConnectionString(conn, tableName);
     const rows = [];
-    for await (const e of client.listEntities()) {
-      const Plant_ID =
-        String(e.Plant_ID ?? e.plant_id ?? e.PartitionKey ?? e.RowKey ?? "").trim();
-      const Plant_Name =
-        String(e.Plant_Name ?? e.plant_name ?? e.name ?? `Plant ${Plant_ID}`).trim();
-      const Inverters =
-        e.Inverters ?? e.inverters ?? e.Devices ?? e.devices ?? e.Inverter_ID ?? "";
-
-      if (Plant_ID) rows.push({ Plant_ID, Plant_Name, Inverters });
+    for await (const r of client.listEntities()) {
+      if (!r.Plant_ID || !r.Plant_Name) continue;
+      const inv = (r.Inverters || "")
+        .split(",")
+        .map((x) => x.trim())
+        .filter(Boolean);
+      rows.push({ id: r.Plant_ID, name: r.Plant_Name, invIds: inv });
     }
 
-    rows.sort((a, b) => {
-      const na = Number(a.Plant_ID), nb = Number(b.Plant_ID);
-      if (!Number.isNaN(na) && !Number.isNaN(nb)) return na - nb;
-      return String(a.Plant_ID).localeCompare(String(b.Plant_ID));
-    });
+    // merge duplicates
+    const merged = Object.values(
+      rows.reduce((a, r) => {
+        if (!a[r.id]) a[r.id] = r;
+        else {
+          a[r.id].invIds = Array.from(new Set([...a[r.id].invIds, ...r.invIds]));
+        }
+        return a;
+      }, {})
+    );
 
     context.res = {
       status: 200,
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-      body: rows,
+      headers: { "Content-Type": "application/json" },
+      body: merged,
     };
   } catch (err) {
-    context.log.error("GetPlantDirectory failed:", err?.message || err);
-    // fail soft: return empty array so front-end keeps working
+    context.log.error(err);
     context.res = {
-      status: 200,
-      headers: { "Content-Type": "application/json", "Cache-Control": "no-store" },
-      body: [],
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+      body: { error: err.message },
     };
   }
 };
+
