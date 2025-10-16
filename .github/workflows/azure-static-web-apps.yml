@@ -1,4 +1,8 @@
 ﻿name: Azure Static Web Apps CI/CD
+concurrency:
+  group: swa-$\{{ github.ref }}
+  cancel-in-progress: true
+
 
 on:
   push:
@@ -23,3 +27,4 @@ jobs:
           output_location: "."
           skip_app_build: true   # static assets already present
           skip_api_build: false  # we need node_modules for Functions
+
