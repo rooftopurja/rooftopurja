@@ -579,35 +579,36 @@ async function loadPlants(){
   }
 }
 </script>
+
 <!-- meter-align-script -->
 <script>
 (function alignLatestTable(){
-  // Find the table in the "Latest Reading per Meter" card
-  var tbl = document.getElementById('latestTable');
-  if (!tbl) {
-    var cards = Array.from(document.querySelectorAll('h3, h4, .card-title'))
-      .filter(el => /Latest Reading per Meter/i.test((el.textContent||'')));
-    if (cards.length) {
-      var card = cards[0].closest('.card, section, div');
-      if (card) tbl = card.querySelector('table');
+  try{
+    var host = Array.from(document.querySelectorAll('h3, h4, .card-title,.card h3,.card h4'))
+      .find(el => /Latest Reading per Meter/i.test((el.textContent||'').trim()));
+    var tbl = host ? (host.closest('.card,section,div')?.querySelector('table')) : null;
+    if(!tbl) tbl = document.querySelector('table#latestTable') || document.querySelector('table');
+    if(!tbl) return;
+
+    var heads = Array.from(tbl.querySelectorAll('thead th')).map(th => (th.textContent||'').trim());
+    var centerColsByName = ['Meter_Reading','Total_Yield_Unit','Meter Reading','Total Yield'];
+    var idx = centerColsByName
+      .map(n => heads.findIndex(h => h === n))
+      .filter(i => i >= 0);
+
+    // If header text not found (no thead), fall back to numeric-detection centering
+    var bodyRows = Array.from(tbl.tBodies[0]?.rows || []);
+    if(idx.length){
+      bodyRows.forEach(tr => idx.forEach(i => tr.children[i]?.classList.add('t-center')));
+    }else{
+      bodyRows.forEach(tr=>{
+        Array.from(tr.cells).forEach(td=>{
+          var t = (td.textContent||'').replace(/[,\s]/g,'');
+          if (/^-?\d+(\.\d+)?(kWh|MWh|GWh)?$/.test(t)) td.classList.add('t-center');
+        });
+      });
     }
-  }
-  if (!tbl) return;
-
-  // Which columns to center?
-  var head = Array.from(tbl.querySelectorAll('thead th')).map(th => (th.textContent||'').trim());
-  var centerCols = ['Meter_Reading', 'Total_Yield_Unit'];  // change to right-align by swapping 't-center' to 't-right' below
-  var idx = centerCols.map(n => head.indexOf(n)).filter(i => i >= 0);
-
-  // Apply alignment
-  var body = tbl.tBodies[0];
-  if (!body) return;
-  Array.from(body.rows).forEach(function(tr){
-    idx.forEach(function(i){
-      var td = tr.children[i];
-      if (td) td.classList.add('t-center');
-    });
-  });
+  }catch(e){ console.warn('alignLatestTable:', e); }
 })();
 </script>
 <!-- /meter-align-script -->
@@ -629,6 +630,7 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
