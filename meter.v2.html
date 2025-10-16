@@ -580,38 +580,7 @@ async function loadPlants(){
 }
 </script>
 
-<!-- meter-align-script -->
-<script>
-(function alignLatestTable(){
-  try{
-    var host = Array.from(document.querySelectorAll('h3, h4, .card-title,.card h3,.card h4'))
-      .find(el => /Latest Reading per Meter/i.test((el.textContent||'').trim()));
-    var tbl = host ? (host.closest('.card,section,div')?.querySelector('table')) : null;
-    if(!tbl) tbl = document.querySelector('table#latestTable') || document.querySelector('table');
-    if(!tbl) return;
 
-    var heads = Array.from(tbl.querySelectorAll('thead th')).map(th => (th.textContent||'').trim());
-    var centerColsByName = ['Meter_Reading','Total_Yield_Unit','Meter Reading','Total Yield'];
-    var idx = centerColsByName
-      .map(n => heads.findIndex(h => h === n))
-      .filter(i => i >= 0);
-
-    // If header text not found (no thead), fall back to numeric-detection centering
-    var bodyRows = Array.from(tbl.tBodies[0]?.rows || []);
-    if(idx.length){
-      bodyRows.forEach(tr => idx.forEach(i => tr.children[i]?.classList.add('t-center')));
-    }else{
-      bodyRows.forEach(tr=>{
-        Array.from(tr.cells).forEach(td=>{
-          var t = (td.textContent||'').replace(/[,\s]/g,'');
-          if (/^-?\d+(\.\d+)?(kWh|MWh|GWh)?$/.test(t)) td.classList.add('t-center');
-        });
-      });
-    }
-  }catch(e){ console.warn('alignLatestTable:', e); }
-})();
-</script>
-<!-- /meter-align-script -->
 <!-- site-nav-mount -->
 <div id="topnav" data-active=""></div>
 <!-- /site-nav-mount -->
@@ -632,6 +601,25 @@ async function loadPlants(){
   }catch(e){}
 })();
 </script>
+<!-- meter-align-script -->
+<script>
+(function alignLatestTable(){
+  try{
+    var host = Array.from(document.querySelectorAll('h3, h4, .card-title,.card h3,.card h4'))
+      .find(el => /Latest Reading per Meter/i.test((el.textContent||'').trim()));
+    var tbl = host ? (host.closest('.card,section,div')?.querySelector('table')) : null;
+    if(!tbl) tbl = document.querySelector('table#latestTable') || document.querySelector('table'); if(!tbl) return;
+
+    var heads = Array.from(tbl.querySelectorAll('thead th')).map(th => (th.textContent||'').trim());
+    var names = ['Meter_Reading','Total_Yield_Unit','Meter Reading','Total Yield'];
+    var idx = names.map(n => heads.findIndex(h => h === n)).filter(i => i >= 0);
+
+    var bodyRows = Array.from(tbl.tBodies[0]?.rows || []);
+    if(idx.length){ bodyRows.forEach(tr => idx.forEach(i => tr.children[i]?.classList.add('t-center'))); }
+  }catch(e){ console.warn('alignLatestTable:', e); }
+})();
+</script>
+<!-- /meter-align-script -->
 </body>
 </html>
 
@@ -650,6 +638,7 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
