@@ -1,7 +1,7 @@
-{
+﻿{
   "bindings": [
     { "authLevel": "anonymous", "type": "httpTrigger", "direction": "in",
-      "name": "req", "methods": ["get"], "route": "GetPremier300MeterAll" },
+      "name": "req", "methods": [ "get" ], "route": "GetPremier300MeterAll" },
     { "type": "http", "direction": "out", "name": "$return" }
   ],
   "scriptFile": "index.js"
