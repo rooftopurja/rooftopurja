@@ -1,12 +1,13 @@
-{
-  "name": "getplantdirectory",
-  "version": "1.0.0",
-  "private": true,
-  "engines": {
-    "node": ">=20 <21"
-  },
-  "dependencies": {
-    "@azure/data-tables": "^13.3.1",
-    "@azure/identity": "^4.2.0"
-  }
+﻿{
+    "name":  "getplantdirectory",
+    "version":  "1.0.0",
+    "private":  true,
+    "engines":  {
+                    "node":  "\u003e=18 \u003c21"
+                },
+    "dependencies":  {
+                         "@azure/data-tables":  "^13.3.1",
+                         "@azure/identity":"4.x"
+                     }
 }
+
