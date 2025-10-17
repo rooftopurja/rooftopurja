@@ -1,0 +1,160 @@
+﻿   1: <!doctype html>
+   2: <html lang="en">
+   3: <head>
+   4:   <script>window.bust=Date.now();</script>
+   5: 
+   6:   <meta charset="utf-8" />
+   7:   <title>Meter - Solar Plant Dashboard</title>
+   8:   <meta name="viewport" content="width=device-width, initial-scale=1" />
+   9:   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  10:   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
+  11:   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  12:   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  13:   <style>
+  14:     /* ========= simple knobs (change just these) ========= */
+  15:     :root{
+  16:       --h-kpi: 81px;     /* shorter KPI                          */
+  17:       --h-pie: 81px;     /* smaller pie                          */
+  18:       --h-bar: 315px;     /* big bar/line                         */
+  19:       --h-table: 315px;   /* big table                            */
+  20: 
+  21:       --bg:#fff; --fg:#0f172a; --muted:#64748b; --card:#f8fafc; --border:#e5e7eb;
+  22:       --accent:#2563eb; --chip:#eef2ff; --chip-fg:#1e3a8a;
+  23:     }
+  24: 
+  25:     *{box-sizing:border-box}
+  26:     html,body{height:100%}
+  27:     body{margin:0;background:var(--bg);color:var(--fg);font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif}
+  28:     .wrap{max-width:1400px;margin:10px auto 20px;padding:0 16px}
+  29:     header{font-size:20px;font-weight:800;letter-spacing:.2px;margin:2px 0 8px}
+  30: 
+  31:     /* filters */
+  32:     .filters{display:grid;grid-template-columns:1.2fr auto auto 1fr 1fr auto;gap:10px;align-items:center;
+  33:       background:var(--card);border:1px solid var(--border);border-radius:12px;padding:10px;margin-bottom:10px}
+  34:     .filters label{font-size:12px;color:var(--muted);display:block;margin-bottom:4px}
+  35:     .filters input[type="date"]{padding:8px 10px;border:1px solid var(--border);border-radius:8px;font:inherit;width:100%}
+  36:     .preset{display:flex;gap:6px}
+  37:     .preset .chip{border:1px solid var(--border);background:#fff;border-radius:999px;padding:6px 10px;font-size:13px;cursor:pointer}
+  38:     .preset .chip.active{background:var(--accent);border-color:var(--accent);color:#fff}
+  39:     .btn{background:var(--accent);color:#fff;border:none;border-radius:10px;padding:10px 14px;font-weight:700;cursor:pointer}
+  40: 
+  41:     /* plant dropdown */
+  42:     .plant-select{position:relative}
+  43:     .plant-btn{width:100%;text-align:left;padding:10px;border:1px solid var(--border);background:#fff;border-radius:8px;cursor:pointer}
+  44:     .dropdown{position:absolute;z-index:20;top:100%;left:0;right:0;background:#fff;border:1px solid var(--border);border-radius:10px;margin-top:6px;max-height:320px;overflow:auto;box-shadow:0 10px 30px rgba(0,0,0,.08);display:none}
+  45:     .dropdown.open{display:block}
+  46:     .dd-row{display:flex;gap:10px;align-items:center;padding:10px 12px;border-bottom:1px solid #f1f5f9}
+  47:     .dd-row:last-child{border-bottom:none}
+  48:     .dd-row input{transform:scale(1.1)}
+  49:     .dd-h{font-weight:700}
+  50: 
+  51:     /* 2' '2 layout ''' no viewport clipping */
+  52:     .grid{
+  53:       display:grid;
+  54:       grid-template-columns:1fr 1fr;
+  55:       grid-template-rows:auto auto;
+  56:       gap:12px;
+  57:     }
+  58:     .card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:12px;overflow:hidden}
+  59:     .card-title{font-weight:800;margin-bottom:6px;display:flex;align-items:center;gap:8px}
+  60:     .badge{background:#eef2ff;color:#3730a3;border-radius:999px;padding:4px 8px;font-size:12px}
+  61:     .hint{font-size:12px;color:var(--muted);margin-top:2px}
+  62: 
+  63:     /* KPI compact */
+  64:     .kpi-wrap{height:var(--h-kpi);display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center}
+  65:     .kpi-label{color:var(--muted);letter-spacing:.04em}
+  66:     .kpi-value{font-size:42px;font-weight:800;line-height:1;margin-top:4px}
+  67:     .kpi-sub{color:var(--muted);margin-top:2px;font-size:13px}
+  68: 
+  69:     /* charts & table boxes */
+  70:     .pie-wrap{display:flex;align-items:center;justify-content:center;height:var(--h-pie)}
+  71:     .bar-wrap{height:var(--h-bar)}
+  72:     table{width:max(100%, 1200px);border-collapse:collapse;font-size:13px;table-layout:auto;white-space:nowrap}
+  73:     thead th{position:sticky;top:0;background:var(--card);border-bottom:1px solid var(--border);padding:8px;text-align:left;font-weight:800}
+  74:     tbody td{border-bottom:1px solid var(--border);padding:8px}
+  75:     .muted{color:var(--muted)}
+  76:     .scroll{height:calc(var(--h-table) - 36px);overflow:auto;overflow-x:auto}
+  77:   </style>
+  78: <style>.wrap{margin-top:6px}</style>
+  79:   <script>
+  80:     // Fills DisplayPlant for every row, and back-fills Plant_Name if missing.
+  81:     function hydrateDisplayPlant(rows){
+  82:       const map = Object.create(null);
+  83: 
+  84:       // Learn plant names from any row that already has one
+  85:       for (const r of rows){
+  86:         const name = ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || "").trim();
+  87:         if (!name) continue;
+  88:         if (r.Meter_Serial_No) map["SN:"+r.Meter_Serial_No] = name;
+  89:         if (r.Meter_ID)        map["ID:"+r.Meter_ID]        = name;
+  90:         if (r.Plant_ID != null && r.Plant_ID !== "") map["PID:"+r.Plant_ID] = name;
+  91:       }
+  92: 
+  93:       // Stamp DisplayPlant on every row (and back-fill Plant_Name if empty)
+  94:       for (const r of rows){
+  95:         r.DisplayPlant =
+  96:           ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) && (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) ||
+  97:           (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
+  98:           (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
+  99:           (r.Plant_ID != null && map["PID:"+r.Plant_ID]) ||
+ 100:           "Unknown";
+ 101: 
+ 102:         if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || !(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) {
+ 103:   const __nm = r.DisplayPlant || r.Plant_Name || "Unknown";
+ 104:   if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = __nm;
+ 105:   if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = __nm;
+ 106: }
+ 107:       }
+ 108:       return rows;
+ 109:     }
+ 110:   </script>
+ 111: <script>
+ 112: // --- Plant name enrichment ----------------------------------------------
+ 113: // Build a name map from directory + any rows that already have names
+ 114: function buildPlantNameMap(dirRows, meterRows){
+ 115:   const map = Object.create(null);
+ 116:   const add = (k,v)=>{ if(k && v){ map[k]=v; } };
+ 117: 
+ 118:   // From Plant Directory (prefer canonical names)
+ 119:   for (const d of (dirRows||[])) {
+ 120:     const name = ((d.DisplayPlant||(d.DisplayPlant||d.Plant_Name))||"").trim();
+ 121:     if (!name) continue;
+ 122:     if (d.Plant_ID!=null && d.Plant_ID!=="") add("PID:"+d.Plant_ID, name);
+ 123:     if (d.Meter_Serial_No)                  add("SN:"+d.Meter_Serial_No, name);
+ 124:     if (d.Meter_ID)                         add("ID:"+d.Meter_ID, name);
+ 125:   }
+ 126: 
+ 127:   // Also learn from any meter rows that already have names
+ 128:   for (const r of (meterRows||[])) {
+ 129:     const name = ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name))||"").trim();
+ 130:     if (!name) continue;
+ 131:     if (r.Plant_ID!=null && r.Plant_ID!=="") add("PID:"+r.Plant_ID, name);
+ 132:     if (r.Meter_Serial_No)                  add("SN:"+r.Meter_Serial_No, name);
+ 133:     if (r.Meter_ID)                         add("ID:"+r.Meter_ID, name);
+ 134:   }
+ 135:   return map;
+ 136: }
+ 137: 
+ 138: // Enrich rows: back-fill Plant_Name and set DisplayPlant
+ 139: function enrichRowsWithPlantNames(rows, dirRows){
+ 140:   const map = buildPlantNameMap(dirRows, rows);
+ 141:   for (const r of (rows||[])) {
+ 142:     // Figure out best name
+ 143:     const learned =
+ 144:       ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) && (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) ||
+ 145:       (r.Plant_ID!=null && map["PID:"+r.Plant_ID]) ||
+ 146:       (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
+ 147:       (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
+ 148:       "";
+ 149: 
+ 150:     // Back-fill Plant_Name if missing
+ 151:     if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || !(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) {
+ 152:   const __nm = learned || "Unknown";
+ 153:   if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = __nm;
+ 154:   if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = __nm;
+ 155: }
+ 156: 
+ 157:     // Set DisplayPlant used by UI
+ 158:     r.DisplayPlant = (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || learned || "Unknown";
+ 159:   }
+ 160:   return rows;
