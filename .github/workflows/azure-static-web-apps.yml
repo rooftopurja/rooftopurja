@@ -28,3 +28,4 @@ jobs:
           api_location: "api"
           skip_app_build: false
           skip_api_build: false
+
