@@ -48,7 +48,7 @@
     .dd-row input{transform:scale(1.1)}
     .dd-h{font-weight:700}
 
-    /* 2Ã—2 layout â€” no viewport clipping */
+    /* 2Ãƒâ€”2 layout Ã¢â‚¬â€ no viewport clipping */
     .grid{
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -245,7 +245,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 
       <!-- BOTTOM: BAR+LINE + TABLE -->
       <div class="card">
-        <div class="card-title">Last 9 Days â€” Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
+        <div class="card-title">Last 9 Days Ã¢â‚¬â€ Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
         <div class="hint">Bars = end-of-day cumulative total across selected plants (unit). Line = Daily kWh.</div>
         <div class="bar-wrap"><canvas id="barLine"></canvas></div>
       </div>
@@ -385,7 +385,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
       $('#kpiTotal').textContent = fmt(totalMWh*u.scale,3);
       $('#kpiUnit').textContent  = `(${u.unit})`;
       $('#pieBadge').textContent = u.unit;   // keep Pie in sync with KPI
-      $('#kpiHint').textContent  = `Range: ${ymd(start)} ? ${ymd(end)} â€¢ Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
+      $('#kpiHint').textContent  = `Range: ${ymd(start)} ? ${ymd(end)} Ã¢â‚¬Â¢ Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
     }
 
     function renderTable(rows){
@@ -518,7 +518,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 </style>
 <footer class="sp-footer">
   <div class="inner">
-    <div>Â© Solar Plant Dashboard</div>
+    <div>Ã‚Â© Solar Plant Dashboard</div>
   </div>
 </footer>
 <!-- ===== End Footer ===== -->
@@ -536,7 +536,7 @@ async function fetchJSONSafe(url){
 // Use the safe helper everywhere
 async function fetchJSON(url){ return fetchJSONSafe(url); }
 
-// Tolerant replacement for loadPlants (handles [] or {data:[â€¦]} or null)
+// Tolerant replacement for loadPlants (handles [] or {data:[Ã¢â‚¬Â¦]} or null)
 async function loadPlants(){
   try{
     const js = await fetchJSONSafe(`${API_BASE}/api/GetPlantDirectory?cb=${Date.now()}`);
