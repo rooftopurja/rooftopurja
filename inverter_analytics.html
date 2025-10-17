@@ -1,8 +1,8 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Inverter Analytics â€” Solar Plant Dashboard</title>
+  <title>Inverter Analytics Ã¢â‚¬â€ Solar Plant Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="favicon.ico" />
   <link rel="stylesheet" href="nav.css" />
@@ -35,19 +35,21 @@
 <link rel="stylesheet" href="nav.css">
 <script defer src="nav.js"></script>
 <!-- /site-nav-head -->
-<link rel="stylesheet" href="styles.css?v=1760687423">
+<link rel="stylesheet" href="styles.css?v=1760695346">
 </head>
 
 <header class="topbar">
-  <h1>Solar Plant Dashboard</h1>
-  <nav class="tabs">
-    <a data-page="meter.v2.html"               href="meter.v2.html">Meter</a>
-    <a data-page="inverter_analytics.html"     href="inverter_analytics.html">Inverter Analytics</a>
-    <a data-page="inverter_data_overview.html" href="inverter_data_overview.html">Inverter Data Overview</a>
-    <a data-page="inverter_faults.html"        href="inverter_faults.html">Inverter Faults</a>
-    <a data-page="maintenance.html"            href="maintenance.html">Maintenance</a>
-  </nav>
+  <div class="container">
+    <nav class="tabs">
+      <a href="meter.v2.html"            data-tab="meter">Meter</a>
+      <a href="inverter_analytics.html"  data-tab="inverter_analytics">Inverter Analytics</a>
+      <a href="inverter_data_overview.html" data-tab="data_overview">Inverter Data Overview</a>
+      <a href="inverter_faults.html"     data-tab="faults">Inverter Faults</a>
+      <a href="maintenance.html"         data-tab="maintenance">Maintenance</a>
+    </nav>
+  </div>
 </header>
+
 
 
 
@@ -93,8 +95,8 @@
 
       <!-- Date -->
       <div class="pill"><input id="datePick" type="date" /></div>
-      <button id="prevBtn" class="btn">â—€</button>
-      <button id="nextBtn" class="btn">â–¶</button>
+      <button id="prevBtn" class="btn">Ã¢â€”â‚¬</button>
+      <button id="nextBtn" class="btn">Ã¢â€“Â¶</button>
       <button id="todayBtn" class="btn">Today</button>
     </div>
 
@@ -146,6 +148,7 @@
 </script>
 </body>
 </html>
+
 
 
 

@@ -1,12 +1,19 @@
-document.addEventListener("DOMContentLoaded", () => {
-  const path = location.pathname.split("/").pop() || "meter.v2.html";
-  document.querySelectorAll(".tabs a").forEach(a => {
-    const want = a.getAttribute("data-page") || a.getAttribute("href");
-    if (want && path.toLowerCase().endsWith(want.toLowerCase())) a.classList.add("active");
-  });
-  // clean any stray leading "\" or "\r" text node once
-  const firstNode = document.body.firstChild;
-  if (firstNode && firstNode.nodeType === 3) {
-    firstNode.nodeValue = firstNode.nodeValue.replace(/^[\\\r\s]+/, "");
-  }
-});
+﻿(function(){
+  try{
+    var path = (location.pathname||"").toLowerCase();
+    var map = {
+      "meter.v2.html":"meter",
+      "inverter_analytics.html":"inverter_analytics",
+      "inverter_data_overview.html":"data_overview",
+      "inverter_faults.html":"faults",
+      "maintenance.html":"maintenance",
+      "index.html":"meter"
+    };
+    var key = Object.keys(map).find(k=>path.endsWith("/"+k)) || "meter.v2.html";
+    var tab = map[key];
+    document.querySelectorAll(".tabs a").forEach(a=>{
+      var t = a.getAttribute("data-tab");
+      if(t===tab){ a.classList.add("active"); }
+    });
+  }catch(e){}
+})();

@@ -1,10 +1,10 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <script>window.bust=Date.now();</script>
 
   <meta charset="utf-8" />
-  <title>Meter — Solar Plant Dashboard</title>
+  <title>Meter â€” Solar Plant Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
@@ -48,7 +48,7 @@
     .dd-row input{transform:scale(1.1)}
     .dd-h{font-weight:700}
 
-    /* 2×2 layout — no viewport clipping */
+    /* 2Ã—2 layout â€” no viewport clipping */
     .grid{
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -181,15 +181,17 @@ function enrichRowsWithPlantNames(rows, dirRows){
 </script>
 <!-- ===== End Top Nav ===== -->
   <header class="topbar">
-  <h1>Solar Plant Dashboard</h1>
-  <nav class="tabs">
-    <a data-page="meter.v2.html"               href="meter.v2.html">Meter</a>
-    <a data-page="inverter_analytics.html"     href="inverter_analytics.html">Inverter Analytics</a>
-    <a data-page="inverter_data_overview.html" href="inverter_data_overview.html">Inverter Data Overview</a>
-    <a data-page="inverter_faults.html"        href="inverter_faults.html">Inverter Faults</a>
-    <a data-page="maintenance.html"            href="maintenance.html">Maintenance</a>
-  </nav>
+  <div class="container">
+    <nav class="tabs">
+      <a href="meter.v2.html"            data-tab="meter">Meter</a>
+      <a href="inverter_analytics.html"  data-tab="inverter_analytics">Inverter Analytics</a>
+      <a href="inverter_data_overview.html" data-tab="data_overview">Inverter Data Overview</a>
+      <a href="inverter_faults.html"     data-tab="faults">Inverter Faults</a>
+      <a href="maintenance.html"         data-tab="maintenance">Maintenance</a>
+    </nav>
+  </div>
 </header>
+
 
 
 
@@ -252,7 +254,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 
       <!-- BOTTOM: BAR+LINE + TABLE -->
       <div class="card">
-        <div class="card-title">Last 9 Days — Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
+        <div class="card-title">Last 9 Days â€” Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
         <div class="hint">Bars = end-of-day cumulative total across selected plants (unit). Line = Daily kWh.</div>
         <div class="bar-wrap"><canvas id="barLine"></canvas></div>
       </div>
@@ -392,7 +394,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
       $('#kpiTotal').textContent = fmt(totalMWh*u.scale,3);
       $('#kpiUnit').textContent  = `(${u.unit})`;
       $('#pieBadge').textContent = u.unit;   // keep Pie in sync with KPI
-      $('#kpiHint').textContent  = `Range: ${ymd(start)} ? ${ymd(end)} • Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
+      $('#kpiHint').textContent  = `Range: ${ymd(start)} ? ${ymd(end)} â€¢ Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
     }
 
     function renderTable(rows){
@@ -525,7 +527,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 </style>
 <footer class="sp-footer">
   <div class="inner">
-    <div>© Solar Plant Dashboard</div>
+    <div>Â© Solar Plant Dashboard</div>
   </div>
 </footer>
 <!-- ===== End Footer ===== -->
@@ -543,7 +545,7 @@ async function fetchJSONSafe(url){
 // Use the safe helper everywhere
 async function fetchJSON(url){ return fetchJSONSafe(url); }
 
-// Tolerant replacement for loadPlants (handles [] or {data:[…]} or null)
+// Tolerant replacement for loadPlants (handles [] or {data:[â€¦]} or null)
 async function loadPlants(){
   try{
     const js = await fetchJSONSafe(`${API_BASE}/api/GetPlantDirectory?cb=${Date.now()}`);
@@ -641,6 +643,7 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 

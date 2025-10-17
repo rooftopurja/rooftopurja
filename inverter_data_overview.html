@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html>
   <head>
     <meta charset='utf-8'>
     <meta name='viewport' content='width=device-width, initial-scale=1'>
-    <title>Inverter Data Overview — Solar Monitoring</title>
+    <title>Inverter Data Overview â€” Solar Monitoring</title>
     <style>
       body{font-family:system-ui,Segoe UI,Arial,sans-serif}
       main{padding:24px}
@@ -21,19 +21,21 @@
 <link rel="stylesheet" href="nav.css">
 <script defer src="nav.js"></script>
 <!-- /site-nav-head -->
-<link rel="stylesheet" href="styles.css?v=1760687423">
+<link rel="stylesheet" href="styles.css?v=1760695346">
 </head>
   
 <header class="topbar">
-  <h1>Solar Plant Dashboard</h1>
-  <nav class="tabs">
-    <a data-page="meter.v2.html"               href="meter.v2.html">Meter</a>
-    <a data-page="inverter_analytics.html"     href="inverter_analytics.html">Inverter Analytics</a>
-    <a data-page="inverter_data_overview.html" href="inverter_data_overview.html">Inverter Data Overview</a>
-    <a data-page="inverter_faults.html"        href="inverter_faults.html">Inverter Faults</a>
-    <a data-page="maintenance.html"            href="maintenance.html">Maintenance</a>
-  </nav>
+  <div class="container">
+    <nav class="tabs">
+      <a href="meter.v2.html"            data-tab="meter">Meter</a>
+      <a href="inverter_analytics.html"  data-tab="inverter_analytics">Inverter Analytics</a>
+      <a href="inverter_data_overview.html" data-tab="data_overview">Inverter Data Overview</a>
+      <a href="inverter_faults.html"     data-tab="faults">Inverter Faults</a>
+      <a href="maintenance.html"         data-tab="maintenance">Maintenance</a>
+    </nav>
+  </div>
 </header>
+
 
 
 
@@ -117,7 +119,7 @@
             <th>DC Voltage (V)</th>
             <th>DC Current (A)</th>
             <th>MPPTs</th>
-            <th>Temp (°C)</th>
+            <th>Temp (Â°C)</th>
             <th>Status</th>
           </tr>
         </thead>
@@ -184,8 +186,8 @@
 </style>
 <footer class="sp-footer">
   <div class="inner">
-    <div>© Solar Plant Dashboard</div>
-    <div><a href="/meter.html">Meter</a> · <a href="/inverter_analytics.html">Inverter Analytics</a> · <a href="/maintenance.html">Maintenance</a></div>
+    <div>Â© Solar Plant Dashboard</div>
+    <div><a href="/meter.html">Meter</a> Â· <a href="/inverter_analytics.html">Inverter Analytics</a> Â· <a href="/maintenance.html">Maintenance</a></div>
   </div>
 </footer>
 <!-- ===== End Footer ===== -->
@@ -208,6 +210,7 @@
 </script>
 </body>
 </html>
+
 
 
 
