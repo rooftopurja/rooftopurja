@@ -311,7 +311,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
     document.addEventListener('click', closeDD);
 
     async function loadPlants(){
-  // Try local API first, then fall back to your working azurestaticapps.net runtime
+  // Try local API first, then fall back to your working azurestaticapps host
   const bases = ["", "https://gray-desert-0663e5d00.2.azurestaticapps.net"];
   const paths = ["/api/plants", "/api/PlantDirectory"];
 
@@ -319,6 +319,17 @@ function enrichRowsWithPlantNames(rows, dirRows){
     for (const p of paths){
       try{
         const r = await fetch(base + p, { headers:{ "accept":"application/json" }});
+        if (!r.ok){ console.warn("plants fetch failed:", r.status, base+p); continue; }
+        const j = await r.json();
+        const list = Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
+        if (Array.isArray(list)) return list;
+      }catch(err){
+        console.warn("plants fetch error:", (err && err.message) || err, base+p);
+      }
+    }
+  }
+  return [];
+}});
         if (!r.ok){ console.warn("plants fetch failed:", r.status, base+p); continue; }
         const j = await r.json();
         // both { plants:[...] } and [...] are accepted
@@ -515,28 +526,28 @@ function enrichRowsWithPlantNames(rows, dirRows){
     }
 
     /* ---------- main ---------- */
-    async function run(){
-      try{
-        $('#applyBtn').disabled=true;
-        let all = await loadMeters();
-/* already hydrated */
-        const sel = filterByPlants(all);
-        console.log(`Loaded rows: ${all.length} Selected: ${sel.length}`); console.log("After hydrate:", all.length, "rows"); console.log("After hydrate:", all.length, "rows"); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); console.log("After backfill:", all.length, "rows, sample:", (all[0]||{}).Plant_Name, (all[0]||{}).DisplayPlant); renderKPI(sel);
-        renderPie(sel);
-        renderBarLine(sel);
-        renderTable(sel);
-      }catch(e){
-        console.error(e); console.warn("UI notice:", "Failed to load data");
-      }finally{ $('#applyBtn').disabled=false; }
-    }
+async function run(){
+  try{
+    document.getElementById("applyBtn").disabled = true;
+    const all = await loadMeters();
+    const sel = filterByPlants(all);
+    renderKPI(sel);
+    renderPie(sel);
+    renderBarLine(sel);
+    renderTable(sel);
+  }catch(e){
+    console.error(e); console.warn("UI notice:", "Failed to load data");
+  }finally{
+    document.getElementById("applyBtn").disabled = false;
+  }
+}
 
-    document.addEventListener('DOMContentLoaded', async ()=>{
-      setDefaults();
-      await loadPlants();
-      $('#applyBtn').addEventListener('click', run);
-      await run();
-    });
-  </script>
+document.addEventListener("DOMContentLoaded", async ()=>{
+  setDefaults();
+  await loadPlants();
+  document.getElementById("applyBtn").addEventListener("click", run);
+  await run();
+});</script>
 <!-- ===== Small Footer ===== -->
 <style>
   .sp-footer{margin-top:12px;border-top:1px solid #e5e7eb;background:#fff}
@@ -568,7 +579,7 @@ async function fetchJSON(url){ return fetchJSONSafe(url); }
 
 // Tolerant replacement for loadPlants (handles [] or {data:[''']} or null)
 async function loadPlants(){
-  // Try local API first, then fall back to your working azurestaticapps.net runtime
+  // Try local API first, then fall back to your working azurestaticapps host
   const bases = ["", "https://gray-desert-0663e5d00.2.azurestaticapps.net"];
   const paths = ["/api/plants", "/api/PlantDirectory"];
 
@@ -576,6 +587,17 @@ async function loadPlants(){
     for (const p of paths){
       try{
         const r = await fetch(base + p, { headers:{ "accept":"application/json" }});
+        if (!r.ok){ console.warn("plants fetch failed:", r.status, base+p); continue; }
+        const j = await r.json();
+        const list = Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
+        if (Array.isArray(list)) return list;
+      }catch(err){
+        console.warn("plants fetch error:", (err && err.message) || err, base+p);
+      }
+    }
+  }
+  return [];
+}});
         if (!r.ok){ console.warn("plants fetch failed:", r.status, base+p); continue; }
         const j = await r.json();
         // both { plants:[...] } and [...] are accepted
@@ -726,6 +748,7 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
