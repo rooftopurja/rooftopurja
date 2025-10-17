@@ -1,23 +1,30 @@
-﻿import { tableClient } from "../_shared/table.js";
-
+﻿/**
+ * Returns { plants: [{ id, name }] }.
+ * If env PLANTS_JSON is set to a JSON array, that is used.
+ * Else we return a small safe fallback list so UI keeps working.
+ */
 export default async function (context, req) {
   try {
-    const client = tableClient("PlantDirectory");
-    const plants = [];
-    for await (const e of client.listEntities()) {
-      const name =
-        (e.DisplayPlant && String(e.DisplayPlant).trim()) ||
-        (e.Plant_Name && String(e.Plant_Name).trim()) || "";
-      const id =
-        (e.Plant_ID != null && String(e.Plant_ID).trim()) ||
-        (e.RowKey && String(e.RowKey).trim()) ||
-        (e.PartitionKey && String(e.PartitionKey).trim()) || "";
-      if (name && id) plants.push({ id, name });
+    let plants;
+    // Optional: allow overriding via environment
+    const raw = process.env.PLANTS_JSON;
+    if (raw) {
+      try { plants = JSON.parse(raw); } catch { /* fall back */ }
     }
-    plants.sort((a,b)=>a.name.localeCompare(b.name));
-    context.res = { status: 200, headers: { "content-type": "application/json" }, body: { plants } };
-  } catch (err) {
-    context.log.error(err);
-    context.res = { status: 500, body: { error: String(err?.message || err) } };
+    if (!Array.isArray(plants)) {
+      plants = [
+        { id: "1",  name: "ESIC_Kalaburagi_Hospital" },
+        { id: "9",  name: "OLF_Dehradun_Admin" },
+        { id: "11", name: "ESIC_Kalaburagi_PRA_Building" }
+      ];
+    }
+    context.res = {
+      status: 200,
+      headers: { "content-type": "application/json" },
+      body: { plants }
+    };
+  } catch (e) {
+    context.log.error("plants endpoint error:", e?.message || e);
+    context.res = { status: 500, body: { error: String(e?.message || e) } };
   }
 }
