@@ -1,7 +1,5 @@
-﻿.topbar{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);z-index:10}
+﻿.topbar{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1px solid var(--line)}
 .topbar .container{max-width:1200px;margin:0 auto;padding:10px 16px}
-.tabs{display:flex;flex-wrap:wrap;gap:10px}
-.tabs a{display:inline-block;text-decoration:none;color:#334155;
-  padding:8px 12px;border:1px solid var(--line);border-radius:999px;background:#fff}
-.tabs a:hover{background:#f4f6ff;border-color:#d9e2ff;color:#0b53e6}
-.tabs a.active{background:#e7efff;color:#0b53e6;border-color:#cfe0ff;font-weight:600}
+.topbar nav{display:flex;gap:10px;flex-wrap:wrap}
+.topbar a{display:inline-block;padding:8px 12px;border-radius:12px;text-decoration:none;color:#334155}
+.topbar a:hover,.topbar a.active{background:#eef2ff;color:#0b53e6}
