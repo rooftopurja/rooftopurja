@@ -7,7 +7,7 @@ import { TableServiceClient } from "@azure/data-tables";
  * 2) STORAGE_ACCOUNT_NAME + Managed Identity (DefaultAzureCredential)
  */
 export function getServiceClient() {
-  const conn = process.env.TABLES_CONN;
+  const conn = process.env.TABLES_CONN || process.env.TABLES_CONNECTION_STRING || process.env.STORAGE_CONNECTION_STRING;
   const acct = process.env.STORAGE_ACCOUNT_NAME || process.env.STORAGE_ACCOUNT || process.env.AZURE_STORAGE_ACCOUNT;
   if (conn && conn.trim()) {
     return TableServiceClient.fromConnectionString(conn);
@@ -39,3 +39,4 @@ export async function queryRows(client, filter, top = 1000) {
   for await (const r of iter) rows.push(r);
   return rows;
 }
+
