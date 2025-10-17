@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <script>window.bust=Date.now();</script>
@@ -311,7 +311,20 @@ function enrichRowsWithPlantNames(rows, dirRows){
     document.addEventListener('click', closeDD);
 
     async function loadPlants(){
-      const res = await fetch(`${API_BASE}/api/GetPlantDirectory?${window.bust}`);
+  const endpoints = ["/api/plants", "/api/PlantDirectory"];
+  for (const ep of endpoints){
+    try{
+      const r = await fetch(ep, { headers:{ "accept":"application/json" }});
+      if (!r.ok) { console.warn("plants fetch failed:", r.status); continue; }
+      const j = await r.json();
+      return Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
+    }catch(err){
+      console.warn("plants fetch error:", err?.message || err);
+    }
+  }
+  // give the UI a safe fallback so it still renders
+  return [];
+}/api/GetPlantDirectory?${window.bust}`);
       const js = await res.json();
       plants = (js?.data||[]).map(p=>({Plant_ID:Number(p.Plant_ID), Plant_Name:String((p.DisplayPlant||(p.DisplayPlant||p.Plant_Name)))}));
       plantMap = new Map(plants.map(p=>[p.Plant_ID,(p.DisplayPlant||(p.DisplayPlant||p.Plant_Name))])); // from PlantDirectory schema (Plant_ID, Plant_Name) :contentReference[oaicite:2]{index=2}
@@ -538,8 +551,20 @@ async function fetchJSON(url){ return fetchJSONSafe(url); }
 
 // Tolerant replacement for loadPlants (handles [] or {data:[''']} or null)
 async function loadPlants(){
-  try{
-    const js = await fetchJSONSafe(`${API_BASE}/api/GetPlantDirectory?cb=${Date.now()}`);
+  const endpoints = ["/api/plants", "/api/PlantDirectory"];
+  for (const ep of endpoints){
+    try{
+      const r = await fetch(ep, { headers:{ "accept":"application/json" }});
+      if (!r.ok) { console.warn("plants fetch failed:", r.status); continue; }
+      const j = await r.json();
+      return Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
+    }catch(err){
+      console.warn("plants fetch error:", err?.message || err);
+    }
+  }
+  // give the UI a safe fallback so it still renders
+  return [];
+}/api/GetPlantDirectory?cb=${Date.now()}`);
     const arr = Array.isArray(js?.data) ? js.data
               : Array.isArray(js)      ? js
               : [];
@@ -667,6 +692,8 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
+
 
 
 
