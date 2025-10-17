@@ -1,4 +1,4 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <script>window.bust=Date.now();</script>
@@ -496,7 +496,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
         renderBarLine(sel);
         renderTable(sel);
       }catch(e){
-        console.error(e); alert('Failed to load data: '+(e.message||e));
+        console.error(e); console.warn("UI notice:", "Failed to load data"););
       }finally{ $('#applyBtn').disabled=false; }
     }
 
@@ -614,6 +614,41 @@ async function loadPlants(){
 </script>
 <!-- /meter-align-script -->
 <script src="nav.js" defer></script>
+
+<script>
+  (function(){
+    async function fillPlants(){
+      try{
+        const r = await fetch('/api/plants');
+        if(!r.ok) { console.warn('plants fetch failed:', r.status); return; }
+        const j = await r.json();
+        const list = (j.plants||[]).sort((a,b)=>String(a.name).localeCompare(b.name));
+        var sel = document.querySelector('[data-plant-select]') || document.querySelector('select#plantSelect') || null;
+        if(!sel){
+          // create a simple dropdown if none exists
+          const host = document.querySelector('.filters') || document.body;
+          sel = document.createElement('select');
+          sel.id = 'plantSelect';
+          sel.setAttribute('data-plant-select','');
+          sel.style.margin = '8px';
+          host.prepend(sel);
+        }
+        sel.innerHTML = '';
+        var optAll = document.createElement('option');
+        optAll.value = ''; optAll.textContent = 'All Plants';
+        sel.appendChild(optAll);
+        for(const p of list){
+          const o = document.createElement('option');
+          o.value = p.id; o.textContent = p.name;
+          sel.appendChild(o);
+        }
+      }catch(e){ console.warn('plants error', e); }
+    }
+    document.readyState === 'loading'
+      ? document.addEventListener('DOMContentLoaded', fillPlants)
+      : fillPlants();
+  })();
+</script>
 </body>
 </html>
 
@@ -632,6 +667,9 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
+
+
 
 
 
