@@ -1,5 +1,6 @@
-﻿.topbar{position:sticky;top:0;z-index:100;background:#fff;border-bottom:1px solid var(--line)}
-.topbar .container{max-width:1200px;margin:0 auto;padding:10px 16px}
-.topbar nav{display:flex;gap:10px;flex-wrap:wrap}
-.topbar a{display:inline-block;padding:8px 12px;border-radius:12px;text-decoration:none;color:#334155}
-.topbar a:hover,.topbar a.active{background:#eef2ff;color:#0b53e6}
+.topbar{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid #e5e7eb}
+.topbar .container{max-width:1200px;margin:0 auto;padding:12px 16px;display:flex;gap:16px;align-items:center;justify-content:space-between}
+.topbar .brand{font-weight:700;font-size:18px}
+.tabs{display:flex;gap:10px;flex-wrap:wrap}
+.tabs a{display:inline-block;padding:6px 10px;border:1px solid #e5e7eb;border-radius:999px;background:#fff;color:#111;text-decoration:none}
+.tabs a.active{background:#eef5ff;border-color:#cfe3ff}
