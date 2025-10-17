@@ -35,8 +35,12 @@
   </style>
   <link rel="stylesheet" href="nav.css">
   <script defer src="nav.js"></script>
+<style>/*topbar-shim*/
+.topbar{position:sticky;top:0;z-index:1000;background:#fff}
+.has-topbar{scroll-margin-top:64px}
+</style>
 </head>
-<body class="theme-meter">
+<body class="has-topbar theme-meter">
 <div id="topnav" data-active=""></div>
 <header class="topbar">
   <div class="container">
@@ -50,6 +54,8 @@
     </nav>
   </div>
 </header>
+
+
 
 
 
