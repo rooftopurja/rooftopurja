@@ -48,7 +48,7 @@
     .dd-row input{transform:scale(1.1)}
     .dd-h{font-weight:700}
 
-    /* 2ƒÆ'†€™ƒ€ ‚¬„¢ƒÆ'¢‚¬Å¡¬€š¬2 layout ƒÆ'†€™ƒ€š¢ƒÆ'¢€š¬…¡ƒ€š¬ƒÆ'¢‚¬Å¡¬ƒ€š no viewport clipping */
+    /* 2' '2 layout ''' no viewport clipping */
     .grid{
       display:grid;
       grid-template-columns:1fr 1fr;
@@ -245,7 +245,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 
       <!-- BOTTOM: BAR+LINE + TABLE -->
       <div class="card">
-        <div class="card-title">Last 9 Days ƒÆ'†€™ƒ€š¢ƒÆ'¢€š¬…¡ƒ€š¬ƒÆ'¢‚¬Å¡¬ƒ€š Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
+        <div class="card-title">Last 9 Days ''' Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
         <div class="hint">Bars = end-of-day cumulative total across selected plants (unit). Line = Daily kWh.</div>
         <div class="bar-wrap"><canvas id="barLine"></canvas></div>
       </div>
@@ -385,7 +385,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
       $('#kpiTotal').textContent = fmt(totalMWh*u.scale,3);
       $('#kpiUnit').textContent  = `(${u.unit})`;
       $('#pieBadge').textContent = u.unit;   // keep Pie in sync with KPI
-      $('#kpiHint').textContent  = `Range: ${ymd(start)} ? ${ymd(end)} ƒÆ'†€™ƒ€š¢ƒÆ'¢€š¬…¡ƒ€š¬ƒÆ'‚¬Å¡ƒ€š¢ Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
+      $('#kpiHint').textContent  = `Range: ${ymd(start)} ? ${ymd(end)} ''' Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
     }
 
     function renderTable(rows){
@@ -518,7 +518,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
 </style>
 <footer class="sp-footer">
   <div class="inner">
-    <div>ƒÆ'†€™€š¬…¡ƒÆ'‚¬Å¡ƒ€š&copy; Solar Plant Dashboard</div>
+    <div>''&copy; Solar Plant Dashboard</div>
   </div>
 </footer>
 <!-- ===== End Footer ===== -->
@@ -536,7 +536,7 @@ async function fetchJSONSafe(url){
 // Use the safe helper everywhere
 async function fetchJSON(url){ return fetchJSONSafe(url); }
 
-// Tolerant replacement for loadPlants (handles [] or {data:[ƒÆ'†€™ƒ€š¢ƒÆ'¢€š¬…¡ƒ€š¬ƒÆ'‚¬Å¡ƒ€š¦]} or null)
+// Tolerant replacement for loadPlants (handles [] or {data:[''']} or null)
 async function loadPlants(){
   try{
     const js = await fetchJSONSafe(`${API_BASE}/api/GetPlantDirectory?cb=${Date.now()}`);
