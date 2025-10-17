@@ -1,14 +1,20 @@
-﻿<!doctype html>
+<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Inverter Analytics Ã¢â‚¬â€ Solar Plant Dashboard</title>
+  <title>Inverter Analytics - Solar Plant Dashboard</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="icon" href="favicon.ico" />
-  <link rel="stylesheet" href="nav.css" />
+
+  <!-- site-nav-head -->
+  <link rel="stylesheet" href="nav.css">
+  <script defer src="nav.js"></script>
+  <!-- /site-nav-head -->
+
+  <link rel="stylesheet" href="styles.css">
   <style>
-    :root { --card: #fff; --muted:#f4f6f8; --text:#111; --border:#e5e7eb; }
-    body { margin:0; font:14px/1.4 system-ui,-apple-system,Segoe UI,Roboto; color:var(--text); background:#f7f7f7; }
+    :root { --card:#fff; --muted:#f4f6f8; --text:#111; --border:#e5e7eb; }
+    body { margin:0; font:14px/1.4 system-ui,-apple-system,"Segoe UI",Roboto; color:var(--text); background:#f7f7f7; }
     .wrap { max-width:1200px; margin:0 auto; padding:16px; }
     .bar { display:flex; gap:16px; align-items:center; flex-wrap:wrap; }
     .pill { background:#fff; border:1px solid var(--border); border-radius:10px; padding:6px 10px; }
@@ -20,7 +26,6 @@
     .grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
     .panel { background:#fff; border:1px solid var(--border); border-radius:12px; padding:12px; }
     .h6 { margin:0 0 8px; font-weight:600; }
-    /* dropdown */
     .dd { position:relative; }
     .dd-menu { position:absolute; z-index:10; top:110%; left:0; min-width:280px; background:#fff; border:1px solid var(--border); border-radius:10px; box-shadow:0 6px 18px rgba(0,0,0,.08); padding:10px; display:none; max-height:320px; overflow:auto;}
     .dd.open .dd-menu{display:block}
@@ -29,38 +34,24 @@
     .skeleton { background:linear-gradient(90deg,#eee,#f7f7f7,#eee); background-size:200% 100%; animation:sh 1.2s infinite; height:280px; border-radius:10px; }
     @keyframes sh{0%{background-position:200% 0}100%{background-position:-200% 0}}
     canvas { width:100%; height:300px; }
-    @media (max-width: 1100px){ .grid{grid-template-columns:1fr} .cards{grid-template-columns:1fr} }
+    @media (max-width:1100px){ .grid{grid-template-columns:1fr} .cards{grid-template-columns:1fr} }
   </style>
-<!-- site-nav-head -->
-<link rel="stylesheet" href="nav.css">
-<script defer src="nav.js"></script>
-<!-- /site-nav-head -->
-<link rel="stylesheet" href="styles.css?v=1760697208">
 </head>
-
-<header\ class=""topbar"">
-\ \ <div\ class=""container"">
-\ \ \ \ <nav\ aria-label=""Primary"">
-\ \ \ \ \ \ <a\ href=""meter\.v2\.html"">Meter</a>
-\ \ \ \ \ \ <a\ href=""inverter_analytics\.html"">Inverter\ Analytics</a>
-\ \ \ \ \ \ <a\ href=""inverter_data_overview\.html"">Inverter\ Data\ Overview</a>
-\ \ \ \ \ \ <a\ href=""inverter_faults\.html"">Inverter\ Faults</a>
-\ \ \ \ \ \ <a\ href=""maintenance\.html"">Maintenance</a>
-\ \ \ \ </nav>
-\ \ </div>
-</header>\r
-
-
-
-
-
-
-<!-- site-nav-mount -->
-<div id="topnav" data-active=""></div>
-<!-- /site-nav-mount -->
+<body class="theme-meter">
+  <!-- site-nav-mount -->
+  <div id="topnav" data-active="inverter_analytics"></div>
+  <!-- /site-nav-mount -->
 
   <div class="wrap">
-    
+
+    <!-- Top row: section pills + helper -->
+    <div class="bar">
+      <a class="pill" href="meter.v2.html">Meter</a>
+      <span class="pill" style="background:#e9f2ff;border-color:#cfe3ff;">Inverter Analytics</span>
+      <a class="pill" href="inverter_data_overview.html">Data Overview</a>
+      <a class="pill" href="inverter_faults.html">Faults</a>
+      <a class="pill" href="maintenance.html">Maintenance</a>
+      <div style="margin-left:auto" class="muted">fast day + range view</div>
     </div>
 
     <!-- Filters -->
@@ -87,14 +78,14 @@
         <button class="btn" data-view="lifetime">Lifetime</button>
       </div>
 
-      <!-- Date -->
+      <!-- Date + arrows -->
       <div class="pill"><input id="datePick" type="date" /></div>
-      <button id="prevBtn" class="btn">Ã¢â€”â‚¬</button>
-      <button id="nextBtn" class="btn">Ã¢â€“Â¶</button>
+      <button id="prevBtn" class="btn">&#x25C0;</button>
+      <button id="nextBtn" class="btn">&#x25B6;</button>
       <button id="todayBtn" class="btn">Today</button>
     </div>
 
-    <!-- Cards -->
+    <!-- KPI cards -->
     <div class="cards">
       <div class="card">
         <div class="muted">TOTAL YIELD</div>
@@ -117,42 +108,22 @@
         <canvas id="yieldChart" style="display:none"></canvas>
       </div>
     </div>
-  </div>
 
-  <!-- Chart.js -->
+  </div><!-- /.wrap -->
+
+  <!-- Chart libs + page script -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
   <script src="assets/js/inverter-analytics.js"></script>
-<!-- site-nav-active -->
-<script>
-  (function(){
-    var m = document.getElementById('topnav');
-    if(m) m.setAttribute('data-active', 'inverter_analytics');
-  })();
-</script>
-<!-- /site-nav-active -->
-<script>
-(function(){
-  try{
-    var path = (location.pathname.split('/').pop() || 'meter.v2.html').toLowerCase();
-    var a = document.querySelector('.topbar .tabs a[data-page="'+path+'"]');
-    if (a) a.classList.add('active');
-  }catch(e){}
-})();
-</script>
+
+  <!-- nav active helper (for older nav.js) -->
+  <script>
+    (function(){
+      try{
+        var m = document.getElementById('topnav');
+        if(m) m.setAttribute('data-active', 'inverter_analytics');
+      }catch(e){}
+    })();
+  </script>
 </body>
 </html>
-
-
-
-
-
-
-
-
-
-
-
-
-
-
