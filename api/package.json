@@ -1,12 +1,10 @@
 ﻿{
-    "name":  "getplantdirectory",
-    "version":  "1.0.0",
-    "private":  true,
-    "engines":  {
-                    "node":  "\u003e=20 \u003c21"
-                },
-    "dependencies":  {
-                         "@azure/data-tables":  "^13.3.1",
-                         "@azure/identity":  "4.x"
-                     }
+  "name": "swa-api",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@azure/identity": "^4.5.0",
+    "@azure/data-tables": "^13.3.0"
+  }
 }

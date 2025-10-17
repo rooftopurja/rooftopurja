@@ -6,7 +6,7 @@
       "direction": "in",
       "name": "req",
       "methods": [ "get" ],
-      "route": "api/inverter-analytics"
+      "route": "api/plants"
     },
     { "type": "http", "direction": "out", "name": "res" }
   ]
