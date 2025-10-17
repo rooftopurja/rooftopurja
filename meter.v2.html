@@ -311,10 +311,27 @@ function enrichRowsWithPlantNames(rows, dirRows){
     document.addEventListener('click', closeDD);
 
     async function loadPlants(){
-  const endpoints = ["/api/plants", "/api/PlantDirectory"];
-  for (const ep of endpoints){
-    try{
-      const r = await fetch(ep, { headers:{ "accept":"application/json" }});
+  // Try local API first, then fall back to your working azurestaticapps.net runtime
+  const bases = ["", "https://gray-desert-0663e5d00.2.azurestaticapps.net"];
+  const paths = ["/api/plants", "/api/PlantDirectory"];
+
+  for (const base of bases){
+    for (const p of paths){
+      try{
+        const r = await fetch(base + p, { headers:{ "accept":"application/json" }});
+        if (!r.ok){ console.warn("plants fetch failed:", r.status, base+p); continue; }
+        const j = await r.json();
+        // both { plants:[...] } and [...] are accepted
+        const list = Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
+        if (Array.isArray(list)) return list;
+      }catch(err){
+        console.warn("plants fetch error:", (err && err.message) || err, base+p);
+      }
+    }
+  }
+  // Final fallback: empty list (UI stays alive)
+  return [];
+}});
       if (!r.ok) { console.warn("plants fetch failed:", r.status); continue; }
       const j = await r.json();
       return Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
@@ -551,10 +568,27 @@ async function fetchJSON(url){ return fetchJSONSafe(url); }
 
 // Tolerant replacement for loadPlants (handles [] or {data:[''']} or null)
 async function loadPlants(){
-  const endpoints = ["/api/plants", "/api/PlantDirectory"];
-  for (const ep of endpoints){
-    try{
-      const r = await fetch(ep, { headers:{ "accept":"application/json" }});
+  // Try local API first, then fall back to your working azurestaticapps.net runtime
+  const bases = ["", "https://gray-desert-0663e5d00.2.azurestaticapps.net"];
+  const paths = ["/api/plants", "/api/PlantDirectory"];
+
+  for (const base of bases){
+    for (const p of paths){
+      try{
+        const r = await fetch(base + p, { headers:{ "accept":"application/json" }});
+        if (!r.ok){ console.warn("plants fetch failed:", r.status, base+p); continue; }
+        const j = await r.json();
+        // both { plants:[...] } and [...] are accepted
+        const list = Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
+        if (Array.isArray(list)) return list;
+      }catch(err){
+        console.warn("plants fetch error:", (err && err.message) || err, base+p);
+      }
+    }
+  }
+  // Final fallback: empty list (UI stays alive)
+  return [];
+}});
       if (!r.ok) { console.warn("plants fetch failed:", r.status); continue; }
       const j = await r.json();
       return Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
@@ -692,6 +726,7 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
