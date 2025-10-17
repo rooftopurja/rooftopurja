@@ -1,7 +1,8 @@
-﻿:root { --accent:#2563eb; --muted:#6b7280; --bg:#ffffff; }
-.topbar { display:flex; gap:16px; align-items:center; padding:14px 18px; border-bottom:1px solid #eee; position:sticky; top:0; background:var(--bg); z-index:10; }
-.topbar h1 { font-size:18px; font-weight:700; margin:0 8px 0 0; }
-.topbar .tabs { display:flex; flex-wrap:wrap; gap:8px; }
-.topbar .tabs a { padding:8px 14px; border-radius:999px; border:1px solid #e5e7eb; text-decoration:none; color:#111827; }
-.topbar .tabs a.active { background:#e8efff; border-color:#cfe0ff; color:#0b53e6; font-weight:600; }
-.container { padding:16px; }
+.topbar{position:sticky;top:0;z-index:50;background:#fff;border-bottom:1px solid var(--line);box-shadow:0 1px 1px rgba(0,0,0,.02)}
+.nav-wrap{display:flex;align-items:center;gap:16px;padding:10px 4px}
+.brand{font-weight:700;font-size:18px;color:#111827}
+.brand-link{text-decoration:none;color:inherit}
+.tabs{display:flex;gap:8px;flex-wrap:wrap;margin-left:auto}
+.tabs a{display:inline-block;padding:8px 12px;border:1px solid var(--line);border-radius:999px;text-decoration:none;color:#334155;background:#fff}
+.tabs a:hover{background:#f8fafc}
+.tabs a.active{background:var(--primary-weak);border-color:#cfe0ff;color:#0b53e6;font-weight:600}

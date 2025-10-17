@@ -1,15 +1,12 @@
-﻿/* nav.js */
-(function () {
-  var p = (location.pathname || "").toLowerCase();
-  function mark(id, pages) {
-    var el = document.getElementById(id);
-    if (!el) return;
-    if (pages.some(n => p.endsWith("/" + n) || p === "/" + n || p.endsWith(n)))
-      el.classList.add("active");
+document.addEventListener("DOMContentLoaded", () => {
+  const path = location.pathname.split("/").pop() || "meter.v2.html";
+  document.querySelectorAll(".tabs a").forEach(a => {
+    const want = a.getAttribute("data-page") || a.getAttribute("href");
+    if (want && path.toLowerCase().endsWith(want.toLowerCase())) a.classList.add("active");
+  });
+  // clean any stray leading "\" or "\r" text node once
+  const firstNode = document.body.firstChild;
+  if (firstNode && firstNode.nodeType === 3) {
+    firstNode.nodeValue = firstNode.nodeValue.replace(/^[\\\r\s]+/, "");
   }
-  mark("tab-meter", ["", "index.html", "meter.v2.html"]);
-  mark("tab-ia", ["inverter_analytics.html"]);
-  mark("tab-ido", ["inverter_data_overview.html"]);
-  mark("tab-if", ["inverter_faults.html"]);
-  mark("tab-mt", ["maintenance.html"]);
-})();
+});
