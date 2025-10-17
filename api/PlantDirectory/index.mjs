@@ -1,30 +1,30 @@
-﻿import { tableClient } from "../_shared/table.js";
+﻿/** Compatibility endpoint for the Meter page.
+ * Returns: { plants: [{ id: "1", name: "..." }, ...] }
+ */
+import fetch from "node-fetch";
 
 export default async function (context, req) {
   try {
-    const client = tableClient("PlantDirectory");
-    const out = [];
-    for await (const e of client.listEntities()) {
-      // Flexible name discovery: DisplayPlant or Plant_Name
-      const name =
-        (e.DisplayPlant && String(e.DisplayPlant).trim()) ||
-        (e.Plant_Name && String(e.Plant_Name).trim()) ||
-        "";
-      const id =
-        (e.Plant_ID != null && String(e.Plant_ID).trim()) ||
-        (e.RowKey && String(e.RowKey).trim()) ||
-        (e.PartitionKey && String(e.PartitionKey).trim()) ||
-        "";
+    // Call our existing endpoint (works on both custom + default hosts)
+    const base = process.env.WEBSITE_HOSTNAME
+      ? `https://${process.env.WEBSITE_HOSTNAME}`
+      : ""; // SWA will treat relative fetch as same host
 
-      if (name && id) out.push({ Plant_ID: id, DisplayPlant: name });
-    }
+    // Prefer relative to avoid CORS issues inside SWA
+    const url = base ? `${base}/api/plants` : `/api/plants`;
+    const r = await fetch(url);
+    if (!r.ok) throw new Error(`plants endpoint ${r.status}`);
 
-    // Stable sort
-    out.sort((a, b) => String(a.DisplayPlant).localeCompare(String(b.DisplayPlant)));
+    const data = await r.json();
+    // If the upstream returns already in { plants: [...] } just proxy it.
+    // Otherwise, normalize to that shape.
+    const plants = Array.isArray(data?.plants)
+      ? data.plants
+      : (Array.isArray(data) ? data : []);
 
-    context.res = { status: 200, headers: { "content-type": "application/json" }, body: out };
+    context.res = { status: 200, headers: { "content-type": "application/json" }, body: { plants } };
   } catch (err) {
-    context.log.error(err);
+    context.log.error("PlantDirectory error:", err?.message || err);
     context.res = { status: 500, body: { error: String(err?.message || err) } };
   }
 }
