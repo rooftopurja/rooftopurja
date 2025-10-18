@@ -1,3 +1,24 @@
+<nav class="sp-nav">
+  <div class="sp-nav-left">
+    <div class="sp-brand">Solar Plant Dashboard</div>
+    <a href="meter.v2.html"              data-tab="meter">Meter</a>
+    <a href="inverter_analytics.html"    data-tab="inv-analytics">Inverter Analytics</a>
+    <a href="inverter_data_overview.html" data-tab="inv-overview">Inverter Data Overview</a>
+    <a href="inverter_faults.html"       data-tab="inv-faults">Inverter Faults</a>
+    <a href="maintenance.html"           data-tab="maint">Maintenance</a>
+  </div>
+</nav>
+<script>
+  // highlight active tab
+  (function(){
+    const p = location.pathname.toLowerCase();
+    document.querySelectorAll('.sp-nav a').forEach(a=>{
+      const href = (a.getAttribute('href')||'').toLowerCase();
+      if(p.endsWith(href)) a.classList.add('active');
+    });
+  })();
+</script>
+
 <!doctype html>
 <html>
   <head>
@@ -36,6 +57,7 @@
 .topbar{position:sticky;top:0;z-index:1000;background:#fff}
 .has-topbar{scroll-margin-top:64px}
 </style>
+  <link rel="stylesheet" href="assets/nav.css">
 </head>
   
 \r
