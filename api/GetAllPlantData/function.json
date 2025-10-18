@@ -1,12 +1,12 @@
-﻿{
+{
   "bindings": [
     {
       "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get", "post"],
-      "route": "test"
+      "methods": [ "get" ],
+      "route": "get-all-plant-data"
     },
     {
       "type": "http",

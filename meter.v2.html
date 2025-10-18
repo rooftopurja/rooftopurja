@@ -1,220 +1,29 @@
-
-<script>
-  // highlight active tab
-  (function(){
-    const p = location.pathname.toLowerCase();
-    document.querySelectorAll('.sp-nav a').forEach(a=>{
-      const href = (a.getAttribute('href')||'').toLowerCase();
-      if(p.endsWith(href)) a.classList.add('active');
-    });
-  })();
-</script>
-
-<div id="meterPage" style="padding:12px 16px;">
-  <div id="kpiWrap" style="display:grid;grid-template-columns:repeat(3,minmax(160px,1fr));gap:12px;margin:12px 0;">
-    <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">
-      <div style="font-size:12px;color:#64748b;">TOTAL YIELD (MWh)</div>
-      <div id="kpiTotal" style="font-size:28px;font-weight:700;">ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</div>
-    </div>
-    <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">
-      <div style="font-size:12px;color:#64748b;">ROWS</div>
-      <div id="kpiRows" style="font-size:28px;font-weight:700;">ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â</div>
-    </div>
-    <div style="background:#f8fafc;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">
-      <div style="font-size:12px;color:#64748b;">PLANTS SELECTED</div>
-      <div id="kpiPlants" style="font-size:28px;font-weight:700;">All</div>
-    </div>
-  </div>
-
-  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px;margin-bottom:12px;">
-    <div style="font-size:14px;font-weight:600;margin-bottom:8px;">Last 30 days ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Â Daily total (kWh)</div>
-    <canvas id="barLine" height="120"></canvas>
-  </div>
-
-  <div style="background:#fff;border:1px solid #e5e7eb;border-radius:10px;padding:12px;">
-    <div style="font-size:14px;font-weight:600;margin-bottom:8px;">Latest readings</div>
-    <div id="tableWrap" style="overflow:auto"></div>
-  </div>
-</div>
-<head>
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-  <link rel="stylesheet" href="assets/nav.css">
-</head>
-<!doctype html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
-  
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solar Plant Dashboard - Meter</title>
+  <link rel="stylesheet" href="common/style.css" />
+</head>
+<body>
+  <div id="header-placeholder"></div>
 
-  <meta charset="utf-8" />
-  <title>Meter -</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700;800&display=swap" rel="stylesheet">
-  
+  <main style="padding:20px;">
+    <h2>Meter Dashboard</h2>
+    <p>Display meter readings, daily yield, and energy statistics here.</p>
+  </main>
 
-
-
-<script>
-(function(){
-  const $ = (s,root=document)=>root.querySelector(s);
-
-  function ensurePlantSelect(){
-    let sel = $('#plantSelect') || $('#plants') || $('#PlantSelect') || document.querySelector('select');
-    // If page truly has no select, create one inside .filters (or at top)
-    if(!sel){
-      const host = $('.filters') || document.body;
-      const wrap = document.createElement('div');
-      wrap.innerHTML = '<label style="font-size:12px;color:#64748b;display:block;margin-bottom:4px">Plant</label><select id="plantSelect" style="width:100%;padding:10px;border:1px solid #e5e7eb;border-radius:8px;"></select>';
-      host.insertBefore(wrap, host.firstChild || null);
-      sel = wrap.querySelector('select');
-    }
-    if(!sel.id) sel.id = 'plantSelect';
-    return sel;
-  }
-
-  function setDateDefaults(){
-    const all = Array.from(document.querySelectorAll('input[type="date"]'));
-    const startEl = $('#start') || all[0] || null;
-    const endEl   = $('#end')   || all[1] || all[0] || null;
-    const pad = n => String(n).padStart(2,'0');
-    const fmt = d => `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()}`;
-    const today = new Date();
-    const ago   = new Date(); ago.setDate(today.getDate()-30);
-    if (startEl && !startEl.value) startEl.value = fmt(ago);
-    if (endEl   && !endEl.value)   endEl.value   = fmt(today);
-  }
-
-  // Replace any use of /api/PlantDirectory at runtime too (paranoia)
-  async function fetchJSON(url){
-    url = url.replace('/api/PlantDirectory','/api/PlantDirectory');
-    const r = await fetch(url, {headers:{'Cache-Control':'no-cache'}});
-    if(!r.ok) throw new Error(r.status);
-    return r.json();
-  }
-
-  async function fillPlantsSafe(){
-    const dd = ensurePlantSelect();
-    dd.innerHTML = '';
-    const optAll = document.createElement('option');
-    optAll.value = ''; optAll.textContent = 'All Plants';
-    dd.appendChild(optAll);
-
-    const items = await fetchJSON('/api/PlantDirectory');
-    const list = Array.isArray(items?.plants) ? items.plants : items;
-    for (const p of (list||[])) {
-      const o = document.createElement('option');
-      o.value = String(p.id ?? p.Plant_ID ?? p.PlantId ?? '').trim();
-      o.textContent = String(p.name ?? p.DisplayPlant ?? p.Plant_Name ?? ('Plant ' + o.value)).trim();
-      dd.appendChild(o);
-    }
-  }
-
-  // If your page already defines loadMeters(), wrap it so dates exist
-  if (typeof window.loadMeters === 'function') {
-    const _orig = window.loadMeters;
-    window.loadMeters = async function(){
-      setDateDefaults();
-      return _orig.apply(this, arguments);
-    };
-  }
-
-  document.addEventListener('DOMContentLoaded', async ()=>{
-    try{
-      setDateDefaults();
-      await fillPlantsSafe();
-      // If your code has #applyBtn wire-up, keep it; otherwise call run() directly.
-      if (typeof window.run === 'function') {
-        const btn = document.getElementById('applyBtn');
-        if (btn) btn.addEventListener('click', window.run);
-        await window.run();
-      }
-    }catch(e){
-      console.error('meter init failed:', e?.message||e);
-    }
-  });
-})();
-</script>
-
-
-<script>
-(function(){
-  function p2(n){return String(n).padStart(2,"0")}
-  function iso(d){return `${d.getFullYear()}-${p2(d.getMonth()+1)}-${p2(d.getDate())}`}
-  function ymd(v){const x=new Date(v);return iso(x)}
-  function sum(arr, sel){let t=0; for(const r of arr){const v=Number(sel(r)||0); if(Number.isFinite(v)) t+=v;} return t}
-
-  // KPI
-  window.renderKPI = function(rows){
-    const totalMWh = sum(rows, r => r.Total_Yield);
-    const plants = new Set(rows.map(r => String(r.Plant_ID ?? r.PlantId ?? ""))).size;
-    const k = (id,txt)=>{const el=document.getElementById(id); if(el) el.textContent = txt}
-    k("kpiTotal", (totalMWh||0).toFixed(3));
-    k("kpiRows", rows.length);
-    k("kpiPlants", plants ? String(plants) : "All");
-  };
-
-  // Chart
-  window.renderBarLine = function(rows){
-    const byDate = new Map();
-    for(const r of rows){
-      const key = ymd(r.Date ?? r.Date_Time ?? r.timestamp ?? Date.now());
-      const kwh = Number(r.Incremental_Daily_Yield_KWH ?? 0);
-      byDate.set(key, (byDate.get(key) ?? 0) + (Number.isFinite(kwh)?kwh:0));
-    }
-    const labels = [...byDate.keys()].sort();
-    const data = labels.map(k => byDate.get(k) ?? 0);
-    const ctx = document.getElementById("barLine");
-    if(!ctx || typeof Chart==="undefined") return;
-    if(window._meterChart){ try{ window._meterChart.destroy(); }catch(_){} }
-    window._meterChart = new Chart(ctx, {
-      type: "bar",
-      data: { labels, datasets:[{label:"Daily kWh", data }]},
-      options:{ responsive:true, scales:{ y:{ beginAtZero:true } }, plugins:{ legend:{ display:false } } }
-    });
-  };
-
-  // Table
-  window.renderTable = function(rows){
-    const latest = new Map();
-    for(const r of rows){
-      const key = String(r.Meter_ID ?? r.partitionKey ?? r.Plant_ID ?? "");
-      const when = new Date(r.Date_Time ?? r.timestamp ?? 0).getTime();
-      const prev = latest.get(key);
-      if(!prev || when > prev._ts){ latest.set(key, {...r, _ts: when}); }
-    }
-    const list = [...latest.values()].sort((a,b)=>String(a.Meter_ID).localeCompare(String(b.Meter_ID)));
-    const host = document.getElementById("tableWrap"); if(!host) return;
-    const cell = x => `<td style="padding:8px;border-bottom:1px solid #eee;white-space:nowrap">${x??""}</td>`;
-    let html = '<table style="border-collapse:collapse;width:100%">';
-    html += '<thead><tr style="text-align:left;background:#f8fafc">'
-      + ['Meter','Date_Time','Reading','Total_Yield(MWh)','Make','Model'].map(h=>`<th style="padding:8px;">${h}</th>`).join('')
-      + '</tr></thead><tbody>';
-    for(const r of list){
-      html += '<tr>'
-        + cell(r.Meter_ID)
-        + cell(r.Date_Time)
-        + cell(r.Meter_Reading)
-        + cell(r.Total_Yield)
-        + cell(r.Meter_Make)
-        + cell(r.Meter_Model)
-        + '</tr>';
-    }
-    html += '</tbody></table>';
-    host.innerHTML = html;
-  };
-
-  // Bootstrap: call your SWA function `/api/meter-rows`
-  document.addEventListener("DOMContentLoaded", async ()=>{
-    try{
-      const today = new Date(), ago = new Date(); ago.setDate(today.getDate()-30);
-      const url = `/api/meter-rows?start=${encodeURIComponent(iso(ago))}&end=${encodeURIComponent(iso(today))}&top=100000&${Date.now()}`;
-      const r = await fetch(url, {headers:{'Cache-Control':'no-cache'}});
-      if(!r.ok){ console.warn("meter-rows error:", r.status); return; }
-      const data = await r.json();
-      const rows = Array.isArray(data) ? data : (data?.rows || []);
-      renderKPI(rows); renderBarLine(rows); renderTable(rows);
-      console.log("meter rendered rows:", rows.length);
-    }catch(e){ console.error("meter bootstrap failed:", e); }
-  });
-})();
-</script>
+  <script>
+    fetch("common/header.html")
+      .then(res => res.text())
+      .then(html => {
+        document.getElementById("header-placeholder").innerHTML = html;
+        const current = location.pathname.split("/").pop();
+        const active = document.querySelector(`a[href='${current}']`);
+        if (active) active.classList.add("active");
+      })
+      .catch(err => console.error("Header load error:", err));
+  </script>
+</body>
+</html>

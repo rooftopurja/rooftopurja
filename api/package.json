@@ -1,9 +1,10 @@
-﻿{
+{
   "name": "swa-api",
   "version": "1.0.0",
   "private": true,
   "type": "module",
   "dependencies": {
-    "@azure/data-tables": "13.2.2"
+    "@azure/data-tables": "^13.3.1",
+    "tslib": "^2.8.1"
   }
 }

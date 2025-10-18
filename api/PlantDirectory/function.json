@@ -1,14 +1,18 @@
 ﻿{
+  "scriptFile": "index.cjs",
   "bindings": [
     {
       "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
-      "methods": [ "get" ],
       "name": "req",
+      "methods": [ "get" ],
       "route": "PlantDirectory"
     },
-    { "type": "http", "direction": "out", "name": "res" }
-  ],
-  "scriptFile": "index.js"
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
+  ]
 }
