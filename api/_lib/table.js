@@ -1,7 +1,7 @@
-﻿import { ManagedIdentityCredential } from "@azure/identity";
+﻿import { ManagedIdentityCredential, DefaultAzureCredential } from "@azure/identity";
 import { TableClient, TableServiceClient } from "@azure/data-tables";
 
-/** Prefer MSI; fall back to TABLES_CONNECTION_STRING if provided. */
+/** Prefer connection string; fall back to MSI. */
 export function makeClients(accountName, tableName) {
   const cs = process.env.TABLES_CONNECTION_STRING || process.env.STORAGE_CONNECTION_STRING;
   if (cs) {
@@ -11,7 +11,8 @@ export function makeClients(accountName, tableName) {
     };
   }
   const url = `https://${accountName}.table.core.windows.net`;
-  const cred = new ManagedIdentityCredential(); // works with SWA system-assigned MI
+  // DefaultAzureCredential includes MSI and is more resilient than MSI-only
+  const cred = new DefaultAzureCredential({ excludeEnvironmentCredential: true });
   return {
     table: new TableClient(url, tableName, cred),
     service: new TableServiceClient(url, cred)
