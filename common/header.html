@@ -1,24 +1,38 @@
-<header class="main-header">
-  <nav class="navbar">
-    <div class="navbar-logo">
-      <img src="common/logo.png" alt="Rooftop Urja® Logo" class="logo-img" />
-      <span>Solar Plant Dashboard</span>
-    </div>
+<div class="user-dropdown">
+  <button class="user-btn" id="userButton">👤 Account ▼</button>
+  <div class="dropdown-content" id="userMenu">
+    <a href="/.auth/me" id="profileLink">Profile</a>
+    <a href="/.auth/logout" id="logoutLink">Logout</a>
+  </div>
+</div>
 
-    <ul class="navbar-menu">
-      <li><a href="meter.v2.html" id="link-meter">Meter</a></li>
-      <li><a href="inverter_analytics.html" id="link-analytics">Inverter Analytics</a></li>
-      <li><a href="inverter_data_overview.html" id="link-overview">Inverter Data Overview</a></li>
-      <li><a href="inverter_faults.html" id="link-faults">Inverter Faults</a></li>
-      <li><a href="maintenance.html" id="link-maintenance">Maintenance</a></li>
-    </ul>
+<script>
+async function checkAuth() {
+  try {
+    const res = await fetch('/.auth/me');
+    const data = await res.json();
+    const principal = data.clientPrincipal;
 
-    <div class="user-dropdown">
-      <button class="user-btn">👤 Account ▼</button>
-      <div class="dropdown-content">
-        <a href="/.auth/me">Profile</a>
-        <a href="/logout">Logout</a>
-      </div>
-    </div>
-  </nav>
-</header>
+    const btn = document.getElementById('userButton');
+    const profile = document.getElementById('profileLink');
+    const logout = document.getElementById('logoutLink');
+
+    if (principal) {
+      // logged in
+      const name = principal.userDetails || 'User';
+      btn.innerHTML = `👤 ${name.split('@')[0]} ▼`;
+      profile.style.display = 'block';
+      logout.style.display = 'block';
+    } else {
+      // not logged in
+      btn.innerHTML = '🔐 Login';
+      profile.style.display = 'none';
+      logout.style.display = 'none';
+      btn.onclick = () => (window.location.href = '/.auth/login/aad'); // Microsoft Entra ID login
+    }
+  } catch (err) {
+    console.error('Auth check failed', err);
+  }
+}
+checkAuth();
+</script>
