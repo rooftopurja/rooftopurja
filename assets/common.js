@@ -1,4 +1,4 @@
-﻿(function(){
+(function(){
   // -------- API base (works on both custom domain and default host) -------
   const API_BASE = `${location.origin}/api`;
 
@@ -7,13 +7,24 @@
   const pad2 = n=>String(n).padStart(2,"0");
   const fmtDMY = d=>`${pad2(d.getDate())}-${pad2(d.getMonth()+1)}-${d.getFullYear()}`;
   function ensureDates(){
-    const inputs = Array.from(document.querySelectorAll('input[type="date"], input[placeholder*="dd-mm"]'));
-    const startEl = $("#start") || inputs[0] || null;
-    const endEl   = $("#end")   || inputs[1] || null;
-    const today = new Date(), ago = new Date(); ago.setDate(today.getDate()-30);
-    if(startEl && !startEl.value) startEl.value = fmtDMY(ago);
-    if(endEl   && !endEl.value)   endEl.value   = fmtDMY(today);
-    return { start: startEl?startEl.value:fmtDMY(ago), end: endEl?endEl.value:fmtDMY(today) };
+  const inputs = Array.from(document.querySelectorAll(''input[type="date"], input[placeholder*="dd-mm"]''));
+  const startEl = document.querySelector("#start") || inputs[0] || null;
+  const endEl   = document.querySelector("#end")   || inputs[1] || null;
+  const today = new Date(), ago = new Date(); ago.setDate(today.getDate()-30);
+  const pad2 = n=>String(n).padStart(2,"0");
+  const dmy  = d=>`${pad2(d.getDate())}-${pad2(d.getMonth()+1)}-${d.getFullYear()}`;
+  const iso  = d=>`${d.getFullYear()}-${pad2(d.getMonth()+1)}-${pad2(d.getDate())}`;
+
+  if (startEl && !startEl.value) startEl.value = dmy(ago);
+  if (endEl   && !endEl.value)   endEl.value   = dmy(today);
+
+  return {
+    start: startEl ? startEl.value : dmy(ago),
+    end:   endEl   ? endEl.value   : dmy(today),
+    startISO: startEl ? (startEl.value.replace(/^(\d{2})-(\d{2})-(\d{4})$/,"$3-$2-$1")) : iso(ago),
+    endISO:   endEl   ? (endEl.value.replace(/^(\d{2})-(\d{2})-(\d{4})$/,"$3-$2-$1"))   : iso(today),
+  };
+};
   }
   async function fetchJSON(url){
     const r = await fetch(url,{headers:{"Cache-Control":"no-cache"}});
@@ -86,7 +97,7 @@
     // convenience: meter rows call
     async loadMeterRows(){
       const d = ensureDates();
-      const url = `${API_BASE}/GetPremier300MeterAll?start=${encodeURIComponent(d.start)}&end=${encodeURIComponent(d.end)}&top=100000&${Date.now()}`;
+      const url = `${API_BASE}/GetPremier300MeterAll?start=${encodeURIComponent(d.startISO)}&end=${encodeURIComponent(d.endISO)}&top=100000&${Date.now()}`;
       const data = await fetchJSON(url);
       return Array.isArray(data) ? data : (data?.rows || []);
     }
