@@ -258,3 +258,51 @@
   });
 </script>
 
+<script>
+(function(){
+  const $ = (s,root=document)=>root.querySelector(s);
+
+  // Find a usable plant <select> even if it has no id (fallback: the first select on the page).
+  function findPlantSelect(){
+    return $('#plantSelect') || $('#plants') || $('#PlantSelect') || document.querySelector('select');
+  }
+
+  // Ensure date inputs have defaults (last 30 days) if blank.
+  function setDateDefaults(){
+    const allDates = Array.from(document.querySelectorAll('input[type="date"]'));
+    const startEl = $('#start') || allDates[0] || null;
+    const endEl   = $('#end')   || allDates[1] || allDates[0] || null;
+
+    const pad = n => String(n).padStart(2,'0');
+    const fmt = d => `${pad(d.getDate())}-${pad(d.getMonth()+1)}-${d.getFullYear()}`;
+
+    const today = new Date();
+    const thirtyAgo = new Date(); thirtyAgo.setDate(today.getDate()-30);
+
+    if (startEl && !startEl.value) startEl.value = fmt(thirtyAgo);
+    if (endEl   && !endEl.value)   endEl.value   = fmt(today);
+  }
+
+  // Patch fillPlants so it never fails if the select lacks an id.
+  if (typeof window.fillPlants === 'function') {
+    const _origFill = window.fillPlants;
+    window.fillPlants = async function(){
+      const dd = findPlantSelect();
+      if (!dd) { console.warn('plant dropdown not found'); return; }
+      if (!dd.id) dd.id = 'plantSelect';
+      return _origFill.apply(this, arguments);
+    };
+  }
+
+  // Patch loadMeters so it auto-sets dates before building the URL.
+  if (typeof window.loadMeters === 'function') {
+    const _origLoad = window.loadMeters;
+    window.loadMeters = async function(){
+      setDateDefaults();
+      return _origLoad.apply(this, arguments);
+    };
+  }
+
+  document.addEventListener('DOMContentLoaded', setDateDefaults);
+})();
+</script>
