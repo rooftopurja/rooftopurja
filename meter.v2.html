@@ -177,8 +177,7 @@ function enrichRowsWithPlantNames(rows, dirRows){
     console.warn("backfillPlantNames failed:", e);
     return rows || [];
   }
-}
-</script>
+
 <!-- ===== End Top Nav ===== -->
   
 
@@ -540,9 +539,7 @@ async function run(){
   }finally{
     document.getElementById("applyBtn").disabled = false;
   }
-}
-
-document.addEventListener("DOMContentLoaded", async ()=>{
+("DOMContentLoaded", async ()=>{
   setDefaults();
   await loadPlants();
   document.getElementById("applyBtn").addEventListener("click", run);
@@ -653,8 +650,7 @@ async function loadPlants(){
     const warn = document.getElementById('nodata');
     if (warn){ warn.style.display='block'; warn.textContent = 'Plant list unavailable right now.'; }
   }
-}
-</script>
+
 
 
 
@@ -748,6 +744,7 @@ async function loadPlants(){
 
 
 <!-- redeploy 2025-10-10T05:19:21 -->
+
 
 
 
