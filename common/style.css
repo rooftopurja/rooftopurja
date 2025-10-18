@@ -1,4 +1,4 @@
-
+/* ===== GENERAL ===== */
 body {
   margin: 0;
   font-family: "Segoe UI", Arial, sans-serif;
@@ -6,48 +6,51 @@ body {
   color: #222;
 }
 
-/* ===== HEADER ===== */
+/* ===== HEADER BAR ===== */
 .main-header {
+  width: 100%;
   background: linear-gradient(to right, #004aad, #0078ff, #8dc63f, #fbc02d);
   color: #fff;
-  padding: 10px 0;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
 .navbar {
   display: flex;
-  align-items: center;
   justify-content: space-between;
-  max-width: 1200px;
-  margin: auto;
-  padding: 0 20px;
+  align-items: center;
+  padding: 8px 25px;
 }
 
 .navbar-logo {
   display: flex;
   align-items: center;
-  font-size: 1.3rem;
   font-weight: 600;
+  font-size: 1.25rem;
 }
 
 .logo-img {
-  height: 42px;
-  margin-right: 10px;
+  height: 50px;
+  width: auto;
+  margin-right: 12px;
+  border-radius: 6px;
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.2);
+  background-color: #fff;
 }
 
+/* ===== MENU ===== */
 .navbar-menu {
-  list-style: none;
   display: flex;
-  gap: 24px;
+  gap: 25px;
+  list-style: none;
   margin: 0;
   padding: 0;
 }
 
 .navbar-menu a {
-  color: #fff;
   text-decoration: none;
-  font-weight: 500;
-  transition: opacity 0.2s;
+  color: #fff;
+  font-weight: 600;
+  transition: opacity 0.2s ease;
 }
 
 .navbar-menu a:hover {
@@ -64,10 +67,10 @@ body {
   border: none;
   color: #fff;
   border-radius: 6px;
-  padding: 8px 14px;
-  font-weight: 500;
+  padding: 8px 16px;
   cursor: pointer;
-  transition: background 0.3s;
+  font-weight: 500;
+  transition: background 0.3s ease;
 }
 
 .user-btn:hover {
@@ -80,20 +83,20 @@ body {
   right: 0;
   background: #fff;
   min-width: 160px;
-  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
   border-radius: 6px;
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
   overflow: hidden;
 }
 
 .dropdown-content a {
   color: #003366;
+  text-decoration: none;
   padding: 10px 14px;
   display: block;
-  text-decoration: none;
 }
 
 .dropdown-content a:hover {
-  background: #f2f2f2;
+  background: #f4f4f4;
 }
 
 .user-dropdown:hover .dropdown-content {
@@ -102,17 +105,43 @@ body {
 
 /* ===== PAGE CONTENT ===== */
 .container {
-  max-width: 1200px;
-  margin: 40px auto;
-  background: #f4f6f8;
-  padding: 20px;
+  width: 100%;
+  max-width: 1400px;
+  margin: 30px auto;
+  background: #f9fafb;
+  padding: 20px 40px;
 }
 
 .section-title {
-  font-size: 1.5rem;
-  font-weight: 600;
+  font-size: 1.6rem;
+  font-weight: 700;
   color: #003366;
   border-bottom: 3px solid #fbc02d;
   display: inline-block;
-  margin-bottom: 10px;
+  padding-bottom: 6px;
+  margin-bottom: 15px;
+}
+
+/* ===== CARDS ===== */
+.meter-card {
+  background: #fff;
+  border-radius: 12px;
+  padding: 25px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  flex: 1;
+  min-width: 250px;
+  transition: transform 0.2s ease;
+}
+.meter-card:hover {
+  transform: translateY(-4px);
+}
+.meter-card h3 {
+  margin: 0;
+  color: #004aad;
+  font-weight: 600;
+}
+.meter-card p {
+  font-size: 1.6rem;
+  font-weight: bold;
+  margin-top: 10px;
 }
