@@ -1,24 +1,25 @@
-﻿import { ManagedIdentityCredential, DefaultAzureCredential } from "@azure/identity";
-import { TableClient, TableServiceClient } from "@azure/data-tables";
+﻿import { TableClient, TableServiceClient } from "@azure/data-tables";
 
-/** Prefer connection string; fall back to MSI. */
-export function makeClients(accountName, tableName) {
-  const cs = process.env.TABLES_CONNECTION_STRING || process.env.STORAGE_CONNECTION_STRING;
-  if (cs) {
-    return {
-      table: TableClient.fromConnectionString(cs, tableName),
-      service: TableServiceClient.fromConnectionString(cs)
-    };
+/** Build clients strictly from TABLES_CONNECTION_STRING (or STORAGE_CONNECTION_STRING). */
+export function makeClients(accountNameIgnored, tableName) {
+  const cs =
+    process.env.TABLES_CONNECTION_STRING ||
+    process.env.STORAGE_CONNECTION_STRING ||
+    process.env.TABLES_CONNECTION; // any of your older names
+
+  if (!cs) {
+    const msg =
+      "Missing TABLES_CONNECTION_STRING (or STORAGE_CONNECTION_STRING). Set it in SWA -> Environment variables.";
+    throw new Error(msg);
   }
-  const url = `https://${accountName}.table.core.windows.net`;
-  // DefaultAzureCredential includes MSI and is more resilient than MSI-only
-  const cred = new DefaultAzureCredential({ excludeEnvironmentCredential: true });
+
   return {
-    table: new TableClient(url, tableName, cred),
-    service: new TableServiceClient(url, cred)
+    table: TableClient.fromConnectionString(cs, tableName),
+    service: TableServiceClient.fromConnectionString(cs)
   };
 }
 
+/** Helpers used by meter endpoint */
 export function parseStart(s){
   if(!s) return null;
   const m = /^(\d{2})-(\d{2})-(\d{4})$/.exec(s);

@@ -4,7 +4,6 @@
   "private": true,
   "type": "module",
   "dependencies": {
-    "@azure/identity": "3.2.5",
     "@azure/data-tables": "13.2.2"
   }
 }
