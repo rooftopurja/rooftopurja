@@ -1,11 +1,8 @@
 ﻿{
   "name": "swa-api",
-  "version": "1.0.0",
   "private": true,
   "type": "module",
-  "engines": { "node": ">=18 <20" },
   "dependencies": {
-    "@azure/identity": "3.3.2",
-    "@azure/data-tables": "13.2.2"
+    "@azure/data-tables": "^13.3.0"
   }
 }

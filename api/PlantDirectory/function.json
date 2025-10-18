@@ -4,14 +4,11 @@
       "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
-      "name": "req",
       "methods": [ "get" ],
-      "route": "api/PlantDirectory"
+      "name": "req",
+      "route": "PlantDirectory"
     },
-    {
-      "type": "http",
-      "direction": "out",
-      "name": "res"
-    }
-  ]
+    { "type": "http", "direction": "out", "name": "res" }
+  ],
+  "scriptFile": "index.js"
 }

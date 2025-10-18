@@ -1,37 +1,32 @@
-﻿import { DefaultAzureCredential } from "@azure/identity";
-import { TableClient, AzureNamedKeyCredential } from "@azure/data-tables";
+﻿import { TableClient } from "@azure/data-tables";
 
-const accountName = process.env.STORAGE_ACCOUNT_NAME || "solariothubstorage";
-const tableName = "PlantDirectory";
+const TABLE_CONN = process.env.TABLES_CONNECTION_STRING || process.env.STORAGE_CONNECTION_STRING;
+const TABLE_NAME = "PlantDirectory";
 
 export default async function (context, req) {
   try {
-    let client;
-    if (process.env.MSI_ENDPOINT || process.env.IDENTITY_ENDPOINT) {
-      const cred = new DefaultAzureCredential();
-      const url = `https://${accountName}.table.core.windows.net`;
-      client = new TableClient(url, tableName, cred);
-    } else if (process.env.AZURE_TABLES_CONNECTION_STRING) {
-      client = TableClient.fromConnectionString(process.env.AZURE_TABLES_CONNECTION_STRING, tableName);
-    } else if (process.env.AZURE_STORAGE_ACCOUNT_KEY) {
-      const cred = new AzureNamedKeyCredential(accountName, process.env.AZURE_STORAGE_ACCOUNT_KEY);
-      const url = `https://${accountName}.table.core.windows.net`;
-      client = new TableClient(url, tableName, cred);
-    } else {
-      throw new Error("No storage credentials configured.");
+    if (!TABLE_CONN) throw new Error("Missing TABLES_CONNECTION_STRING");
+
+    const client = TableClient.fromConnectionString(TABLE_CONN, TABLE_NAME);
+
+    // Read all rows, map to {id,name}
+    const out = [];
+    for await (const entity of client.listEntities()) {
+      const id = String(entity.Plant_ID ?? entity.PlantId ?? "").trim();
+      const name =
+        String(entity.DisplayPlant ?? entity.Plant_Name ?? entity.Name ?? id).trim();
+      if (id) out.push({ id, name });
     }
 
-    const out = [];
-    for await (const e of client.listEntities()) {
-      out.push({
-        id: String(e.Plant_ID ?? e.RowKey ?? e.PartitionKey ?? ""),
-        name: String(e.DisplayPlant ?? e.Plant_Name ?? e.Name ?? e.RowKey ?? "")
-      });
-    }
-    out.sort((a,b)=>a.name.localeCompare(b.name));
-    context.res = { status: 200, headers: { "content-type":"application/json" }, body: { plants: out } };
+    // Sort for a clean dropdown
+    out.sort((a,b) => a.name.localeCompare(b.name));
+
+    context.res = {
+      headers: { "Content-Type": "application/json" },
+      body: { plants: out }
+    };
   } catch (err) {
-    context.log.error(err);
-    context.res = { status: 500, body: { error: String(err.message || err) } };
+    context.log.error("PlantDirectory error:", err?.message || err);
+    context.res = { status: 500, body: { error: String(err?.message || err) } };
   }
 }
