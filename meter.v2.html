@@ -1,7 +1,7 @@
 ﻿<!doctype html>
 <html lang="en">
 <head>
-  <script>window.bust=Date.now();</script>
+  
 
   <meta charset="utf-8" />
   <title>Meter - Solar Plant Dashboard</title>
@@ -76,531 +76,9 @@
     .scroll{height:calc(var(--h-table) - 36px);overflow:auto;overflow-x:auto}
   </style>
 <style>.wrap{margin-top:6px}</style>
-  <script>
-    // Fills DisplayPlant for every row, and back-fills Plant_Name if missing.
-    function hydrateDisplayPlant(rows){
-      const map = Object.create(null);
-
-      // Learn plant names from any row that already has one
-      for (const r of rows){
-        const name = ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || "").trim();
-        if (!name) continue;
-        if (r.Meter_Serial_No) map["SN:"+r.Meter_Serial_No] = name;
-        if (r.Meter_ID)        map["ID:"+r.Meter_ID]        = name;
-        if (r.Plant_ID != null && r.Plant_ID !== "") map["PID:"+r.Plant_ID] = name;
-      }
-
-      // Stamp DisplayPlant on every row (and back-fill Plant_Name if empty)
-      for (const r of rows){
-        r.DisplayPlant =
-          ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) && (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) ||
-          (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
-          (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
-          (r.Plant_ID != null && map["PID:"+r.Plant_ID]) ||
-          "Unknown";
-
-        if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || !(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) {
-  const __nm = r.DisplayPlant || r.Plant_Name || "Unknown";
-  if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = __nm;
-  if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = __nm;
-}
-      }
-      return rows;
-    }
-  </script>
-<script>
-// --- Plant name enrichment ----------------------------------------------
-// Build a name map from directory + any rows that already have names
-function buildPlantNameMap(dirRows, meterRows){
-  const map = Object.create(null);
-  const add = (k,v)=>{ if(k && v){ map[k]=v; } };
-
-  // From Plant Directory (prefer canonical names)
-  for (const d of (dirRows||[])) {
-    const name = ((d.DisplayPlant||(d.DisplayPlant||d.Plant_Name))||"").trim();
-    if (!name) continue;
-    if (d.Plant_ID!=null && d.Plant_ID!=="") add("PID:"+d.Plant_ID, name);
-    if (d.Meter_Serial_No)                  add("SN:"+d.Meter_Serial_No, name);
-    if (d.Meter_ID)                         add("ID:"+d.Meter_ID, name);
-  }
-
-  // Also learn from any meter rows that already have names
-  for (const r of (meterRows||[])) {
-    const name = ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name))||"").trim();
-    if (!name) continue;
-    if (r.Plant_ID!=null && r.Plant_ID!=="") add("PID:"+r.Plant_ID, name);
-    if (r.Meter_Serial_No)                  add("SN:"+r.Meter_Serial_No, name);
-    if (r.Meter_ID)                         add("ID:"+r.Meter_ID, name);
-  }
-  return map;
-}
-
-// Enrich rows: back-fill Plant_Name and set DisplayPlant
-function enrichRowsWithPlantNames(rows, dirRows){
-  const map = buildPlantNameMap(dirRows, rows);
-  for (const r of (rows||[])) {
-    // Figure out best name
-    const learned =
-      ((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) && (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) ||
-      (r.Plant_ID!=null && map["PID:"+r.Plant_ID]) ||
-      (r.Meter_Serial_No && map["SN:"+r.Meter_Serial_No]) ||
-      (r.Meter_ID && map["ID:"+r.Meter_ID]) ||
-      "";
-
-    // Back-fill Plant_Name if missing
-    if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || !(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()) {
-  const __nm = learned || "Unknown";
-  if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = __nm;
-  if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = __nm;
-}
-
-    // Set DisplayPlant used by UI
-    r.DisplayPlant = (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || learned || "Unknown";
-  }
-  return rows;
-}
-</script>
-  <script id="plant-hydrator">
-    // Pulls PlantDirectory once and back-fills Plant_Name/DisplayPlant on all rows
-    async function backfillPlantNames(rows){
-  try {
-    const safe = Array.isArray(rows) ? rows : [];
-    for (let i=0;i<safe.length;i++){
-      const r = safe[i] || {};
-      const name = ((r.DisplayPlant||r.Plant_Name) && String((r.DisplayPlant||r.Plant_Name)).trim()) ||
-                   (r.DisplayPlant && String(r.DisplayPlant).trim()) ||
-                   "Unknown";
-      safe[i] = { ...r, DisplayPlant: name, Plant_Name: ((r.DisplayPlant||r.Plant_Name) && String((r.DisplayPlant||r.Plant_Name)).trim()) ? (r.DisplayPlant||r.Plant_Name) : name };
-    }
-    return safe;
-  } catch(e) {
-    console.warn("backfillPlantNames failed:", e);
-    return rows || [];
-  }
-
-<!-- ===== End Top Nav ===== -->
   
 
-
-
-
-
-
-<style>
-  .sp-top{background:#fff;border-bottom:1px solid #e5e7eb}
-  .sp-top .inner{max-width:1400px;margin:0 auto;padding:10px 16px;display:flex;gap:16px;align-items:center}
-  .sp-top .brand{font-weight:800;font-size:18px;margin-right:8px}
-  .sp-top nav a{display:inline-block;margin-right:8px;padding:6px 10px;border:1px solid #e5e7eb;border-radius:999px;
-                text-decoration:none;color:#0f172a;font-weight:600}
-  .sp-top nav a.active{background:#2563eb;color:#fff;border-color:#2563eb}
-  .sp-top nav a:hover{background:#eef2ff}
-</style><div class="wrap">
-    
-
-    <!-- FILTERS -->
-    <div class="filters">
-      <div class="plant-select">
-        <label>Plants</label>
-        <button id="plantBtn" class="plant-btn">All Plants</button>
-        <div id="plantDD" class="dropdown">
-          <div class="dd-row dd-h"><input type="checkbox" id="allPlants" checked> <label for="allPlants">All Plants</label></div>
-          <div id="plantList"></div>
-        </div>
-      </div>
-
-      <div>
-        <label>Preset</label>
-        <div class="preset">
-          <div class="chip" data-preset="day">Day</div>
-          <div class="chip" data-preset="month">Month</div>
-          <div class="chip" data-preset="year">Year</div>
-          <div class="chip active" data-preset="custom">Custom</div>
-        </div>
-      </div>
-
-      <div><label>Start</label><input type="date" id="startDate"></div>
-      <div><label>End</label><input type="date" id="endDate"></div>
-      <div style="align-self:end"><button class="btn" id="applyBtn">Apply</button></div>
-    </div>
-
-    <!-- TOP: KPI + PIE -->
-    <div id="nodata" style="display:none;background:#fff3cd;border:1px solid #ffe69c;color:#664d03;border-radius:10px;padding:10px;margin:8px 0;font-size:14px">
-  No data in the selected date range.
-</div>
-<div class="grid">
-      <div class="card">
-        <div class="kpi-wrap">
-          <div class="kpi-label">TOTAL YIELD</div>
-          <div class="kpi-value" id="kpiTotal">0</div>
-          <div class="kpi-sub" id="kpiUnit">(MWh)</div>
-          <div class="hint" id="kpiHint">Range & selection</div>
-        </div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Yield Share by Plant <span class="badge" id="pieBadge">MWh</span></div>
-        <div class="pie-wrap"><canvas id="pieChart"></canvas></div>
-      </div>
-
-      <!-- BOTTOM: BAR+LINE + TABLE -->
-      <div class="card">
-        <div class="card-title">Last 9 Days  Total (bar) & Daily (line)<span class="badge" id="barBadge">MWh</span></div>
-        <div class="hint">Bars = end-of-day cumulative total across selected plants (unit). Line = Daily kWh.</div>
-        <div class="bar-wrap"><canvas id="barLine"></canvas></div>
-      </div>
-
-      <div class="card">
-        <div class="card-title">Latest Reading per Meter</div>
-        <div class="scroll">
-          <table>
-            <thead>
-              <tr>
-                <th>Plant_Name</th><th>Meter_Make</th><th>Meter_Model</th><th>Type</th>
-                <th>Meter_Serial_No</th><th>Meter_Reading</th><th>Total_Yield_Unit</th><th>Date_Time</th>
-              </tr>
-            </thead>
-            <tbody id="latestBody"></tbody>
-          </table>
-        </div>
-      </div>
-    </div>
-  </div>
-
-  <script>
-    /* ---------- helpers ---------- */
-    const API_BASE = ''; // SWA + emulator both proxy /api
-    const $ = sel => document.querySelector(sel);
-    const fmt = (n, d=3) => Number(n||0).toLocaleString(undefined,{maximumFractionDigits:d});
-    const ymd = d => d.toISOString().slice(0,10);
-    const sum = (a, fn= x=>x) => a.reduce((t,v)=> t + (+fn(v)||0), 0);
-
-    function bestUnit(mwh){ return mwh>=1000 ? {unit:'GWh', scale:1/1000} : {unit:'MWh', scale:1}; }
-    function unitToMWh(v, unit){
-      const u=String(unit||"MWh").toLowerCase();
-      if(u.includes("kwh"))return (Number(v)||0)/1000;
-      if(u.includes("gwh"))return (Number(v)||0)*1000;
-      return Number(v)||0;
-    }
-    function getTotalMWh(r){
-      const unit = r.Total_Yield_Unit || r.Yield_Unit;
-      return unitToMWh(r.Total_Yield, unit);
-    }
-    function getDateOnly(r){ return r.Date || (r.Date_Time ? r.Date_Time.slice(0,10) : ""); }
-
-    function latestBy(rows, keyFn){
-      const m=new Map();
-      for(const r of rows){
-        const k=keyFn(r); const ts = new Date(r.Date_Time||0).getTime();
-        const cur=m.get(k); if(!cur || ts>cur._ts) m.set(k,{...r,_ts:ts});
-      } return m;
-    }
-    function latestPerPlantForDay(rows, dayStr){
-      const filtered = rows.filter(r => getDateOnly(r)===dayStr);
-      return latestBy(filtered, r=>r.Plant_ID);
-    }
-
-    /* ---------- state ---------- */
-    let plants=[], plantMap=new Map(), selected=new Set();
-    let start=new Date(), end=new Date(), preset='custom';
-    let pie, barline, kpiUnit='MWh';
-
-    /* ---------- dropdown ---------- */
-    function closeDD(e){ const dd=$('#plantDD'); if(!dd.contains(e.target)&&e.target!==$('#plantBtn')) dd.classList.remove('open'); }
-    $('#plantBtn').addEventListener('click',()=>$('#plantDD').classList.toggle('open'));
-    document.addEventListener('click', closeDD);
-
-    async function loadPlants(){
-  // Try local API first, then fall back to your working azurestaticapps host
-  const bases = ["", "https://gray-desert-0663e5d00.2.azurestaticapps.net"];
-  const paths = ["/api/plants", "/api/PlantDirectory"];
-
-  for (const base of bases){
-    for (const p of paths){
-      try{
-        const r = await fetch(base + p, { headers:{ "accept":"application/json" }});
-        if (!r.ok){ console.warn("plants fetch failed:", r.status, base+p); continue; }
-        const j = await r.json();
-        const list = Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
-        if (Array.isArray(list)) return list;
-      }catch(err){
-        console.warn("plants fetch error:", (err && err.message) || err, base+p);
-      }
-    }
-  }
-  return [];
-}});
-        if (!r.ok){ console.warn("plants fetch failed:", r.status, base+p); continue; }
-        const j = await r.json();
-        // both { plants:[...] } and [...] are accepted
-        const list = Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
-        if (Array.isArray(list)) return list;
-      }catch(err){
-        console.warn("plants fetch error:", (err && err.message) || err, base+p);
-      }
-    }
-  }
-  // Final fallback: empty list (UI stays alive)
-  return [];
-}});
-      if (!r.ok) { console.warn("plants fetch failed:", r.status); continue; }
-      const j = await r.json();
-      return Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
-    }catch(err){
-      console.warn("plants fetch error:", err?.message || err);
-    }
-  }
-  // give the UI a safe fallback so it still renders
-  return [];
-}/api/GetPlantDirectory?${window.bust}`);
-      const js = await res.json();
-      plants = (js?.data||[]).map(p=>({Plant_ID:Number(p.Plant_ID), Plant_Name:String((p.DisplayPlant||(p.DisplayPlant||p.Plant_Name)))}));
-      plantMap = new Map(plants.map(p=>[p.Plant_ID,(p.DisplayPlant||(p.DisplayPlant||p.Plant_Name))])); // from PlantDirectory schema (Plant_ID, Plant_Name) :contentReference[oaicite:2]{index=2}
-      const host=$('#plantList'); host.innerHTML='';
-      plants.sort((a,b)=>(a.DisplayPlant||(a.DisplayPlant||a.Plant_Name)).localeCompare((b.DisplayPlant||(b.DisplayPlant||b.Plant_Name))));
-      for(const p of plants){
-        const id='pl_'+p.Plant_ID;
-        const row=document.createElement('div'); row.className='dd-row';
-        row.innerHTML=`<input type="checkbox" id="${id}" data-id="${p.Plant_ID}"> <label for="${id}">${(p.DisplayPlant||(p.DisplayPlant||p.Plant_Name))}</label>`;
-        row.querySelector('input').addEventListener('change', onPlantChange);
-        host.appendChild(row);
-      }
-      $('#allPlants').addEventListener('change',()=>{
-        selected.clear();
-        document.querySelectorAll('#plantList input[type="checkbox"]').forEach(cb=>cb.checked=false);
-        $('#plantBtn').textContent='All Plants';
-      });
-    }
-    function onPlantChange(){
-      $('#allPlants').checked=false;
-      const cbs=document.querySelectorAll('#plantList input[type="checkbox"]');
-      selected=new Set(Array.from(cbs).filter(cb=>cb.checked).map(cb=>Number(cb.dataset.id)));
-      if(selected.size===0){ $('#allPlants').checked=true; $('#plantBtn').textContent='All Plants'; }
-      else if(selected.size===1){ const pid=[...selected][0]; $('#plantBtn').textContent=plantMap.get(pid)||'1 plant'; }
-      else { $('#plantBtn').textContent=`${selected.size} plants`; }
-    }
-
-    /* ---------- presets ---------- */
-    function setDefaults(){ const now=new Date(); end=now; start=new Date(now); start.setDate(now.getDate()-30);
-      $('#startDate').value=ymd(start); $('#endDate').value=ymd(end); }
-    document.querySelectorAll('.preset .chip').forEach(ch=>{
-      ch.addEventListener('click',()=>{
-        document.querySelectorAll('.preset .chip').forEach(x=>x.classList.remove('active')); ch.classList.add('active'); preset=ch.dataset.preset;
-        const now=new Date();
-        if(preset==='day'){ start=new Date(now); end=new Date(now); }
-        if(preset==='month'){ start=new Date(now.getFullYear(), now.getMonth(),1); end=new Date(now.getFullYear(), now.getMonth()+1,0); }
-        if(preset==='year'){ start=new Date(now.getFullYear(),0,1); end=new Date(now.getFullYear(),11,31); }
-        $('#startDate').value=ymd(start); $('#endDate').value=ymd(end);
-      });
-    });
-    $('#startDate').addEventListener('change',e=> start=new Date(e.target.value));
-    $('#endDate').addEventListener('change',e=> end=new Date(e.target.value));
-
-    /* ---------- data ---------- */
-    async function fetchJSON(url){ const r=await fetch(url); const t=await r.text(); return t?JSON.parse(t):null; }
-    async function loadMeters(){
-      const s=ymd(start), e=ymd(end);
-      const js = await fetchJSON(`${API_BASE}/api/GetPremier300MeterAll?start=${s}&end=${e}&top=100000&${window.bust}`);
-      const rows = js?.data||[];
-      // fill Plant_Name when missing using PlantDirectory
-      for (const r of rows) {
-  if (!(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || (r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)).trim()==="") {
-    const nm = plantMap.get(Number(r.Plant_ID));
-    if (nm) {
-      if (!r.DisplayPlant || !r.DisplayPlant.trim()) r.DisplayPlant = nm;
-      if (!r.Plant_Name  || !r.Plant_Name.trim())   r.Plant_Name  = nm;
-    }
-  }
-}
-      return rows;
-    }
-    function filterByPlants(rows){ if($('#allPlants').checked || selected.size===0) return rows; return rows.filter(r=>selected.has(Number(r.Plant_ID))); }
-    function uniqueSortedDays(rows){ return [...new Set(rows.map(r=> r.Date || (r.Date_Time?.slice(0,10)||"")))].filter(Boolean).sort(); }
-
-    /* ---------- render ---------- */
-    function renderKPI(rows){
-      const latestPerPlant = latestBy(rows, r=>r.Plant_ID);
-      const totalMWh = [...latestPerPlant.values()].reduce((t,r)=> t + getTotalMWh(r), 0);
-      const u = bestUnit(totalMWh);
-      kpiUnit = u.unit;
-      $('#kpiTotal').textContent = fmt(totalMWh*u.scale,3);
-      $('#kpiUnit').textContent  = `(${u.unit})`;
-      $('#pieBadge').textContent = u.unit;   // keep Pie in sync with KPI
-      $('#kpiHint').textContent  = `Range: ${ymd(start)} ? ${ymd(end)} ''' Plants: ${($('#allPlants').checked||selected.size===0)?'All':selected.size}`;
-    }
-
-    function renderTable(rows){
-      const latest = Array.from(latestBy(rows, r=>r.Meter_ID).values()).sort((a,b)=> b._ts-a._ts);
-      const tb=$('#latestBody'); tb.innerHTML='';
-      for(const r of latest){
-        const nm=(r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || plantMap.get(Number(r.Plant_ID)) || '';
-        const tr=document.createElement('tr');
-        tr.innerHTML=`
-          <td>${nm}</td><td>${r.Meter_Make||''}</td><td>${r.Meter_Model||''}</td><td>${r.Meter_Type||''}</td>
-          <td class="muted">${r.Meter_Serial_No||''}</td>
-          <td style="text-align:right">${fmt(r.Meter_Reading,3)}</td>
-          <td>${r.Total_Yield_Unit || r.Yield_Unit || 'MWh'}</td>
-          <td class="muted">${String(r.Date_Time||'').replace('T',' ')}</td>`;
-        tb.appendChild(tr);
-      }
-    }
-
-    function renderPie(rows){
-      const latestPerPlant = latestBy(rows, r=>r.Plant_ID);
-      const labels=[], values=[];
-      latestPerPlant.forEach(r=>{
-        labels.push((r.DisplayPlant||(r.DisplayPlant||r.Plant_Name)) || plantMap.get(Number(r.Plant_ID)) || `Plant ${r.Plant_ID}`);
-        values.push(getTotalMWh(r)); // always MWh first
-      });
-      // convert slice values to KPI unit
-      const scale = (kpiUnit==='GWh') ? (1/1000) : 1;
-      const valScaled = values.map(v=> v*scale);
-
-      if(pie) pie.destroy();
-      pie = new Chart($('#pieChart'), {
-        type:'pie',
-        data:{ labels, datasets:[{ data: valScaled, radius:'99%' }] },
-        options:{
-          plugins:{
-            legend:{ display:false },
-            tooltip:{ callbacks:{ label: ctx=>{
-              const tot = valScaled.reduce((a,c)=>a+c,0)||1;
-              const pct = (ctx.parsed/tot*100).toFixed(1);
-              return `${ctx.label}: ${fmt(ctx.parsed,2)} ${kpiUnit} (${pct}%)`;
-            }}},
-            datalabels:{ display:false }
-          },
-          maintainAspectRatio:false, layout:{padding:0} }
-      });
-    }
-
-    function renderBarLine(rows){
-      const days = uniqueSortedDays(rows).slice(-9);
-      const barTotalsMWh=[], lineKwh=[];
-      for(const d of days){
-        const latestMap = latestPerPlantForDay(rows, d);
-        barTotalsMWh.push([...latestMap.values()].reduce((t,r)=> t + getTotalMWh(r), 0));
-
-        // Sum daily kWh per plant (take max-per-plant to avoid duplicate rows)
-        const dayRows = rows.filter(r => (r.Date || r.Date_Time?.slice(0,10))===d);
-        const byPlant = new Map();
-        for(const r of dayRows){
-          const pid=r.Plant_ID;
-          const val = Number(r.Incremental_Daily_Yield_KWH || 0); // from Premier300Meter schema :contentReference[oaicite:3]{index=3}
-          byPlant.set(pid, Math.max(byPlant.get(pid)||0, val));
-        }
-        lineKwh.push([...byPlant.values()].reduce((a,b)=>a+b,0));
-      }
-
-      const maxBar = Math.max(...barTotalsMWh, 0);
-      const {unit, scale} = bestUnit(maxBar); // choose bar unit by selection
-      $('#barBadge').textContent = unit;
-      const barVals = barTotalsMWh.map(v=> v*scale);
-
-      if(barline) barline.destroy();
-      barline = new Chart($('#barLine'), {
-        type:'bar',
-        data:{
-          labels: days.map(d=> new Date(d).toLocaleDateString()),
-          datasets:[
-            { type:'bar',  label:`Total (${unit})`, data:barVals, order:2, borderWidth:1 },
-            { type:'line', label:'Daily (kWh)', data:lineKwh, yAxisID:'y2', tension:.25, order:1,
-              borderWidth:2.5, pointRadius:3, pointHoverRadius:4, fill:false }
-          ]
-        },
-        options:{
-          maintainAspectRatio:false,
-          scales:{
-            y:{ beginAtZero:true },
-            y2:{ position:'right', beginAtZero:true, grid:{ drawOnChartArea:false } } // kWh axis
-          },
-          plugins:{
-            legend:{ position:'bottom' },
-            tooltip:{ enabled:true },
-            datalabels:{ color:'#111', anchor:'end', align:'end',
-              formatter:(v,ctx)=> ctx.dataset.type==='bar' ? fmt(v,1) : (v>0?fmt(v,0):'') }
-          }
-        },
-        plugins:[ChartDataLabels]
-      });
-    }
-
-        /* ---------- main ---------- */
-    async function loadPlants(){
-      // Call the working function name directly
-      const res = await fetch("/api/PlantDirectory");
-      if(!res.ok) throw new Error(res.status);
-      const data = await res.json();
-      return (data?.plants || data || []).map(p => ({
-        id: String(p.id ?? p.Plant_ID ?? ""),
-        name: String(p.name ?? p.DisplayPlant ?? p.Plant_Name ?? "Unknown")
-      }));
-    }
-
-    async function fillPlants(){
-      try{
-        const list = await loadPlants();
-        const dd = document.getElementById("plantSelect");
-        if(!dd){ console.warn("plant dropdown not found"); return; }
-        dd.innerHTML = "";
-        const optAll = document.createElement("option");
-        optAll.value = ""; optAll.textContent = "All Plants";
-        dd.appendChild(optAll);
-        for(const p of list){
-          const o = document.createElement("option");
-          o.value = p.id; o.textContent = p.name;
-          dd.appendChild(o);
-        }
-      }catch(e){
-        console.error("plants fetch failed:", e?.message || e);
-      }
-    }
-
-    // Your existing meter loader (kept intact — only the catch line fixed)
-    async function loadMeters(){
-      const start = document.getElementById("start")?.value || "";
-      const end   = document.getElementById("end")?.value || "";
-      const url = `/api/GetPremier300MeterAll?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&top=100000&${Date.now()}`;
-      const r = await fetch(url);
-      if(!r.ok) throw new Error(r.status);
-      const rows = await r.json();
-      return Array.isArray(rows) ? rows : (rows?.rows || []);
-    }
-
-    function filterByPlants(rows){
-      const dd = document.getElementById("plantSelect");
-      const sel = (dd && dd.value) ? dd.value : "";
-      if(!sel) return rows;
-      return rows.filter(r =>
-        String(r.Plant_ID ?? r.PlantId ?? r.Plant)?.trim() === String(sel).trim()
-      );
-    }
-
-    async function run(){
-      try{
-        const btn = document.getElementById("applyBtn");
-        if(btn) btn.disabled = true;
-        const all = await loadMeters();
-        const sel = filterByPlants(all);
-        renderKPI(sel);
-        renderPie(sel);
-        renderBarLine(sel);
-        renderTable(sel);
-      }catch(e){
-        console.error(e); console.warn("UI notice:", "Failed to load data");
-      }finally{
-        const btn = document.getElementById("applyBtn");
-        if(btn) btn.disabled = false;
-      }
-    }
-
-    document.addEventListener("DOMContentLoaded", async ()=>{
-      if(typeof setDefaults === "function"){ setDefaults(); }
-      await fillPlants();
-      const btn = document.getElementById("applyBtn");
-      if(btn) btn.addEventListener("click", run);
-      await run();
-    });
-</script>
+  
 <!-- ===== Small Footer ===== -->
 <style>
   .sp-footer{margin-top:12px;border-top:1px solid #e5e7eb;background:#fff}
@@ -616,172 +94,15 @@ function enrichRowsWithPlantNames(rows, dirRows){
   </div>
 </footer>
 <!-- ===== End Footer ===== -->
-<script>
-// === Safe JSON fetch (tolerates empty bodies & logs bad JSON) ===
-async function fetchJSONSafe(url){
-  const r = await fetch(url);
-  const txt = await r.text();
-  if (!r.ok) throw new Error(`${r.status} ${r.statusText}`);
-  if (!txt) return null;                      // tolerate empty body
-  try { return JSON.parse(txt); }
-  catch(e){ console.warn('Bad JSON from', url, e, txt.slice(0,200)); return null; }
-}
 
-// Use the safe helper everywhere
-async function fetchJSON(url){ return fetchJSONSafe(url); }
-
-// Tolerant replacement for loadPlants (handles [] or {data:[''']} or null)
-async function loadPlants(){
-  // Try local API first, then fall back to your working azurestaticapps host
-  const bases = ["", "https://gray-desert-0663e5d00.2.azurestaticapps.net"];
-  const paths = ["/api/plants", "/api/PlantDirectory"];
-
-  for (const base of bases){
-    for (const p of paths){
-      try{
-        const r = await fetch(base + p, { headers:{ "accept":"application/json" }});
-        if (!r.ok){ console.warn("plants fetch failed:", r.status, base+p); continue; }
-        const j = await r.json();
-        const list = Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
-        if (Array.isArray(list)) return list;
-      }catch(err){
-        console.warn("plants fetch error:", (err && err.message) || err, base+p);
-      }
-    }
-  }
-  return [];
-}});
-        if (!r.ok){ console.warn("plants fetch failed:", r.status, base+p); continue; }
-        const j = await r.json();
-        // both { plants:[...] } and [...] are accepted
-        const list = Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
-        if (Array.isArray(list)) return list;
-      }catch(err){
-        console.warn("plants fetch error:", (err && err.message) || err, base+p);
-      }
-    }
-  }
-  // Final fallback: empty list (UI stays alive)
-  return [];
-}});
-      if (!r.ok) { console.warn("plants fetch failed:", r.status); continue; }
-      const j = await r.json();
-      return Array.isArray(j?.plants) ? j.plants : (Array.isArray(j) ? j : []);
-    }catch(err){
-      console.warn("plants fetch error:", err?.message || err);
-    }
-  }
-  // give the UI a safe fallback so it still renders
-  return [];
-}/api/GetPlantDirectory?cb=${Date.now()}`);
-    const arr = Array.isArray(js?.data) ? js.data
-              : Array.isArray(js)      ? js
-              : [];
-
-    // Normalize fields
-    plants = arr.map(p => {
-      const id   = Number(p.Plant_ID ?? p.id ?? p.pid ?? 0);
-      const name = String(p.DisplayPlant ?? p.Plant_Name ?? p.name ?? '').trim();
-      return { Plant_ID:id, DisplayPlant: name || `Plant ${id}`, Plant_Name: name || `Plant ${id}` };
-    });
-
-    // Build dropdown
-    plantMap = new Map(plants.map(p => [p.Plant_ID, p.DisplayPlant || p.Plant_Name]));
-    const host = document.querySelector('#plantList'); host.innerHTML = '';
-    plants.sort((a,b)=> (a.DisplayPlant||a.Plant_Name).localeCompare(b.DisplayPlant||b.Plant_Name));
-    for(const p of plants){
-      const id='pl_'+p.Plant_ID;
-      const row=document.createElement('div'); row.className='dd-row';
-      row.innerHTML = `<input type="checkbox" id="${id}" data-id="${p.Plant_ID}"> <label for="${id}">${p.DisplayPlant||p.Plant_Name}</label>`;
-      row.querySelector('input').addEventListener('change', onPlantChange);
-      host.appendChild(row);
-    }
-    document.querySelector('#allPlants').addEventListener('change',()=>{
-      selected.clear();
-      document.querySelectorAll('#plantList input[type="checkbox"]').forEach(cb=>cb.checked=false);
-      document.querySelector('#plantBtn').textContent='All Plants';
-    });
-  }catch(err){
-    console.error('loadPlants failed:', err);
-    const warn = document.getElementById('nodata');
-    if (warn){ warn.style.display='block'; warn.textContent = 'Plant list unavailable right now.'; }
-  }
-
-
-
-
-<!-- site-nav-active -->
-<script>
-  (function(){
-    var m = document.getElementById('topnav');
-    if(m) m.setAttribute('data-active', 'meter');
-  })();
-</script>
 <!-- /site-nav-active -->
-<script>
-(function(){
-  try{
-    var path = (location.pathname.split('/').pop() || 'meter.v2.html').toLowerCase();
-    var a = document.querySelector('.topbar .tabs a[data-page="'+path+'"]');
-    if (a) a.classList.add('active');
-  }catch(e){}
-})();
-</script>
+
 <!-- meter-align-script -->
-<script>
-(function alignLatestTable(){
-  try{
-    var host = Array.from(document.querySelectorAll('h3, h4, .card-title,.card h3,.card h4'))
-      .find(el => /Latest Reading per Meter/i.test((el.textContent||'').trim()));
-    var tbl = host ? (host.closest('.card,section,div')?.querySelector('table')) : null;
-    if(!tbl) tbl = document.querySelector('table#latestTable') || document.querySelector('table'); if(!tbl) return;
 
-    var heads = Array.from(tbl.querySelectorAll('thead th')).map(th => (th.textContent||'').trim());
-    var names = ['Meter_Reading','Total_Yield_Unit','Meter Reading','Total Yield'];
-    var idx = names.map(n => heads.findIndex(h => h === n)).filter(i => i >= 0);
-
-    var bodyRows = Array.from(tbl.tBodies[0]?.rows || []);
-    if(idx.length){ bodyRows.forEach(tr => idx.forEach(i => tr.children[i]?.classList.add('t-center'))); }
-  }catch(e){ console.warn('alignLatestTable:', e); }
-})();
-</script>
 <!-- /meter-align-script -->
 <script src="nav.js" defer></script>
 
-<script>
-  (function(){
-    async function fillPlants(){
-      try{
-        const r = await fetch('/api/plants');
-        if(!r.ok) { console.warn('plants fetch failed:', r.status); return; }
-        const j = await r.json();
-        const list = (j.plants||[]).sort((a,b)=>String(a.name).localeCompare(b.name));
-        var sel = document.querySelector('[data-plant-select]') || document.querySelector('select#plantSelect') || null;
-        if(!sel){
-          // create a simple dropdown if none exists
-          const host = document.querySelector('.filters') || document.body;
-          sel = document.createElement('select');
-          sel.id = 'plantSelect';
-          sel.setAttribute('data-plant-select','');
-          sel.style.margin = '8px';
-          host.prepend(sel);
-        }
-        sel.innerHTML = '';
-        var optAll = document.createElement('option');
-        optAll.value = ''; optAll.textContent = 'All Plants';
-        sel.appendChild(optAll);
-        for(const p of list){
-          const o = document.createElement('option');
-          o.value = p.id; o.textContent = p.name;
-          sel.appendChild(o);
-        }
-      }catch(e){ console.warn('plants error', e); }
-    }
-    document.readyState === 'loading'
-      ? document.addEventListener('DOMContentLoaded', fillPlants)
-      : fillPlants();
-  })();
-</script>
+
 </body>
 </html>
 
@@ -848,4 +169,92 @@ async function loadPlants(){
 
 
 
+
+
+<script>
+  // ---- tiny helpers ----
+  const $ = (sel, root=document) => root.querySelector(sel);
+
+  async function jsonGET(url){
+    const r = await fetch(url, { headers:{ "Accept":"application/json" }});
+    if(!r.ok) throw new Error(String(r.status));
+    return r.json();
+  }
+
+  // ---- PLANTS ----
+  async function loadPlants(){
+    // Call the working function name exactly (case-sensitive on SWA Linux)
+    const data = await jsonGET("/api/PlantDirectory");
+    const list = Array.isArray(data) ? data : (data?.plants || []);
+    return list.map(p => ({
+      id: String(p.id ?? p.Plant_ID ?? ""),
+      name: String(p.name ?? p.DisplayPlant ?? p.Plant_Name ?? "Unknown")
+    }));
+  }
+
+  async function fillPlants(){
+    try{
+      const dd = $("#plantSelect") || $("#plants") || $("#PlantSelect");
+      if(!dd){ console.warn("plant dropdown not found"); return; }
+      dd.innerHTML = "";
+      const optAll = document.createElement("option");
+      optAll.value = ""; optAll.textContent = "All Plants";
+      dd.appendChild(optAll);
+
+      const items = await loadPlants();
+      for(const p of items){
+        const o = document.createElement("option");
+        o.value = p.id; o.textContent = p.name;
+        dd.appendChild(o);
+      }
+    }catch(e){
+      console.error("plants fetch failed:", e?.message || e);
+    }
+  }
+
+  // ---- METERS (uses your existing API) ----
+  async function loadMeters(){
+    const start = $("#start")?.value || "";
+    const end   = $("#end")?.value   || "";
+    const url = `/api/GetPremier300MeterAll?start=${encodeURIComponent(start)}&end=${encodeURIComponent(end)}&top=100000&${Date.now()}`;
+    const data = await jsonGET(url);
+    return Array.isArray(data) ? data : (data?.rows || []);
+  }
+
+  function filterByPlants(rows){
+    const dd = $("#plantSelect") || $("#plants") || $("#PlantSelect");
+    const sel = dd?.value ? String(dd.value).trim() : "";
+    if(!sel) return rows;
+    return rows.filter(r => String(r.Plant_ID ?? r.PlantId ?? r.Plant ?? "").trim() === sel);
+  }
+
+  async function run(){
+    const btn = $("#applyBtn");
+    try{
+      if(btn) btn.disabled = true;
+      const all = await loadMeters();
+      const sel = filterByPlants(all);
+      // Use your existing render functions if present; otherwise no-op
+      try{ window.renderKPI    && window.renderKPI(sel);    }catch(_){}
+      try{ window.renderPie    && window.renderPie(sel);    }catch(_){}
+      try{ window.renderBarLine&& window.renderBarLine(sel);}catch(_){}
+      try{ window.renderTable  && window.renderTable(sel);  }catch(_){}
+    }catch(e){
+      console.error(e); console.warn("UI notice:", "Failed to load data");
+    }finally{
+      if(btn) btn.disabled = false;
+    }
+  }
+
+  document.addEventListener("DOMContentLoaded", async ()=>{
+    try{
+      // If your code defines setDefaults, use it
+      if(typeof window.setDefaults === "function"){ window.setDefaults(); }
+      await fillPlants();
+      const btn = $("#applyBtn");
+      if(btn) btn.addEventListener("click", run);
+      await run();
+    }catch(e){ console.error(e); }
+  });
+</script>
 
