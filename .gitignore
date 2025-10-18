@@ -21,3 +21,4 @@ build/
 *.bak
 
 api/**/*.bak_*
+inverter_analytics.backup.html
