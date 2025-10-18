@@ -1,7 +1,17 @@
 ﻿{
   "bindings": [
-    { "authLevel": "anonymous", "type": "httpTrigger", "direction": "in",
-      "name": "req", "methods": ["get"], "route": "api/plants" },
-    { "type": "http", "direction": "out", "name": "res" }
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "name": "req",
+      "methods": [ "get" ],
+      "route": "plants"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
   ]
 }
