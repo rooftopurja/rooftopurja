@@ -1,4 +1,4 @@
-(function(){
+﻿(function(){
   // -------- API base (works on both custom domain and default host) -------
   const API_BASE = `${location.origin}/api`;
 
@@ -97,7 +97,7 @@
     // convenience: meter rows call
     async loadMeterRows(){
       const d = ensureDates();
-      const url = `${API_BASE}/GetPremier300MeterAll?start=${encodeURIComponent(d.startISO)}&end=${encodeURIComponent(d.endISO)}&top=100000&${Date.now()}`;
+      const url = `${API_BASE}/meter-rows?start=${encodeURIComponent(d.startISO)}&end=${encodeURIComponent(d.endISO)}&top=100000&${Date.now()}`;
       const data = await fetchJSON(url);
       return Array.isArray(data) ? data : (data?.rows || []);
     }
