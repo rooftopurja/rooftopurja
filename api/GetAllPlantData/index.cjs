@@ -1,93 +1,227 @@
+// GetAllPlantData – per-meter/day pick closest to 09:50 IST, plus per-plant daily for client filtering
 const { TableClient } = require("@azure/data-tables");
+require("dotenv").config();
 
-/**
- * Unified low-cost data reader for all plant types (Meters, Inverters, Sensors, PLCs)
- * Reads tables dynamically from SWA environment variables.
- */
 module.exports = async function (context, req) {
   try {
-    // 1️⃣ Get authenticated user
-    const principal = req.headers["x-ms-client-principal"];
-    if (!principal) {
-      context.res = { status: 401, body: "Not authenticated" };
-      return;
-    }
-    const decoded = Buffer.from(principal, "base64").toString("utf8");
-    const user = JSON.parse(decoded);
-    const userId = user.userId || user.userDetails;
-    if (!userId) {
-      context.res = { status: 401, body: "User ID missing" };
-      return;
-    }
+    const connStr = process.env.TABLES_CONNECTION_STRING;
+    const storage = {
+      directory: process.env.Plant_Directory_Table || "PlantDirectory",
+      meter: process.env.METER_TABLES || "Premier300Meter",
+    };
 
-    // 2️⃣ Get environment variables
-    const conn = process.env.TABLES_CONNECTION_STRING;
-    const meterTables = (process.env.METER_TABLES || "").split(",").map(s => s.trim()).filter(Boolean);
-    const inverterTables = (process.env.INVERTER_TABLES || "").split(",").map(s => s.trim()).filter(Boolean);
-    const sensorTables = (process.env.SENSORS_TABLES || "").split(",").map(s => s.trim()).filter(Boolean);
-    const plcTables = (process.env.plcaccontrol_tables + "," + process.env.plcpump_tables)
-      .split(",")
-      .map(s => s.trim())
-      .filter(Boolean);
-
-    // 3️⃣ Determine which plants this user can see
-    const accessClient = TableClient.fromConnectionString(conn, "UserPlantAccess");
-    const allowedPlants = [];
-    for await (const e of accessClient.listEntities({
-      queryOptions: { filter: `PartitionKey eq '${userId}'` },
-    })) {
-      allowedPlants.push(e.Plant_ID.toString());
-    }
-    if (allowedPlants.length === 0) {
-      context.res = { status: 403, body: "No plants assigned to this user." };
-      return;
-    }
-
-    // Helper to load rows for one table
-    async function fetchTableRows(tableName) {
+    // ---- Auth (optional) ----
+    let email = "info@rooftopurja.in";
+    const p = req.headers["x-ms-client-principal"];
+    if (p) {
       try {
-        const client = TableClient.fromConnectionString(conn, tableName);
-        const rows = [];
-        for (const plantId of allowedPlants) {
-          for await (const entity of client.listEntities({
-            queryOptions: { filter: `PartitionKey eq '${plantId}'` },
-          })) {
-            rows.push({ tableName, plantId, ...entity });
-            if (rows.length >= 500) break; // limit per table
-          }
+        const u = JSON.parse(Buffer.from(p, "base64").toString("utf8"));
+        email = (u.userDetails || "").toLowerCase();
+      } catch {}
+    }
+
+    // ---- Plant directory ----
+    const dirClient = TableClient.fromConnectionString(connStr, storage.directory);
+    const plantMap = {}, plantMapByMeter = {};
+    for await (const e of dirClient.listEntities()) {
+      plantMap[e.Plant_ID] = e;
+      if (e.Meter_ID) plantMapByMeter[e.Meter_ID] = e.Plant_ID;
+    }
+
+    // ---- Read all meter rows ----
+    const meterClient = TableClient.fromConnectionString(connStr, storage.meter);
+    const allRows = [];
+    for await (const r of meterClient.listEntities()) {
+      const pid = r.Plant_ID || plantMapByMeter[r.Meter_ID];
+      if (!pid) continue;
+      r.Plant_ID = pid;
+      allRows.push(r);
+    }
+    context.log(`rows fetched: ${allRows.length}`);
+
+    if (!allRows.length) {
+      context.res = {
+        headers: { "Content-Type": "application/json" },
+        body: {
+          user: email,
+          dailyData: {},
+          dailyByPlant: {},
+          tableByDate: {},
+          latestReadings: [],
+          plants: [],
+          pieData: [],
+          history: { monthlyByPlant: {}, yearlyByPlant: {} },
+          lastUpdated: new Date().toISOString(),
+          totalYield: "0.000",
+          yieldUnit: "kWh",
+        },
+      };
+      return;
+    }
+
+    // ---- helpers ----
+    const toISODate = (d) => new Date(d).toISOString().slice(0, 10);
+    const toKWh = (val, unit) => {
+      const n = Number(val) || 0;
+      const u = (unit || "").toLowerCase();
+      if (u.includes("gwh")) return n * 1e6;
+      if (u.includes("mwh")) return n * 1e3;
+      return n;
+    };
+
+    // ---- choose closest to 09:50 IST per (meterId, date) ----
+    const target = 9 * 60 + 50; // minutes
+    const byMeterDate = {}; // key: meterId_YYYY-MM-DD -> { row, diff }
+    const now = new Date();
+    const cutoffStart = new Date(now.getTime() - 31 * 86400000); // last 31 days for client filtering
+
+    for (const r of allRows) {
+      const meterId = r.Meter_ID || r.PartitionKey;
+      const tsRaw = r.Date_Time || r.Timestamp || r.Date;
+      if (!meterId || !tsRaw) continue;
+
+      // IMPORTANT: incoming Date_Time is already IST (as per your data). Do NOT shift.
+      const dObj = new Date(tsRaw);
+      if (isNaN(dObj)) continue;
+
+      const ymd = toISODate(dObj);
+      const minutes = dObj.getHours() * 60 + dObj.getMinutes();
+      const diff = Math.abs(minutes - target);
+      const key = `${meterId}_${ymd}`;
+
+      if (!byMeterDate[key] || diff < byMeterDate[key].diff) byMeterDate[key] = { row: r, diff };
+    }
+
+    const filteredRows = Object.values(byMeterDate).map(x => x.row);
+
+    // ---- latest per plant ----
+    const latestByPlant = {};
+    for (const r of filteredRows) {
+      const pid = r.Plant_ID;
+      const ts = new Date(r.Date_Time || r.Timestamp || r.Date);
+      if (!latestByPlant[pid] || ts > new Date(latestByPlant[pid].Date_Time || 0)) latestByPlant[pid] = r;
+    }
+    const latestReadings = Object.values(latestByPlant).map(r => ({
+      Plant_ID: r.Plant_ID,
+      Plant_Name: plantMap[r.Plant_ID]?.Plant_Name || r.Plant_ID,
+      Meter_ID: r.Meter_ID || "",
+      Meter_Serial_No: r.Meter_Serial_No || "",
+      Meter_Make: r.Meter_Make || "",
+      Meter_Model: r.Meter_Model || "",
+      Meter_Type: r.Meter_Type || "",
+      Meter_Reading: r.Meter_Reading || "",
+      Total_Yield: toKWh(r.Total_Yield, r.Yield_Unit),
+      Yield_Unit: "kWh",
+      Incremental_Daily_Yield_KWH: Number(r.Incremental_Daily_Yield_KWH) || 0,
+      Date_Time: r.Date_Time || "",
+    }));
+
+    // ---- dailyByPlant (last 30 days) & tableByDate (for table filter)
+    const dailyByPlant = {}; // { 'YYYY-MM-DD': { pid: kWh } }
+    const tableByDate = {};  // { 'YYYY-MM-DD': [rows...] } rows are already closest to 09:50
+    for (const r of filteredRows) {
+      const dateKey = toISODate(r.Date_Time || r.Timestamp || r.Date);
+      const ts = new Date(dateKey);
+      if (ts < cutoffStart) continue;
+
+      const pid = r.Plant_ID;
+      const totalKWh = toKWh(r.Total_Yield, r.Yield_Unit);
+
+      dailyByPlant[dateKey] = dailyByPlant[dateKey] || {};
+      dailyByPlant[dateKey][pid] = Math.max(dailyByPlant[dateKey][pid] || 0, totalKWh);
+
+      tableByDate[dateKey] = tableByDate[dateKey] || [];
+      tableByDate[dateKey].push({
+        Plant_ID: pid,
+        Plant_Name: plantMap[pid]?.Plant_Name || pid,
+        Meter_Serial_No: r.Meter_Serial_No || "",
+        Meter_Make: r.Meter_Make || "",
+        Meter_Model: r.Meter_Model || "",
+        Meter_Type: r.Meter_Type || "",
+        Meter_Reading: r.Meter_Reading || "",
+        Total_Yield: totalKWh,
+        Date_Time: r.Date_Time || ""
+      });
+    }
+
+    // ---- combined dailyData (across all plants; still included for completeness)
+    const dailyData = {};
+    for (const d of Object.keys(dailyByPlant)) {
+      dailyData[d] = Object.values(dailyByPlant[d]).reduce((a, b) => a + b, 0);
+    }
+
+    // ---- month & year aggregates (from filteredRows)
+    const monthlyByPlant = {};
+    const yearlyByPlant = {};
+    const totalsOnDateByPlant = {}; // track max total per plant per date to derive deltas when inc missing
+
+    for (const r of filteredRows) {
+      const pid = r.Plant_ID;
+      const d = toISODate(r.Date_Time || r.Timestamp || r.Date);
+      const monthKey = d.slice(0, 7);
+      const yearKey = d.slice(0, 4);
+      const tot = toKWh(r.Total_Yield, r.Yield_Unit);
+      const inc = Number(r.Incremental_Daily_Yield_KWH) || 0;
+
+      totalsOnDateByPlant[pid] = totalsOnDateByPlant[pid] || {};
+      totalsOnDateByPlant[pid][d] = Math.max(totalsOnDateByPlant[pid][d] || 0, tot);
+
+      monthlyByPlant[monthKey] = monthlyByPlant[monthKey] || {};
+      yearlyByPlant[yearKey] = yearlyByPlant[yearKey] || {};
+      if (inc > 0) {
+        monthlyByPlant[monthKey][pid] = (monthlyByPlant[monthKey][pid] || 0) + inc;
+        yearlyByPlant[yearKey][pid] = (yearlyByPlant[yearKey][pid] || 0) + inc;
+      }
+    }
+    // fill gaps via total deltas
+    for (const pid of Object.keys(totalsOnDateByPlant)) {
+      const days = Object.keys(totalsOnDateByPlant[pid]).sort();
+      let prev = null;
+      for (const d of days) {
+        const m = d.slice(0, 7), y = d.slice(0, 4);
+        const t = totalsOnDateByPlant[pid][d];
+        if (prev != null && t > prev) {
+          monthlyByPlant[m] = monthlyByPlant[m] || {};
+          yearlyByPlant[y] = yearlyByPlant[y] || {};
+          monthlyByPlant[m][pid] = (monthlyByPlant[m][pid] || 0) + (t - prev);
+          yearlyByPlant[y][pid] = (yearlyByPlant[y][pid] || 0) + (t - prev);
         }
-        return rows;
-      } catch (err) {
-        context.log(`Error reading ${tableName}: ${err.message}`);
-        return [];
+        prev = t;
       }
     }
 
-    // 4️⃣ Collect all categories
-    const [meters, inverters, sensors, plcs] = await Promise.all([
-      Promise.all(meterTables.map(fetchTableRows)),
-      Promise.all(inverterTables.map(fetchTableRows)),
-      Promise.all(sensorTables.map(fetchTableRows)),
-      Promise.all(plcTables.map(fetchTableRows)),
-    ]);
+    // ---- KPI & pie (from latestReadings)
+    const totalByPlant = {};
+    for (const r of latestReadings) totalByPlant[r.Plant_ID] = (totalByPlant[r.Plant_ID] || 0) + r.Total_Yield;
+    let totalYieldKWh = Object.values(totalByPlant).reduce((a, b) => a + b, 0);
+    let displayValue = totalYieldKWh, displayUnit = "kWh";
+    if (displayValue >= 1e6) { displayValue /= 1e6; displayUnit = "GWh"; }
+    else if (displayValue >= 1e3) { displayValue /= 1e3; displayUnit = "MWh"; }
 
-    // Flatten arrays
-    const result = {
-      user: userId,
-      plants: allowedPlants,
-      meters: meters.flat(),
-      inverters: inverters.flat(),
-      sensors: sensors.flat(),
-      plc: plcs.flat(),
-    };
+    const pieData = Object.entries(totalByPlant).map(([id, val]) => ({
+      Plant_ID: id,
+      Plant_Name: plantMap[id]?.Plant_Name || id,
+      Value: val
+    }));
 
     context.res = {
-      status: 200,
       headers: { "Content-Type": "application/json" },
-      body: result,
+      body: {
+        user: email,
+        plants: Object.values(plantMap || {}),
+        latestReadings,
+        dailyData,          // total across all plants (legacy)
+        dailyByPlant,       // NEW: per-plant daily totals for last 30 days
+        tableByDate,        // NEW: rows per date (closest to 09:50 IST per meter)
+        history: { monthlyByPlant, yearlyByPlant },
+        pieData,
+        totalYield: displayValue.toFixed(3),
+        yieldUnit: displayUnit,
+        lastUpdated: new Date().toISOString()
+      }
     };
   } catch (err) {
-    context.log.error("Error in GetAllPlantData:", err);
-    context.res = { status: 500, body: `Server error: ${err.message}` };
+    context.log.error("GetAllPlantData error:", err);
+    context.res = { status: 500, body: err.message || "Server Error" };
   }
 };
