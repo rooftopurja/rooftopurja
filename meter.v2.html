@@ -187,7 +187,7 @@ const sum=(a,f)=>a.reduce((x,r)=>x+(f(r)||0),0);
 const selPlants=()=>{const c=[...document.querySelectorAll('#plantMenu input[type=checkbox]')]; if(!c.length||c[0].checked) return null; return c.filter(x=>x.value!=='all'&&x.checked).map(x=>String(x.value));};
 
 (async()=>{
-  const r=await fetch('/api/get-all-plant-data',{cache:'no-store'});
+  const r=await fetch('/api/GetMeterData',{cache:'no-store'});
   cache=await r.json();
   buildPlantMenu(); buildPeriodUI(); render();
 })();

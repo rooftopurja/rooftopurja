@@ -1,8 +1,8 @@
-// GetAllPlantData – per-meter/day pick closest to 09:50 IST, plus per-plant daily for client filtering
+// GetMeterData – per-meter/day pick closest to 09:50 IST, plus per-plant daily for client filtering
 const { TableClient } = require("@azure/data-tables");
 require("dotenv").config();
 
-module.exports = async function (context, req) {
+module.exports = async function GetMeterData(context, req) {
   try {
     const connStr = process.env.TABLES_CONNECTION_STRING;
     const storage = {
@@ -221,7 +221,7 @@ module.exports = async function (context, req) {
       }
     };
   } catch (err) {
-    context.log.error("GetAllPlantData error:", err);
+    context.log.error("GetMeterData error:", err);
     context.res = { status: 500, body: err.message || "Server Error" };
   }
 };
