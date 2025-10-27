@@ -1,37 +1,21 @@
-#!/usr/bin/env bash
-set -euo pipefail
+﻿#!/usr/bin/env bash
+set -e
 
-rm -rf dist
+# Ensure dist folder exists
 mkdir -p dist
 
-# core pages
-cp -v index.html dist/ 2>/dev/null || true
-cp -v meter.v2.html dist/ 2>/dev/null || true
-cp -v inverter_analytics.html dist/ 2>/dev/null || true
-cp -v inverter_data_overview.html dist/ 2>/dev/null || true
-cp -v inverter_faults.html dist/ 2>/dev/null || true
-cp -v maintenance.html dist/ 2>/dev/null || true
-cp -v about.html dist/ 2>/dev/null || true
+# Copy main HTML pages
+cp -r index.html meter.v2.html inverter_analytics.html inverter_data_overview.html inverter_faults.html maintenance.html dist/
 
-# assets / shared UI
-cp -v favicon.ico dist/ 2>/dev/null || true
-cp -v styles.css dist/ 2>/dev/null || true
-cp -v nav.css dist/ 2>/dev/null || true
-cp -v nav.html dist/ 2>/dev/null || true
-cp -v nav.js dist/ 2>/dev/null || true
-cp -rv assets dist/assets 2>/dev/null || true
+# Copy assets & common folders
+cp -r assets dist/
+cp -r common dist/
 
-# SWA config (routes/headers)
-cp -v staticwebapp.config.json dist/ 2>/dev/null || true
-
-# --- Fix for header/nav missing in Live deployment ---
-echo "Ensuring common/ header files exist for Azure Static Web Apps..."
-
+# 🔹 Ensure nav.html exists in both paths so header loads correctly on Azure
+mkdir -p dist/assets
 mkdir -p dist/common
+cp assets/nav.html dist/assets/nav.html
+cp assets/nav.html dist/common/nav.html
 
-# Copy nav files from assets to common (ignore if already there)
-cp -r assets/nav.* dist/common/ 2>/dev/null || true
-
-echo "Header fix: copied nav.* files to dist/common/"
-# --- End fix ---
-
+# Copy staticwebapp.config.json
+cp staticwebapp.config.json dist/
