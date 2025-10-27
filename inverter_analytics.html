@@ -1,198 +1,180 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-  <title>Solar Plant Dashboard - Inverter Analytics</title>
-  <link rel="stylesheet" href="common/style.css" />
-  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
-  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2"></script>
-  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/jspdf@2.5.1/dist/jspdf.umd.min.js"></script>
-  <style>
-    body{background:#f7f9fb;font-family:"Segoe UI",sans-serif;margin:0}
-    .container{padding:10px 35px 15px 35px}
-    .filter-bar{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin-bottom:10px}
-    .dropdown{position:relative;display:inline-block}
-    .dropbtn{background:#fff;border:1px solid #ccc;border-radius:6px;padding:6px 12px;cursor:pointer;min-width:160px;text-align:left}
-    .dropdown-content{display:none;position:absolute;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 3px 6px rgba(0,0,0,.15);max-height:240px;overflow:auto;z-index:5;width:220px}
-    .dropdown-content label{display:block;padding:4px 8px;cursor:pointer;font-size:13px}
-    .dropdown:hover .dropdown-content{display:block}
-    .date-filters button{padding:6px 12px;border:1px solid #ccc;border-radius:6px;background:#fff;cursor:pointer;font-size:13px}
-    .date-filters button.active{background:#0078d7;color:#fff;border-color:#0078d7}
-    .arrow-btn{background:#eef2f7;border:1px solid #cbd5e1;font-weight:700;width:30px;cursor:pointer;border-radius:6px}
-    .apply{background:linear-gradient(90deg,#0078d7,#00a2ff);color:#fff;border:none;padding:6px 14px;border-radius:6px;cursor:pointer}
-    .export-menu{position:relative}
-    .export-dropdown{display:none;position:absolute;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 2px 6px rgba(0,0,0,.1);z-index:5}
-    .export-dropdown a{display:block;padding:6px 10px;text-decoration:none;color:#333;font-size:13px}
-    .export-dropdown a:hover{background:#f1f1f1}
-    .export-menu:hover .export-dropdown{display:block}
-    .kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:8px}
-    .kpi-card{background:#fff;border-radius:10px;box-shadow:0 3px 6px rgba(0,0,0,.08);text-align:center;padding:10px;color:#004080}
-    .kpi-card.primary{background:linear-gradient(135deg,#0078d7,#00a2ff);color:#fff}
-    .charts-grid{display:grid;grid-template-columns:50% 50%;gap:10px;height:calc(100vh - 210px)} 
-    .card{background:#fff;border-radius:10px;box-shadow:0 3px 6px rgba(0,0,0,.08);padding:12px 16px;display:flex;flex-direction:column}
-    .card h3{font-size:14px;color:#004080;margin:0 0 6px}
-    canvas{flex:1;width:100%!important;height:100%!important}
-  </style>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>Solar Plant Dashboard – Inverter Analytics</title>
+<link rel="stylesheet" href="common/style.css" />
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+<style>
+:root{
+  --blue:#0057d8;--orange:#f57c00;--text:#143559;
+  --panel:#fff;--shadow:0 2px 8px rgba(0,0,0,.05);
+  --bg:#fafbfc;
+}
+body{margin:0;font-family:"Segoe UI",sans-serif;background:var(--bg);color:var(--text);}
+.stage{max-width:1180px;margin:14px auto;background:var(--panel);border-radius:12px;box-shadow:var(--shadow);padding:14px;display:flex;flex-direction:column;gap:10px;height:calc(100vh - 80px);}
+.filters{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:.9rem;border-bottom:1px solid #e7ecf2;padding-bottom:8px;}
+label{font-weight:600;font-size:.9rem;}
+.multi{position:relative;display:inline-block}
+.multi button{border:1px solid var(--blue);border-radius:18px;padding:4px 12px;background:#fff;color:var(--text);font-size:.9rem;min-width:220px;text-align:left;position:relative;}
+.multi button::after{content:"▼";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:.7rem;color:var(--text);}
+.multi-menu{display:none;position:absolute;top:110%;left:0;background:#fff;border:1px solid #ccc;border-radius:6px;box-shadow:0 2px 8px rgba(0,0,0,.1);padding:8px;width:220px;max-height:240px;overflow-y:auto;z-index:999;}
+.multi-menu label{display:block;padding:4px 0;font-size:.85rem;}
+.multi-menu input{margin-right:6px;}
+.btn{background:#fff;color:var(--blue);border:1px solid var(--blue);border-radius:18px;padding:4px 10px;font-weight:600;height:30px;font-size:.85rem;cursor:pointer;}
+.btn.active{background:var(--blue);color:#fff;border:none;}
+.grid{display:grid;grid-template-columns:60% 40%;gap:10px;flex:1;}
+.card{background:var(--panel);border-radius:10px;box-shadow:var(--shadow);padding:10px;display:flex;flex-direction:column;position:relative;}
+.card h2{margin:0 0 4px;font-size:.95rem;font-weight:700;color:var(--text);border-left:4px solid var(--blue);padding-left:6px;}
+.nav-arrows{position:absolute;right:8px;top:4px;}
+.nav-arrows button{border:none;background:none;color:var(--blue);font-size:16px;cursor:pointer;}
+.kpi-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;}
+.kpi-card{background:var(--panel);border-radius:10px;box-shadow:var(--shadow);text-align:center;padding:8px;}
+.kpi-card.primary{background:linear-gradient(135deg,#0078d7,#00a2ff);color:#fff;}
+.kpi-card h4{margin:0;font-size:13px;}
+.kpi-card p{margin:2px 0 0;font-size:16px;font-weight:600;}
+.fade{animation:fadeIn .4s ease-in-out;}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px);}to{opacity:1;transform:none;}}
+</style>
 </head>
+
 <body>
-  <div id="header"></div>
-  <script>
-    fetch("common/header.html").then(r=>r.text()).then(h=>document.getElementById("header").innerHTML=h);
-  </script>
+<div id="header"></div>
+<script>
+fetch("common/header.html").then(r=>r.text()).then(html=>document.getElementById("header").innerHTML=html);
+</script>
 
-  <div class="container">
-    <!-- FILTER BAR -->
-    <div class="filter-bar">
-      <div class="dropdown">
-        <button class="dropbtn">🌿 Select Plant(s)</button>
-        <div class="dropdown-content" id="plantMenu"></div>
-      </div>
-      <div class="dropdown">
-        <button class="dropbtn">🔌 Select Inverter(s)</button>
-        <div class="dropdown-content" id="inverterMenu"></div>
-      </div>
-
-      <div class="date-filters">
-        <button class="date-btn active" onclick="setPeriod(this,'day')">Day</button>
-        <button class="date-btn" onclick="setPeriod(this,'week')">Week</button>
-        <button class="date-btn" onclick="setPeriod(this,'month')">Month</button>
-        <button class="date-btn" onclick="setPeriod(this,'year')">Year</button>
-        <button class="date-btn" onclick="setPeriod(this,'lifetime')">Lifetime</button>
-        <button class="date-btn" onclick="setPeriod(this,'custom')">Custom</button>
-      </div>
-      <input type="date" id="fromDate" style="padding:4px;border:1px solid #ccc;border-radius:6px">
-      <input type="date" id="toDate" style="padding:4px;border:1px solid #ccc;border-radius:6px">
-      <button class="arrow-btn" onclick="shiftPeriod(-1)">←</button>
-      <button class="arrow-btn" onclick="shiftPeriod(1)">→</button>
-      <button class="apply" onclick="applyFilters()">Apply</button>
-
-      <div class="export-menu">
-        <button>⬇ Export ▼</button>
-        <div class="export-dropdown">
-          <a href="#" onclick="exportData('csv')">CSV</a>
-          <a href="#" onclick="exportData('excel')">Excel</a>
-          <a href="#" onclick="exportData('pdf')">PDF</a>
-        </div>
-      </div>
+<div class="stage">
+  <div class="filters">
+    <label>🌿 Plants:</label>
+    <div class="multi">
+      <button id="plantBtn">All Plants</button>
+      <div id="plantMenu" class="multi-menu"></div>
     </div>
-
-    <!-- KPI CARDS -->
-    <div class="kpi-grid">
-      <div class="kpi-card primary"><h4>Total Yield</h4><p id="totalYield">0 kWh</p></div>
-      <div class="kpi-card"><h4>CUF</h4><p>--</p></div>
-      <div class="kpi-card"><h4>PR</h4><p>--</p></div>
+    <label>🔌 Inverters:</label>
+    <div class="multi">
+      <button id="invBtn">All Inverters</button>
+      <div id="invMenu" class="multi-menu"></div>
     </div>
-
-    <!-- CHARTS -->
-    <div class="charts-grid">
-      <div class="card"><h3>Daily Power Curve (DC & AC Power vs Time)</h3><canvas id="powerCurve"></canvas></div>
-      <div class="card"><h3>Yield Trend</h3><canvas id="yieldTrend"></canvas></div>
-    </div>
+    <label>Period:</label>
+    <button class="btn period active" data-p="day">Day</button>
+    <button class="btn period" data-p="week">Week</button>
+    <button class="btn period" data-p="month">Month</button>
+    <button class="btn period" data-p="year">Year</button>
+    <button class="btn period" data-p="lifetime">Lifetime</button>
+    <div class="nav-arrows"><button id="prevBtn">←</button><button id="nextBtn">→</button></div>
   </div>
 
-  <script>
-    Chart.register(ChartDataLabels);
-    let dataBlob=null,activePeriod='day';
+  <div class="kpi-grid">
+    <div class="kpi-card primary"><h4>Total Yield</h4><p id="totalYield">--</p></div>
+    <div class="kpi-card"><h4>CUF</h4><p>--</p></div>
+    <div class="kpi-card"><h4>PR</h4><p>--</p></div>
+  </div>
 
-    async function loadData(){
-      const res=await fetch("/api/GetAllPlantData");
-      dataBlob=await res.json();
-      populateDropdowns();
-      drawCharts();
-    }
+  <div class="grid">
+    <div class="card fade"><h2>Power Curve</h2><canvas id="curve"></canvas></div>
+    <div class="card fade"><h2>Yield Trend</h2><canvas id="yield"></canvas></div>
+  </div>
+</div>
 
-    function populateDropdowns(){
-      const plantDiv=document.getElementById("plantMenu");
-      plantDiv.innerHTML="";
-      (dataBlob.plants||[]).forEach(p=>{
-        const l=document.createElement("label");
-        const c=document.createElement("input");
-        c.type="checkbox";c.value=p.Plant_ID;c.checked=true;
-        l.appendChild(c);l.append(" "+(p.Plant_Name||p.Plant_ID));
-        plantDiv.appendChild(l);
-      });
+<script>
+Chart.register(ChartDataLabels);
+let plants=[],inverters=[],period='day',nav=0,cache=null,pcChart=null,ytChart=null;
 
-      const invDiv=document.getElementById("inverterMenu");
-      invDiv.innerHTML="";
-      (dataBlob.inverterDataMerged.inverters||[]).forEach(i=>{
-        const l=document.createElement("label");
-        const c=document.createElement("input");
-        c.type="checkbox";c.value=i.Inverter_ID;c.checked=true;
-        l.appendChild(c);l.append(" "+i.Inverter_ID);
-        invDiv.appendChild(l);
-      });
-    }
+document.addEventListener("DOMContentLoaded",init);
 
-    function setPeriod(btn,type){
-      document.querySelectorAll('.date-btn').forEach(b=>b.classList.remove('active'));
-      btn.classList.add('active');
-      activePeriod=type;
-    }
+async function init(){
+  await loadFilters();
+  attachEvents();
+  fetchData();
+}
 
-    function shiftPeriod(dir){console.log("shift period",dir);}
+async function loadFilters(){
+  const r=await fetch('/api/PlantDirectory');const raw=await r.json();
+  plants=(raw||[]).sort((a,b)=>a.Plant_Name.localeCompare(b.Plant_Name));
+  inverters=[...new Set(plants.flatMap(p=>(p.Inverters||"").split(',').map(x=>x.trim()).filter(Boolean)))].sort();
 
-    function selectedPlants(){
-      return Array.from(document.querySelectorAll("#plantMenu input:checked")).map(x=>x.value);
-    }
-    function selectedInverters(){
-      return Array.from(document.querySelectorAll("#inverterMenu input:checked")).map(x=>x.value);
-    }
+  const pMenu=document.getElementById('plantMenu');
+  const iMenu=document.getElementById('invMenu');
+  pMenu.innerHTML=`<label><input type="checkbox" value="all" checked> All Plants</label>`;
+  iMenu.innerHTML=`<label><input type="checkbox" value="all" checked> All Inverters</label>`;
+  plants.forEach(p=>pMenu.innerHTML+=`<label><input type="checkbox" value="${p.Plant_ID}"> ${p.Plant_Name}</label>`);
+  inverters.forEach(i=>iMenu.innerHTML+=`<label><input type="checkbox" value="${i}"> ${i}</label>`);
 
-    function autoUnit(v){
-      let n=v,u="kWh";if(n>=1e6){n/=1e6;u="GWh"}else if(n>=1e3){n/=1e3;u="MWh"}return[n,u];
-    }
+  const toggle=(menu,btn)=>{btn.onclick=()=>menu.style.display=menu.style.display==='block'?'none':'block';
+    window.addEventListener('click',e=>{if(!e.target.closest('.multi'))menu.style.display='none';});};
+  toggle(pMenu,document.getElementById('plantBtn'));
+  toggle(iMenu,document.getElementById('invBtn'));
+}
 
-    function applyFilters(){drawCharts();}
+function attachEvents(){
+  document.querySelectorAll('.period').forEach(b=>b.onclick=()=>{document.querySelectorAll('.period').forEach(x=>x.classList.remove('active'));b.classList.add('active');period=b.dataset.p;fetchData();});
+  document.getElementById('prevBtn').onclick=()=>{nav--;fetchData();};
+  document.getElementById('nextBtn').onclick=()=>{nav++;fetchData();};
+}
 
-    function drawCharts(){
-      const picks=selectedPlants(),invs=selectedInverters();
-      const invData=dataBlob.inverterDataMerged;
-      const ctx1=document.getElementById("powerCurve").getContext("2d");
-      const ctx2=document.getElementById("yieldTrend").getContext("2d");
-      if(window.pc)window.pc.destroy();if(window.yt)window.yt.destroy();
+function selectedVals(menuId,allList){
+  const cbs=[...document.querySelectorAll(`#${menuId} input[type=checkbox]`)];
+  if(cbs.find(x=>x.value==='all'&&x.checked)) return allList;
+  return cbs.filter(x=>x.checked&&x.value!=='all').map(x=>x.value);
+}
 
-      // Daily Power Curve (always today)
-      let rows=[];
-      Object.entries(invData.powerCurves||{}).forEach(([id,arr])=>{
-        if(invs.length&&invs.includes(id))arr.forEach(r=>rows.push(r));
-      });
-      rows.sort((a,b)=>a.t.localeCompare(b.t));
-      const lbls=rows.map(r=>new Date(r.t).toLocaleTimeString([],{hour:'2-digit',minute:'2-digit'}));
-      const dc=rows.map(r=>r.dc),ac=rows.map(r=>r.ac);
-      window.pc=new Chart(ctx1,{type:"line",data:{labels:lbls,datasets:[
-        {label:"DC Power (kW)",data:dc,borderColor:"#0078d7",backgroundColor:"rgba(0,120,215,.2)",fill:true,tension:.4},
-        {label:"AC Power (kW)",data:ac,borderColor:"#f57c00",backgroundColor:"rgba(245,124,0,.15)",fill:true,tension:.4}
-      ]},options:{plugins:{legend:{position:"top"},datalabels:{display:false}},scales:{y:{beginAtZero:true}}}});
+async function fetchData(){
+  const plantSel=selectedVals('plantMenu',plants.map(p=>p.Plant_ID));
+  const invSel=selectedVals('invMenu',inverters);
+  const url=`/api/GetInverterData?period=${period}&nav=${nav}&plants=${plantSel.join(',')}&inverters=${invSel.join(',')}`;
+  const r=await fetch(url); cache=await r.json();
+  render();
+}
 
-      // Yield Trend (dynamic period)
-      const dmap=invData.dailyByPlant||{};const dates=Object.keys(dmap).sort();
-      const vals=dates.map(d=>{
-        let s=0;Object.entries(dmap[d]).forEach(([pid,v])=>{if(picks.includes(pid))s+=v});return s;
-      });
-      const [scale,unit]=autoUnit(Math.max(...vals,1));
-      window.yt=new Chart(ctx2,{type:"bar",data:{labels:dates,datasets:[{
-        label:"Yield ("+unit+")",
-        data:vals.map(v=>v/(unit=="MWh"?1e3:unit=="GWh"?1e6:1)),
-        backgroundColor:"rgba(0,136,255,.7)",borderRadius:5
-      }]},options:{plugins:{legend:{display:false},datalabels:{anchor:"end",align:"end",formatter:v=>v.toFixed(2)}},scales:{y:{beginAtZero:true}}}});
+function autoUnit(v){return v>=1e6?'GWh':v>=1e3?'MWh':'kWh';}
+function scale(v,u){return u==='GWh'?v/1e6:u==='MWh'?v/1e3:v;}
 
-      // KPI
-      const tot=invData.kpi||{value:0,unit:"kWh"};
-      document.getElementById("totalYield").textContent=`${tot.value} ${tot.unit}`;
-    }
+function render(){
+  if(!cache) return;
+  const tVal=Number(cache.totalYield||0),u=cache.yieldUnit||'kWh';
+  document.getElementById('totalYield').textContent=`${tVal.toFixed(2)} ${u}`;
+  drawCurve(cache.powerCurve||[]);
+  drawYield(cache.yieldTrend||[]);
+}
 
-    function exportData(type){
-      if(!window.pc)return;
-      const rows=[["Time","DC(kW)","AC(kW)"]];
-      window.pc.data.labels.forEach((t,i)=>rows.push([t,window.pc.data.datasets[0].data[i],window.pc.data.datasets[1].data[i]]));
-      if(type=="csv"){const csv=rows.map(r=>r.join(",")).join("\n");const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([csv]));a.download="InverterPowerCurve.csv";a.click();}
-      else if(type=="excel"){const wb=XLSX.utils.book_new();const ws=XLSX.utils.aoa_to_sheet(rows);XLSX.utils.book_append_sheet(wb,ws,"PowerCurve");XLSX.writeFile(wb,"InverterPowerCurve.xlsx");}
-      else if(type=="pdf"){const {jsPDF}=window.jspdf;const pdf=new jsPDF({orientation:"landscape"});pdf.text("Inverter Analytics - Power Curve",10,10);pdf.addImage(window.pc.toBase64Image(),"PNG",10,15,270,150);pdf.save("InverterPowerCurve.pdf");}
-    }
+function drawCurve(arr){
+  const ctx=document.getElementById('curve').getContext('2d');
+  if(pcChart) pcChart.destroy();
+  if(!arr.length) return;
+  pcChart=new Chart(ctx,{
+    type:'line',
+    data:{labels:arr.map(x=>x.time),
+      datasets:[
+        {label:'DC Power (kW)',data:arr.map(x=>x.dc),borderColor:'#f57c00',tension:.2,fill:{target:'origin',above:'rgba(245,124,0,0.1)'}},
+        {label:'AC Power (kW)',data:arr.map(x=>x.ac),borderColor:'#0078d7',tension:.2,fill:{target:'origin',above:'rgba(0,120,215,0.1)'}}
+      ]},
+    options:{plugins:{legend:{display:true,position:'bottom'},
+      datalabels:{color:(ctx)=>ctx.dataset.label.includes('DC')?'#d35400':'#003366',anchor:'end',align:(ctx)=>ctx.dataset.label.includes('DC')?'end':'start',
+        font:{size:9},formatter:(v)=>v?Number(v).toFixed(1):''}},
+      scales:{y:{beginAtZero:true},x:{ticks:{callback:(v,i,vals)=>i%4===0?arr[i]?.time.split('T')[1].slice(0,5):''}}}},
+    plugins:[ChartDataLabels]
+  });
+}
 
-    loadData();
-  </script>
+function drawYield(arr){
+  const ctx=document.getElementById('yield').getContext('2d');
+  if(ytChart) ytChart.destroy();
+  if(!arr.length) return;
+  const vals=arr.map(x=>x.valueKWh||0);
+  const u=autoUnit(Math.max(...vals,1));
+  const scaled=vals.map(v=>scale(v,u));
+  ytChart=new Chart(ctx,{
+    type:'bar',
+    data:{labels:arr.map(x=>x.label),
+      datasets:[{data:scaled,backgroundColor:'#0078d7',borderRadius:4}]},
+    options:{plugins:{legend:{display:false},datalabels:{anchor:'end',align:'end',color:'#003366',font:{size:9},formatter:v=>v.toFixed(1)}},
+      scales:{y:{beginAtZero:true}}},
+    plugins:[ChartDataLabels]
+  });
+}
+</script>
 </body>
 </html>

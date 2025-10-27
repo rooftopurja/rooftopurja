@@ -5,12 +5,13 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get"]
+      "methods": [ "get" ],
+      "route": "GetInverterDataOverview"
     },
     {
       "type": "http",
       "direction": "out",
-      "name": "res"
+      "name": "$return"
     }
   ],
   "scriptFile": "index.cjs"
