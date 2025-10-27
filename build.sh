@@ -19,3 +19,5 @@ cp assets/nav.html dist/common/nav.html
 
 # Copy staticwebapp.config.json
 cp staticwebapp.config.json dist/
+
+# Force redeploy trigger 2025-10-28 00:48:37
