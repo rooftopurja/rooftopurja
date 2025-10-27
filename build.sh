@@ -1,4 +1,4 @@
-﻿#!/usr/bin/env bash
+#!/usr/bin/env bash
 set -e
 
 # Ensure dist folder exists
@@ -11,7 +11,7 @@ cp -r index.html meter.v2.html inverter_analytics.html inverter_data_overview.ht
 cp -r assets dist/
 cp -r common dist/
 
-# 🔹 Ensure nav.html exists in both paths so header loads correctly on Azure
+# ?? Ensure nav.html exists in both paths so header loads correctly on Azure
 mkdir -p dist/assets
 mkdir -p dist/common
 cp assets/nav.html dist/assets/nav.html
