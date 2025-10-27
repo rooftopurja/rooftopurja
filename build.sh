@@ -23,3 +23,15 @@ cp -rv assets dist/assets 2>/dev/null || true
 
 # SWA config (routes/headers)
 cp -v staticwebapp.config.json dist/ 2>/dev/null || true
+
+# --- Fix for header/nav missing in Live deployment ---
+echo "Ensuring common/ header files exist for Azure Static Web Apps..."
+
+mkdir -p dist/common
+
+# Copy nav files from assets to common (ignore if already there)
+cp -r assets/nav.* dist/common/ 2>/dev/null || true
+
+echo "Header fix: copied nav.* files to dist/common/"
+# --- End fix ---
+
