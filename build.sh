@@ -1,4 +1,4 @@
-#!/usr/bin/env bash
+﻿#!/usr/bin/env bash
 set -e
 
 # Ensure dist folder exists
@@ -21,3 +21,4 @@ cp assets/nav.html dist/common/nav.html
 cp staticwebapp.config.json dist/
 
 # Force redeploy trigger 2025-10-28 00:48:37
+
