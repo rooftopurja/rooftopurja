@@ -1,29 +1,200 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Solar Plant Dashboard - Inverter Data Overview</title>
-  <link rel="stylesheet" href="common/style.css" />
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0" />
+<title>Solar Plant Dashboard – Inverter Data Overview</title>
+<link rel="stylesheet" href="common/style.css" />
+<style>
+:root{--blue:#0057d8;--text:#143559;--bg:#fafbfc;--panel:#fff;--shadow:0 2px 6px rgba(0,0,0,.05);}
+html,body{margin:0;height:100%;font-family:"Segoe UI",sans-serif;background:var(--bg);color:var(--text);}
+.stage{max-width:1180px;margin:8px auto;background:var(--panel);border-radius:10px;box-shadow:var(--shadow);
+padding:10px;display:flex;flex-direction:column;gap:6px;min-height:calc(100vh - 80px);}
+.filters{display:flex;align-items:center;flex-wrap:wrap;gap:8px;font-size:.85rem;border-bottom:1px solid #e7ecf2;padding-bottom:4px;}
+label{font-weight:600;font-size:.85rem;}
+select,input[type=date]{border:1px solid var(--blue);border-radius:16px;padding:3px 8px;background:#fff;color:var(--text);
+font-size:.85rem;line-height:1.1;height:28px;}
+#plantSel{min-width:320px}#invSel{min-width:180px}
+.card{background:#fff;border-radius:8px;box-shadow:var(--shadow);padding:6px}
+h3{margin:0 0 4px;font-size:.9rem;font-weight:700;border-left:3px solid var(--blue);padding-left:5px;}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:4px}
+.cell{padding:3px 5px;border-radius:5px;background:#f8fbff;border:1px solid #e6eef9;font-size:.8rem}
+.kv b{display:inline-block;min-width:140px}
+table{width:100%;border-collapse:collapse;font-size:.76rem}
+th,td{border:1px solid #e4e8ef;padding:2px;text-align:center;line-height:1.1}
+th{background:#f5f7fa}
+.toggle{display:inline-flex;align-items:center;gap:4px;font-size:.8rem;font-weight:600;margin-left:auto}
+#dcWrap{max-height:40vh;overflow:auto;}
+/* mobile & laptop adaptation */
+@media (max-width:1200px){.grid{grid-template-columns:repeat(2,1fr)}}
+@media (max-width:768px){
+  table{font-size:.7rem}
+  .grid{grid-template-columns:repeat(1,1fr)}
+  #dcWrap{overflow-x:auto;}
+}
+</style>
 </head>
+
 <body>
-  <div id="header-placeholder"></div>
+<div id="header"></div>
+<script>
+fetch("common/header.html").then(r=>r.text()).then(h=>document.getElementById("header").innerHTML=h);
+</script>
 
-  <main style="padding:20px;">
-    <h2>Inverter Data Overview</h2>
-    <p>Tabular and summarized inverter data.</p>
-  </main>
+<div class="stage">
+  <div class="filters">
+    <label>🌿 Plant:</label>
+    <select id="plantSel"><option value="">Select Plant</option></select>
+    <label>🔌 Inverter:</label>
+    <select id="invSel"><option value="">Select Inverter</option></select>
+    <label>Date:</label>
+    <input type="date" id="dateSel">
+    <label class="toggle"><input type="checkbox" id="hideZero" checked> Hide zero-only MPPT rows</label>
+  </div>
 
-  <script>
-    fetch("common/header.html")
-      .then(res => res.text())
-      .then(html => {
-        document.getElementById("header-placeholder").innerHTML = html;
-        const current = location.pathname.split("/").pop();
-        const active = document.querySelector(`a[href='${current}']`);
-        if (active) active.classList.add("active");
-      })
-      .catch(err => console.error("Header load error:", err));
-  </script>
+  <div class="card">
+    <h3>General Information</h3>
+    <div id="generalContent">Loading…</div>
+  </div>
+
+  <div class="card">
+    <h3>AC Parameters</h3>
+    <table id="acTable">
+      <thead><tr><th>Phase</th><th>Voltage (V)</th><th>Current (A)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+  </div>
+
+  <div class="card" id="dcWrap">
+    <h3>DC Parameters (MPPT & PV)</h3>
+    <table id="dcTable">
+      <thead id="dcHead"></thead>
+      <tbody id="dcBody"></tbody>
+    </table>
+  </div>
+</div>
+
+<script>
+let plants=[],plantMap={},refreshTimer=null;
+window.addEventListener("DOMContentLoaded",async()=>{
+  await loadPlantsAndInverters();
+  setupEvents();
+  document.getElementById("dateSel").value=new Date().toISOString().split("T")[0];
+  const ps=document.getElementById("plantSel");
+  const esic=[...ps.options].find(o=>o.value==="ESIC_Kalaburagi_Hospital");
+  ps.value=esic?esic.value:ps.options[1]?.value||"";
+  populateInverters(ps.value,"Inverter_16");
+  fetchData();
+  startAutoRefresh();
+});
+function setupEvents(){
+  ["plantSel","invSel","dateSel","hideZero"].forEach(id=>
+    document.getElementById(id).addEventListener("change",fetchData));
+  document.getElementById("plantSel").addEventListener("change",()=>{
+    populateInverters(document.getElementById("plantSel").value);
+    fetchData();
+  });
+}
+function startAutoRefresh(){
+  if(refreshTimer)clearInterval(refreshTimer);
+  refreshTimer=setInterval(fetchData,23*60*1000);
+}
+async function loadPlantsAndInverters(){
+  const r=await fetch("/api/PlantDirectory");
+  const raw=await r.json();
+  plants=(raw||[]).map(p=>({
+    Plant_Name:p.Plant_Name,
+    Inverters:(p.Inverters||"").split(",").map(x=>x.trim()).filter(Boolean).sort((a,b)=>a.localeCompare(b))
+  })).sort((a,b)=>a.Plant_Name.localeCompare(b.Plant_Name));
+  plantMap={};plants.forEach(p=>plantMap[p.Plant_Name]=p.Inverters);
+  const ps=document.getElementById("plantSel");
+  ps.innerHTML=`<option value="">Select Plant</option>`+plants.map(p=>`<option value="${p.Plant_Name}">${p.Plant_Name}</option>`).join("");
+}
+function populateInverters(plant,preferred){
+  const is=document.getElementById("invSel");
+  const list=(plantMap[plant]||[]).slice().sort((a,b)=>a.localeCompare(b));
+  is.innerHTML=`<option value="">Select Inverter</option>`+list.map(i=>`<option value="${i}">${i}</option>`).join("");
+  if(preferred&&list.includes(preferred))is.value=preferred;else if(list.length)is.value=list[0];
+}
+async function fetchData(){
+  const plant=document.getElementById("plantSel").value;
+  const inverter=document.getElementById("invSel").value;
+  const date=document.getElementById("dateSel").value;
+  if(!plant||!inverter||!date)return;
+  try{
+    const r=await fetch(`/api/GetInverterDataOverview?plant=${encodeURIComponent(plant)}&inverter=${encodeURIComponent(inverter)}&date=${date}`);
+    const d=await r.json();
+    if(!r.ok||!d||d.message){drawGeneral(null,inverter,date);drawAC(null);drawDC(null);return;}
+    drawGeneral(d,inverter,date);drawAC(d);drawDC(d);
+  }catch(e){drawGeneral(null,inverter,date);drawAC(null);drawDC(null);}
+}
+
+/* ---------- RENDER ---------- */
+function drawGeneral(d, inv, date) {
+  const el = document.getElementById("generalContent");
+  if (!d) {
+    el.innerHTML = `<p>No data available for ${inv} on ${date}</p>`;
+    return;
+  }
+
+  // ✅ Clean handling of Total Yield
+  let yieldDisplay = "--";
+  if (d.Total_Yield_Unit && /\d/.test(d.Total_Yield_Unit)) {
+    // Case where backend already combines number + unit, e.g. "143.99 MWH"
+    yieldDisplay = d.Total_Yield_Unit;
+  } else if (d.Total_Yield && d.Total_Yield_Unit) {
+    yieldDisplay = `${d.Total_Yield} ${d.Total_Yield_Unit}`;
+  } else if (d.Total_Yield) {
+    yieldDisplay = d.Total_Yield;
+  }
+
+  el.innerHTML = `
+    <div class="grid kv">
+      <div class="cell"><b>Make:</b> ${d.Inverter_Make ?? "--"}</div>
+      <div class="cell"><b>Model:</b> ${d.Inverter_Model ?? "--"}</div>
+      <div class="cell"><b>Serial:</b> ${d.Inverter_Serial_No ?? "--"}</div>
+      <div class="cell"><b>Rated Power:</b> ${d.Inverter_Rated_Power ?? "--"}</div>
+
+      <div class="cell"><b>Array Insulation (kΩ):</b> ${d["Array_Insulation_Resistance_kΩ"] ?? "--"}</div>
+      <div class="cell"><b>Neg Voltage (V):</b> ${d.Negative_Voltage_To_Ground_V ?? "--"}</div>
+      <div class="cell"><b>Grid Freq (Hz):</b> ${d.Grid_Frequency_Hz ?? "--"}</div>
+      <div class="cell"><b>Temp (°C):</b> ${d.Inverter_Temp_C ?? "--"}</div>
+
+      <div class="cell"><b>Daily Run (hr):</b> ${d.Daily_Run_Time_Hours ?? "--"}</div>
+      <div class="cell"><b>Total Run (hr):</b> ${d.Total_Run_Time_Hours ?? "--"}</div>
+      <div class="cell"><b>Total Yield:</b> ${yieldDisplay}</div>
+      <div class="cell"><b>Status:</b> ${d.Work_State_Description ?? "--"}</div>
+    </div>`;
+}
+function drawAC(d){
+  const b=document.querySelector("#acTable tbody");
+  if(!d){b.innerHTML="";return;}
+  const rows=[["A",d.AC_A_V??0,d.AC_A_A??0],["B",d.AC_B_V??0,d.AC_B_A??0],["C",d.AC_C_V??0,d.AC_C_A??0]]
+    .map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td><td>${r[2]}</td></tr>`).join("");
+  b.innerHTML=rows;
+}
+function drawDC(d){
+  const head=document.getElementById("dcHead"),body=document.getElementById("dcBody");
+  if(!d){head.innerHTML="";body.innerHTML="";return;}
+  const pvCols=Array.from({length:24},(_,i)=>i+1);
+  head.innerHTML=`<tr><th>MPPT</th><th>MPPT V</th><th>MPPT A</th>${pvCols.map(n=>`<th>PV${n} (A)</th>`).join("")}</tr>`;
+  const hideZero=document.getElementById("hideZero").checked;
+  let rows="";
+  for(let mp=1;mp<=12;mp++){
+    const mv=+(d[`MPPT${mp}_V`]??0),ma=+(d[`MPPT${mp}_A`]??0),pv=pvCols.map(n=>+(d[`PV${n}_A`]??0));
+    const allZero=mv===0&&ma===0&&pv.every(v=>v===0);
+    if(hideZero&&allZero)continue;
+    rows+=`<tr><td>${mp}</td><td>${mv}</td><td>${ma}</td>${pv.map(v=>`<td>${v}</td>`).join("")}</tr>`;
+  }
+  body.innerHTML=rows||`<tr><td colspan="${3+pvCols.length}">No DC data for selected filter.</td></tr>`;
+
+  /* ✅ auto-resize font for 12×24 full tables */
+  const dcTable=document.getElementById("dcTable");
+  const totalCols=3+pvCols.length;
+  if(totalCols>=25){dcTable.style.fontSize=".68rem";}
+  else if(totalCols>18){dcTable.style.fontSize=".72rem";}
+  else{dcTable.style.fontSize=".76rem";}
+}
+</script>
 </body>
 </html>
