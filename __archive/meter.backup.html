@@ -1,9 +1,9 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <meta charset="UTF-8" />
-  <title>Meter -ƒÆ’‚¢ƒ¢¢€š¬…¡ƒ€š‚¬ƒÆ’‚¢ƒ¢¢‚¬Å¡‚¬ƒ€š‚ Solar Monitoring</title>
+  <title>Meter -Æ’Ã†â€™â€šÂ¢Æ’Â¢Â¢â‚¬Å¡Â¬â€¦Â¡Æ’â‚¬Å¡â€šÂ¬Æ’Ã†â€™â€šÂ¢Æ’Â¢Â¢â€šÂ¬Ã…Â¡â€šÂ¬Æ’â‚¬Å¡â€šÂ Solar Monitoring</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -215,7 +215,7 @@
 
       <!-- Bar + Line -->
       <div class="card">
-        <div class="card-title">Last 9 Days -ƒÆ’‚¢ƒ¢¢€š¬…¡ƒ€š‚¬ƒÆ’‚¢ƒ¢¢‚¬Å¡‚¬ƒ€š‚ Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
+        <div class="card-title">Last 9 Days -Æ’Ã†â€™â€šÂ¢Æ’Â¢Â¢â‚¬Å¡Â¬â€¦Â¡Æ’â‚¬Å¡â€šÂ¬Æ’Ã†â€™â€šÂ¢Æ’Â¢Â¢â€šÂ¬Ã…Â¡â€šÂ¬Æ’â‚¬Å¡â€šÂ Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
         <div class="hint" id="barHint">Labels on bars/line show values; cumulative across selected plants.</div>
         <canvas id="barLine" style="width:100%;height:calc(100% - 48px)"></canvas>
       </div>
@@ -363,7 +363,7 @@ function renderKPI(rows){
   const best = toBestUnit(totalMWh);
   el('#kpiTotal').textContent = fmtNum(best.val, 3);
   el('#kpiUnit').textContent  = `(${best.unit})`;
-  el('#kpiContext').textContent = `Range: ${ymd(start)} -ƒÆ’‚¢ƒ¢¢‚¬Å¡‚¬ƒ€š‚ƒÆ’‚¢ƒ¢¢‚¬Å¡‚¬ƒ¢¢‚¬Å¾‚¢ ${ymd(end)} -ƒÆ’‚¢ƒ¢¢€š¬…¡ƒ€š‚¬ƒÆ’¢‚¬Å¡ƒ€š‚¢ Plants: ${selectedPlantIds.size? `${selectedPlantIds.size} selected` : 'All'}`;
+  el('#kpiContext').textContent = `Range: ${ymd(start)} -Æ’Ã†â€™â€šÂ¢Æ’Â¢Â¢â€šÂ¬Ã…Â¡â€šÂ¬Æ’â‚¬Å¡â€šÆ’Ã†â€™â€šÂ¢Æ’Â¢Â¢â€šÂ¬Ã…Â¡â€šÂ¬Æ’Â¢Â¢â€šÂ¬Ã…Â¾â€šÂ¢ ${ymd(end)} -Æ’Ã†â€™â€šÂ¢Æ’Â¢Â¢â‚¬Å¡Â¬â€¦Â¡Æ’â‚¬Å¡â€šÂ¬Æ’Ã†â€™Â¢â€šÂ¬Ã…Â¡Æ’â‚¬Å¡â€šÂ¢ Plants: ${selectedPlantIds.size? `${selectedPlantIds.size} selected` : 'All'}`;
   el('#pieBadge').textContent = best.unit;
   el('#barBadge').textContent = best.unit;
 }
@@ -399,7 +399,7 @@ function renderTable(rows){
     `;
     tb.appendChild(tr);
   }
-  el('#tableHint').textContent = `${latest.length} meters -ƒÆ’‚¢ƒ¢¢€š¬…¡ƒ€š‚¬ƒÆ’¢‚¬Å¡ƒ€š‚¢ latest reading per meter`;
+  el('#tableHint').textContent = `${latest.length} meters -Æ’Ã†â€™â€šÂ¢Æ’Â¢Â¢â‚¬Å¡Â¬â€¦Â¡Æ’â‚¬Å¡â€šÂ¬Æ’Ã†â€™Â¢â€šÂ¬Ã…Â¡Æ’â‚¬Å¡â€šÂ¢ latest reading per meter`;
 }
 
 function renderPie(rows){
@@ -431,7 +431,7 @@ function renderPie(rows){
 }
 
 function renderBarLine(rows){
-  // LAST 9 DAYS -ƒÆ’‚¢ƒ¢¢€š¬…¡ƒ€š‚¬ƒÆ’‚¢ƒ¢¢‚¬Å¡‚¬ƒ€š‚ bars total yield (sum Total_Yield), line sum daily incremental (kWh)
+  // LAST 9 DAYS -Æ’Ã†â€™â€šÂ¢Æ’Â¢Â¢â‚¬Å¡Â¬â€¦Â¡Æ’â‚¬Å¡â€šÂ¬Æ’Ã†â€™â€šÂ¢Æ’Â¢Â¢â€šÂ¬Ã…Â¡â€šÂ¬Æ’â‚¬Å¡â€šÂ bars total yield (sum Total_Yield), line sum daily incremental (kWh)
   const byDay = groupBy(rows, r => ymd(new Date(r.Date_Time)));
   const days = Array.from(byDay.keys()).sort().slice(-9);
 
@@ -509,6 +509,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 </script>
 </body>
 </html>
+
 
 
 

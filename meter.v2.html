@@ -1,10 +1,10 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Solar Plant Dashboard ƒ¢¢€š¬¢‚¬Å“ Meter</title>
+  <title>Solar Plant Dashboard Æ’Â¢Â¢â‚¬Å¡Â¬Â¢â€šÂ¬Ã…â€œ Meter</title>
   <link rel="stylesheet" href="common/style.css" />
   <link rel="stylesheet" href="common/header.css" />
 
@@ -99,7 +99,7 @@
   .multi-menu label{display:block;padding:4px 0;font-size:.85rem}
   .multi-menu input{margin-right:6px}
   #plantBtn{position:relative;padding-right:22px;min-width:300px}
-  #plantBtn::after{content:"ƒ¢¢‚¬€œ‚¾";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:.7rem;color:#143559}
+  #plantBtn::after{content:"Æ’Â¢Â¢â€šÂ¬â‚¬Å“â€šÂ¾";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:.7rem;color:#143559}
   .hide{display:none!important}
   </style>
 </head>
@@ -110,7 +110,7 @@
   <div class="stage">
     <div class="filters">
       <div class="filters-left">
-        <label>ƒ°…¸…€™‚¿ Select Plant(s):</label>
+        <label>Æ’Â°â€¦Â¸â€¦â‚¬â„¢â€šÂ¿ Select Plant(s):</label>
         <div class="multi">
           <button id="plantBtn">All Plants</button>
           <div id="plantMenu" class="multi-menu"></div>
@@ -127,7 +127,7 @@
       </div>
       <div class="export">
         <select id="exportSel">
-          <option>Export ƒ¢¢‚¬€œ‚¾</option>
+          <option>Export Æ’Â¢Â¢â€šÂ¬â‚¬Å“â€šÂ¾</option>
           <option value="csv">Export CSV</option>
           <option value="xlsx">Export Excel</option>
           <option value="pdf">Export PDF</option>
@@ -149,7 +149,7 @@
       <div class="card kpi" style="grid-column:2/3;grid-row:1/2;">
         <h2>Total Yield (Selected Plants)</h2>
         <div id="kpi" class="main">--</div>
-        <div id="delta" class="delta">ƒÅ½¢‚¬ --</div>
+        <div id="delta" class="delta">Æ’Ã…Â½Â¢â€šÂ¬Â --</div>
         <div id="asof" class="asof">Data as of --</div>
       </div>
 
@@ -273,7 +273,7 @@ function render(){
   if(totals.length>1){
     const diff = totals.at(-1) - totals.at(-2);
     const {v,u} = fmtUnit(Math.abs(diff));
-    deltaText = `ƒÅ½¢‚¬ ${diff>=0?'+':'-'}${v} ${u} vs yesterday`;
+    deltaText = `Æ’Ã…Â½Â¢â€šÂ¬Â ${diff>=0?'+':'-'}${v} ${u} vs yesterday`;
   }
   document.getElementById('delta').textContent = `${deltaText} (as of latest readings)`;
   document.getElementById('asof').textContent  = `Data as of ${(tableRows[0]?.Date_Time||'').replace('T',' ') || '--'}`;
@@ -357,4 +357,5 @@ fetch("/common/header.v2.html")
 </script>
 </body>
 </html>
+
 
