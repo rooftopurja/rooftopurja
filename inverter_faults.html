@@ -1,29 +1,55 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
+  <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Solar Plant Dashboard - Inverter Faults</title>
+  <title>Solar Plant Dashboard – Inverter Faults</title>
   <link rel="stylesheet" href="common/style.css" />
-</head>
-<body>
-  <div id="header-placeholder"></div>
+  <link rel="stylesheet" href="common/header.css" />
 
-  <main style="padding:20px;">
+  <style>
+    body {
+      margin: 0;
+      font-family: "Segoe UI", sans-serif;
+      background: #f7f9fc;
+      color: #143559;
+    }
+    main {
+      max-width: 1180px;
+      margin: 80px auto 40px;
+      background: #fff;
+      border-radius: 10px;
+      box-shadow: 0 2px 8px rgba(0, 0, 0, 0.05);
+      padding: 24px 28px;
+    }
+    h2 {
+      margin-top: 0;
+      font-size: 1.4rem;
+      font-weight: 700;
+      color: #0b2256;
+      border-left: 4px solid #0057d8;
+      padding-left: 8px;
+    }
+    p {
+      font-size: 1rem;
+      line-height: 1.5;
+      color: #444;
+    }
+  </style>
+</head>
+
+<body>
+  <div id="header"></div>
+
+  <main>
     <h2>Inverter Faults</h2>
     <p>Fault logs, alarms, and system health reports.</p>
   </main>
 
   <script>
-    fetch("assets/nav.html")
-      .then(res => res.text())
-      .then(html => {
-        document.getElementById("header-placeholder").innerHTML = html;
-        const current = location.pathname.split("/").pop();
-        const active = document.querySelector(`a[href='${current}']`);
-        if (active) active.classList.add("active");
-      })
-      .catch(err => console.error("Header load error:", err));
+  fetch("common/header.html")
+    .then(r => r.text())
+    .then(h => document.getElementById("header").innerHTML = h);
   </script>
 </body>
 </html>

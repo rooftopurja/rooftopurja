@@ -1,187 +1,180 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width,initial-scale=1.0" />
-<title>Solar Plant Dashboard – Meter</title>
-<link rel="stylesheet" href="common/style.css" />
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Solar Plant Dashboard – Meter</title>
+  <link rel="stylesheet" href="common/style.css" />
+  <link rel="stylesheet" href="common/header.css" />
 
-<!-- Libs -->
-<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
-<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
-<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
+  <!-- Libs -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.25/jspdf.plugin.autotable.min.js"></script>
 
-<style>
-:root{
-  --maxw:1180px;            /* slightly narrower -> equal side padding visually */
-  --pad:14px;
-  --blue:#0057d8;
-  --orange:#f57c00;
-  --text:#143559;
-  --bg:#fafbfc;
-  --panel:#fff;
-  --shadow:0 2px 8px rgba(0,0,0,.05);
-}
-*{box-sizing:border-box}
-body{margin:0;font-family:"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
-#header{position:sticky;top:0;z-index:100}
+  <style>
+  :root{
+    --maxw:1180px;
+    --pad:14px;
+    --blue:#0057d8;
+    --orange:#f57c00;
+    --text:#143559;
+    --bg:#fafbfc;
+    --panel:#fff;
+    --shadow:0 2px 8px rgba(0,0,0,.05);
+  }
+  *{box-sizing:border-box}
+  body{margin:0;font-family:"Segoe UI",sans-serif;background:var(--bg);color:var(--text)}
+  #header{position:sticky;top:0;z-index:100}
 
-/* Stage: tuned for 1366×768, keeps bottom edges visible */
-.stage{
-  max-width:var(--maxw);
-  margin:16px auto 10px;   /* even left/right; controlled top/bottom */
-  background:var(--panel);
-  border-radius:12px;
-  box-shadow:var(--shadow);
-  padding:var(--pad);
-  display:flex;
-  flex-direction:column;
-  gap:10px;
-  height:calc(100vh - 80px); /* fits without vertical scroll */
-}
+  .stage{
+    max-width:var(--maxw);
+    margin:16px auto 10px;
+    background:var(--panel);
+    border-radius:12px;
+    box-shadow:var(--shadow);
+    padding:var(--pad);
+    display:flex;
+    flex-direction:column;
+    gap:10px;
+    height:calc(100vh - 80px);
+  }
 
-/* Filters — same pill look as Inverter Analytics */
-.filters{
-  display:flex;align-items:center;justify-content:space-between;
-  gap:8px;flex-wrap:wrap;border-bottom:1px solid #e7ecf2;padding:4px 2px 8px;
-}
-.filters-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
-label{font-weight:600;font-size:.92rem}
-select,button,input[type="date"]{
-  border:1px solid var(--blue);
-  border-radius:18px;
-  padding:4px 12px;
-  font-size:.92rem;
-  background:#fff;color:var(--text);height:32px;
-}
-.btn{background:#fff;color:var(--blue);border:1px solid var(--blue);border-radius:18px;padding:4px 12px;font-weight:600;height:32px}
-.btn.period.active{background:var(--blue);color:#fff;border-color:var(--blue)}
-#applyBtn{background:var(--blue);color:#fff;border:none;font-weight:700;border-radius:18px}
-.btn:hover{cursor:pointer;opacity:.95}
-.export select{border:1px solid var(--blue);border-radius:10px;padding:4px 8px;height:32px}
+  .filters{
+    display:flex;align-items:center;justify-content:space-between;
+    gap:8px;flex-wrap:wrap;border-bottom:1px solid #e7ecf2;padding:4px 2px 8px;
+  }
+  .filters-left{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  label{font-weight:600;font-size:.92rem}
+  select,button,input[type="date"]{
+    border:1px solid var(--blue);
+    border-radius:18px;
+    padding:4px 12px;
+    font-size:.92rem;
+    background:#fff;color:var(--text);height:32px;
+  }
+  .btn{background:#fff;color:var(--blue);border:1px solid var(--blue);border-radius:18px;padding:4px 12px;font-weight:600;height:32px}
+  .btn.period.active{background:var(--blue);color:#fff;border-color:var(--blue)}
+  #applyBtn{background:var(--blue);color:#fff;border:none;font-weight:700;border-radius:18px}
+  .btn:hover{cursor:pointer;opacity:.95}
+  .export select{border:1px solid var(--blue);border-radius:10px;padding:4px 8px;height:32px}
 
-/* Grid — more headroom on row 2 */
-.grid{
-  display:grid;grid-template-columns:70% 30%;
-  grid-template-rows:30% 62%;
-  gap:10px;flex:1;min-height:0;
-}
+  .grid{
+    display:grid;grid-template-columns:70% 30%;
+    grid-template-rows:30% 62%;
+    gap:10px;flex:1;min-height:0;
+  }
 
-/* Cards */
-.card{
-  background:var(--panel);border-radius:10px;box-shadow:var(--shadow);
-  padding:10px;display:flex;flex-direction:column;min-height:0;position:relative;
-}
-.card h2{margin:0 0 4px;font-size:.95rem;font-weight:700;color:var(--text);border-left:4px solid var(--blue);padding-left:6px}
-.small-hint{position:absolute;right:10px;top:6px;font-size:.75rem;color:#678}
-.scroll{overflow:auto}
-table{width:100%;border-collapse:collapse;font-size:.8rem}
-th,td{padding:5px 6px;border-bottom:1px solid #eef1f6;text-align:left;white-space:nowrap}
-th{background:#f1f6fd}
+  .card{
+    background:var(--panel);border-radius:10px;box-shadow:var(--shadow);
+    padding:10px;display:flex;flex-direction:column;min-height:0;position:relative;
+  }
+  .card h2{margin:0 0 4px;font-size:.95rem;font-weight:700;color:var(--text);border-left:4px solid var(--blue);padding-left:6px}
+  .small-hint{position:absolute;right:10px;top:6px;font-size:.75rem;color:#678}
+  .scroll{overflow:auto}
+  table{width:100%;border-collapse:collapse;font-size:.8rem}
+  th,td{padding:5px 6px;border-bottom:1px solid #eef1f6;text-align:left;white-space:nowrap}
+  th{background:#f1f6fd}
 
-/* Charts — shorter so the bottom edge always shows */
-.chart{position:relative;flex:1;min-height:198px;padding-bottom:0}
-.update-time{position:absolute;right:10px;bottom:6px;font-size:.78rem;color:#444}
+  .chart{position:relative;flex:1;min-height:198px;padding-bottom:0}
+  .update-time{position:absolute;right:10px;bottom:6px;font-size:.78rem;color:#444}
 
-/* KPI centered */
-.kpi{align-items:center;justify-content:center}
-.kpi .main{font-size:1.9rem;color:var(--blue);font-weight:800}
-.kpi .delta{font-size:.9rem;color:var(--orange);margin-top:6px}
-.kpi .asof{font-size:.78rem;color:#777;margin-top:4px}
+  .kpi{align-items:center;justify-content:center}
+  .kpi .main{font-size:1.9rem;color:var(--blue);font-weight:800}
+  .kpi .delta{font-size:.9rem;color:var(--orange);margin-top:6px}
+  .kpi .asof{font-size:.78rem;color:#777;margin-top:4px}
 
-.legend-row{display:flex;gap:12px;align-items:center;margin:2px 0 4px}
-.legend-tag{display:flex;align-items:center;gap:6px;font-size:.85rem}
-.sw{width:12px;height:12px;border-radius:3px}
+  .legend-row{display:flex;gap:12px;align-items:center;margin:2px 0 4px}
+  .legend-tag{display:flex;align-items:center;gap:6px;font-size:.85rem}
+  .sw{width:12px;height:12px;border-radius:3px}
 
-.multi{position:relative;display:inline-block}
-.multi-menu{
-  display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #ddd;border-radius:6px;
-  max-height:250px;overflow-y:auto;padding:6px 10px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;width:280px;
-}
-.multi-menu label{display:block;padding:4px 0;font-size:.85rem}
-.multi-menu input{margin-right:6px}
-#plantBtn{position:relative;padding-right:22px;min-width:300px}
-#plantBtn::after{content:"▼";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:.7rem;color:#143559}
-.hide{display:none!important}
-</style>
+  .multi{position:relative;display:inline-block}
+  .multi-menu{
+    display:none;position:absolute;top:100%;left:0;background:#fff;border:1px solid #ddd;border-radius:6px;
+    max-height:250px;overflow-y:auto;padding:6px 10px;box-shadow:0 4px 12px rgba(0,0,0,.1);z-index:999;width:280px;
+  }
+  .multi-menu label{display:block;padding:4px 0;font-size:.85rem}
+  .multi-menu input{margin-right:6px}
+  #plantBtn{position:relative;padding-right:22px;min-width:300px}
+  #plantBtn::after{content:"▾";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:.7rem;color:#143559}
+  .hide{display:none!important}
+  </style>
 </head>
 
 <body>
-<div id="header"></div>
-<script>
-fetch("assets/nav.html").then(r=>r.text()).then(html=>document.getElementById("header").innerHTML=html);
-</script>
+  <div id="header"></div>
 
-<div class="stage">
-  <div class="filters">
-    <div class="filters-left">
-      <label>🌿 Select Plant(s):</label>
-      <div class="multi">
-        <button id="plantBtn">All Plants</button>
-        <div id="plantMenu" class="multi-menu"></div>
+  <div class="stage">
+    <div class="filters">
+      <div class="filters-left">
+        <label>🌿 Select Plant(s):</label>
+        <div class="multi">
+          <button id="plantBtn">All Plants</button>
+          <div id="plantMenu" class="multi-menu"></div>
+        </div>
+        <label>Period:</label>
+        <button class="btn period" data-p="date">Date</button>
+        <input type="date" id="datePick" class="hide" />
+        <button class="btn period" data-p="month">Month</button>
+        <select id="monthPick" class="hide"></select>
+        <button class="btn period" data-p="year">Year</button>
+        <select id="yearPick" class="hide"></select>
+        <button class="btn period active" data-p="lifetime">Lifetime</button>
+        <button id="applyBtn" class="btn period">Apply</button>
       </div>
-      <label>Period:</label>
-      <button class="btn period" data-p="date">Date</button>
-      <input type="date" id="datePick" class="hide" />
-      <button class="btn period" data-p="month">Month</button>
-      <select id="monthPick" class="hide"></select>
-      <button class="btn period" data-p="year">Year</button>
-      <select id="yearPick" class="hide"></select>
-      <button class="btn period active" data-p="lifetime">Lifetime</button>
-      <button id="applyBtn" class="btn period">Apply</button>
+      <div class="export">
+        <select id="exportSel">
+          <option>Export ▾</option>
+          <option value="csv">Export CSV</option>
+          <option value="xlsx">Export Excel</option>
+          <option value="pdf">Export PDF</option>
+        </select>
+      </div>
     </div>
-    <div class="export">
-      <select id="exportSel">
-        <option>Export ▾</option>
-        <option value="csv">Export CSV</option>
-        <option value="xlsx">Export Excel</option>
-        <option value="pdf">Export PDF</option>
-      </select>
+
+    <div class="grid">
+      <div class="card" style="grid-column:1/2;grid-row:1/2;">
+        <h2>Latest Meter Readings</h2>
+        <div class="scroll">
+          <table id="tbl">
+            <thead><tr><th>Plant</th><th>Serial</th><th>Make</th><th>Model</th><th>Type</th><th>Reading</th><th>Yield</th><th>Date_Time</th></tr></thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="card kpi" style="grid-column:2/3;grid-row:1/2;">
+        <h2>Total Yield (Selected Plants)</h2>
+        <div id="kpi" class="main">--</div>
+        <div id="delta" class="delta">Δ --</div>
+        <div id="asof" class="asof">Data as of --</div>
+      </div>
+
+      <div class="card" style="grid-column:1/2;grid-row:2/3;">
+        <h2>Energy (Last 9 Days)</h2>
+        <div class="small-hint">Hover the chart for details</div>
+        <div class="legend-row">
+          <span class="legend-tag"><span class="sw" style="background:#2383ff"></span>Total Yield</span>
+          <span class="legend-tag"><span class="sw" style="background:#f9a825"></span>Incremental Daily Yield (kWh)</span>
+        </div>
+        <div class="chart"><canvas id="bar"></canvas></div>
+        <div class="update-time" id="updTime"></div>
+      </div>
+
+      <div class="card" style="grid-column:2/3;grid-row:2/3;">
+        <h2>% Yield Contribution</h2>
+        <div class="small-hint">Hover the chart for details</div>
+        <div class="chart"><canvas id="pie"></canvas></div>
+      </div>
     </div>
   </div>
-
-  <div class="grid">
-    <div class="card" style="grid-column:1/2;grid-row:1/2;">
-      <h2>Latest Meter Readings</h2>
-      <div class="scroll">
-        <table id="tbl">
-          <thead><tr><th>Plant</th><th>Serial</th><th>Make</th><th>Model</th><th>Type</th><th>Reading</th><th>Yield</th><th>Date_Time</th></tr></thead>
-          <tbody></tbody>
-        </table>
-      </div>
-    </div>
-
-    <div class="card kpi" style="grid-column:2/3;grid-row:1/2;">
-      <h2>Total Yield (Selected Plants)</h2>
-      <div id="kpi" class="main">--</div>
-      <div id="delta" class="delta">Δ --</div>
-      <div id="asof" class="asof">Data as of --</div>
-    </div>
-
-    <div class="card" style="grid-column:1/2;grid-row:2/3;">
-      <h2>Energy (Last 9 Days)</h2>
-      <div class="small-hint">Hover the chart for details</div>
-      <div class="legend-row">
-        <span class="legend-tag"><span class="sw" style="background:#2383ff"></span>Total Yield</span>
-        <span class="legend-tag"><span class="sw" style="background:#f9a825"></span>Incremental Daily Yield (kWh)</span>
-      </div>
-      <div class="chart"><canvas id="bar"></canvas></div>
-      <div class="update-time" id="updTime"></div>
-    </div>
-
-    <div class="card" style="grid-column:2/3;grid-row:2/3;">
-      <h2>% Yield Contribution</h2>
-      <div class="small-hint">Hover the chart for details</div>
-      <div class="chart"><canvas id="pie"></canvas></div>
-    </div>
-  </div>
-</div>
 
 <script>
 Chart.register(ChartDataLabels);
 let cache=null,barChart=null,pieChart=null,period='lifetime';
+
 const fmtUnit=(v)=>{let u='kWh'; if(v>=1e6){v/=1e6;u='GWh'} else if(v>=1e3){v/=1e3;u='MWh'} return {v:Number(v.toFixed(3)),u};};
 const sum=(a,f)=>a.reduce((x,r)=>x+(f(r)||0),0);
 const selPlants=()=>{const c=[...document.querySelectorAll('#plantMenu input[type=checkbox]')]; if(!c.length||c[0].checked) return null; return c.filter(x=>x.value!=='all'&&x.checked).map(x=>String(x.value));};
@@ -235,7 +228,6 @@ function buildPeriodUI(){
   document.getElementById('applyBtn').onclick=()=>render();
 }
 
-/* daily series by selected plants (uses dailyByPlant when present) */
 function dailySeriesForSelection(ids){
   const idSet = ids ? new Set(ids.map(String)) : null;
   if(cache.dailyByPlant){
@@ -260,7 +252,6 @@ function render(){
   const idSet = ids ? new Set(ids) : null;
   const plantsFilter = r => !idSet || idSet.has(String(r.Plant_ID));
 
-  // Table
   const tb=document.querySelector('#tbl tbody');
   const tableRows=(cache.latestReadings||[]).filter(plantsFilter)
     .sort((a,b)=>new Date(b.Date_Time)-new Date(a.Date_Time));
@@ -272,7 +263,6 @@ function render(){
             <td>${v} ${u}</td><td>${(r.Date_Time||'').replace('T',' ')}</td></tr>`;
   }).join('');
 
-  // KPI + delta
   const totalKWh = sum((cache.latestReadings||[]).filter(plantsFilter), r=>Number(r.Total_Yield)||0);
   const {v:tv,u:tu}=fmtUnit(totalKWh);
   document.getElementById('kpi').textContent=`${tv} ${tu}`;
@@ -288,52 +278,33 @@ function render(){
   document.getElementById('asof').textContent  = `Data as of ${(tableRows[0]?.Date_Time||'').replace('T',' ') || '--'}`;
   document.getElementById('updTime').textContent="Last updated at "+new Date(cache.lastUpdated).toLocaleString('en-IN',{hour:'2-digit',minute:'2-digit',hour12:false,timeZone:'Asia/Kolkata'})+" IST";
 
-  // Bar/Line (last 9 days)
   const last9Labels = labels.slice(-9);
   const last9Totals = totals.slice(-9);
-  const last9IncKWh = last9Totals.map((x,i)=> i ? Math.max(0, last9Totals[i]-last9Totals[i-1]) : 0); // ALWAYS kWh
+  const last9IncKWh = last9Totals.map((x,i)=> i ? Math.max(0, last9Totals[i]-last9Totals[i-1]) : 0);
   drawBar(last9Labels, last9Totals, last9IncKWh);
 
-  // Pie – tooltip: Plant name + value+unit + percent (multiline)
   const pieSource=(cache.pieData||[]).filter(plantsFilter);
   drawPie(pieSource.map(p=>({name:p.Plant_Name, val:Number(p.Value)||0})));
 }
 
 function drawBar(labels, totKWh, incKWh){
   const ctx=document.getElementById('bar').getContext('2d'); if(barChart) barChart.destroy();
-
-  const {u} = fmtUnit(Math.max(...totKWh,0));          // unit for bars
+  const {u} = fmtUnit(Math.max(...totKWh,0));
   const bars = totKWh.map(x=>fmtUnit(x).v);
-  const grad=ctx.createLinearGradient(0,0,0,180);      // shorter gradient -> shorter bars
+  const grad=ctx.createLinearGradient(0,0,0,180);
   grad.addColorStop(0,'#2383ff'); grad.addColorStop(1,'#4aa6ff');
 
   barChart = new Chart(ctx,{
-    data:{
-      labels,
-      datasets:[
-        {type:'bar',label:'Total Yield',data:bars,yAxisID:'y',backgroundColor:grad,borderRadius:6,barPercentage:0.50,order:2},
-        {type:'line',label:'Incremental Daily Yield (kWh)',data:incKWh,yAxisID:'y1',borderColor:'#f9a825',pointBackgroundColor:'#f9a825',borderWidth:2,pointRadius:4,tension:.3,order:1,clip:false,z:10}
-      ]
-    },
-    options:{
-      responsive:true,maintainAspectRatio:false,
-      layout:{padding:{bottom:2}},
-      plugins:{
-        legend:{display:false},
-        tooltip:{
-          callbacks:{
-            label:(ctx)=>{
-              if(ctx.datasetIndex===0){ return `${Number(ctx.parsed.y).toFixed(2)} ${u}`; }
-              return `${Math.round(ctx.parsed.y)} kWh`;
-            }
-          }
-        },
-        datalabels:{formatter:(v,ctx)=> ctx.datasetIndex===0 ? Number(v).toFixed(2) : '',color:'#1b3d6b',anchor:'end',align:'top',font:{size:10},clip:false}
-      },
-      scales:{
-        y:{beginAtZero:true,grid:{color:'#eef2f7'},ticks:{font:{size:11}}},
-        y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{color:'#f57c00',font:{size:11}}}
-      }
+    data:{labels,datasets:[
+      {type:'bar',label:'Total Yield',data:bars,yAxisID:'y',backgroundColor:grad,borderRadius:6,barPercentage:0.50,order:2},
+      {type:'line',label:'Incremental Daily Yield (kWh)',data:incKWh,yAxisID:'y1',borderColor:'#f9a825',pointBackgroundColor:'#f9a825',borderWidth:2,pointRadius:4,tension:.3,order:1,clip:false,z:10}
+    ]},
+    options:{responsive:true,maintainAspectRatio:false,
+      plugins:{legend:{display:false},tooltip:{
+        callbacks:{label:(ctx)=>ctx.datasetIndex===0?`${Number(ctx.parsed.y).toFixed(2)} ${u}`:`${Math.round(ctx.parsed.y)} kWh`}
+      },datalabels:{formatter:(v,ctx)=>ctx.datasetIndex===0?Number(v).toFixed(2):'',color:'#1b3d6b',anchor:'end',align:'top',font:{size:10},clip:false}},
+      scales:{y:{beginAtZero:true,grid:{color:'#eef2f7'},ticks:{font:{size:11}}},
+              y1:{beginAtZero:true,position:'right',grid:{drawOnChartArea:false},ticks:{color:'#f57c00',font:{size:11}}}}
     },
     plugins:[ChartDataLabels]
   });
@@ -341,7 +312,6 @@ function drawBar(labels, totKWh, incKWh){
 
 function drawPie(items){
   const ctx=document.getElementById('pie').getContext('2d'); if(pieChart) pieChart.destroy();
-
   const maxVal = Math.max(...items.map(i=>i.val),0);
   const {u} = fmtUnit(maxVal);
   const conv = (x)=> u==='GWh' ? x/1e6 : u==='MWh' ? x/1e3 : x;
@@ -352,26 +322,15 @@ function drawPie(items){
   pieChart = new Chart(ctx,{
     type:'pie',
     data:{labels:[],datasets:[{data,backgroundColor:['#1f77b4','#ff7f0e','#2ca02c','#d62728','#9467bd','#8c564b','#e377c2','#7f7f7f','#bcbd22','#17becf'],borderWidth:1}]},
-    options:{
-      maintainAspectRatio:true,aspectRatio:1,
-      plugins:{
-        legend:{display:false},  /* nothing outside */
-        tooltip:{
-          callbacks:{
-            label:(ctx)=>{
-              const i=ctx.dataIndex, val=Number(ctx.parsed)||0, tot=ctx.chart._metasets[0].total||1, pct=((val/tot)*100).toFixed(1)+'%';
-              return [names[i], `${val.toFixed(3)} ${u}`, `(${pct})`];  // vertical stack
-            }
-          }
-        },
-        datalabels:{display:false}
-      }
+    options:{maintainAspectRatio:true,aspectRatio:1,
+      plugins:{legend:{display:false},tooltip:{
+        callbacks:{label:(ctx)=>{const i=ctx.dataIndex,val=Number(ctx.parsed)||0,tot=ctx.chart._metasets[0].total||1,pct=((val/tot)*100).toFixed(1)+'%';return [names[i],`${val.toFixed(3)} ${u}`,`(${pct})`];}}
+      },datalabels:{display:false}}
     },
     plugins:[ChartDataLabels]
   });
 }
 
-/* Export */
 document.getElementById('exportSel').addEventListener('change',e=>{
   const v=e.target.value;if(!v)return;
   const tbl=document.getElementById('tbl');
@@ -388,6 +347,12 @@ document.getElementById('exportSel').addEventListener('change',e=>{
   }
   e.target.selectedIndex=0;
 });
+</script>
+
+<script>
+fetch("common/header.html")
+  .then(r => r.text())
+  .then(h => document.getElementById("header").innerHTML = h);
 </script>
 </body>
 </html>

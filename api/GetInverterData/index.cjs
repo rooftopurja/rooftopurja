@@ -1,140 +1,136 @@
+/**
+ * GetInverterData - CommonJS version
+ * Fetches summarized inverter data for Day/Week/Month/Year/Lifetime
+ * with support for live-day refresh every 20 mins via cache+blob merge
+ */
+
 const { TableClient } = require("@azure/data-tables");
 const { BlobServiceClient } = require("@azure/storage-blob");
-const { DateTime } = require("luxon");
+const { DefaultAzureCredential } = require("@azure/identity");
 
-const CONN = process.env.TABLES_CONNECTION_STRING || process.env.AzureWebJobsStorage;
-const TIMEZONE = process.env.APP_TIMEZONE || "Asia/Kolkata";
-const SUMMARY_TABLE = "InverterDailySummary";
-const CACHE_TABLE = "InverterQueryCache";
+const AZ_CONN = process.env.TABLES_CONNECTION_STRING;
+const STORAGE = process.env.AzureWebJobsStorage;
 const CURVE_CONTAINER = process.env.CURVE_CONTAINER || "invertercurves";
+const PLANT_DIR = process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
+const tz = process.env.APP_TIMEZONE || "Asia/Kolkata";
 
-/* --- Helpers --- */
-const parseList = s => s ? s.split(",").map(x => x.trim()).filter(Boolean) : [];
-const fmt = v => { let u="kWh"; if(v>=1e6){v/=1e6;u="GWh";} else if(v>=1e3){v/=1e3;u="MWh";} return {value:+v.toFixed(2),unit:u}; };
-const safeAdd = (o,k,v)=>o[k]=(o[k]||0)+(+v||0);
+module.exports = async function (context, req) {
+  try {
+    context.log("Incoming parameters:", period, nav, plantIds, inverterIds);
+    const period = (req.query.period || "day").toLowerCase();
+    const nav = parseInt(req.query.nav || "0");
+    const plantIds = (req.query.plants || "").split(",").filter(Boolean);
+    const inverterIds = (req.query.inverters || "").split(",").filter(Boolean);
 
-/* Yield summarization */
-function summarize(rows, period) {
-  if (!rows.length) return [];
-  const map={}; rows.forEach(r=>safeAdd(map,r.Date||r.rowKey,r.Daily_Yield_KWH));
-  const sorted=Object.entries(map).sort(([a],[b])=>a.localeCompare(b));
-  if(period==="week") return sorted.slice(-7).map(([l,v])=>({label:l,valueKWh:v}));
-  if(period==="month"){const m={};sorted.forEach(([d,v])=>safeAdd(m,d.slice(0,7),v));return Object.entries(m).slice(-6).map(([l,v])=>({label:l,valueKWh:v}));}
-  if(period==="year"){const y={};sorted.forEach(([d,v])=>safeAdd(y,d.slice(0,4),v));return Object.entries(y).slice(-5).map(([l,v])=>({label:l,valueKWh:v}));}
-  if(period==="lifetime"){const tot=sorted.reduce((a,[,v])=>a+v,0);return[{label:"Lifetime",valueKWh:tot}];}
-  return sorted.slice(-1).map(([l,v])=>({label:l,valueKWh:v}));
-}
+    const tableClient = TableClient.fromConnectionString(AZ_CONN, "InverterDailySummary");
+    const blobService = BlobServiceClient.fromConnectionString(STORAGE);
+    const containerClient = blobService.getContainerClient(CURVE_CONTAINER);
 
-/* Blob utilities */
-async function readCurve(blobSvc,inv,date){
-  try{
-    const blob=blobSvc.getContainerClient(CURVE_CONTAINER).getBlobClient(`${inv}_${date}.json`);
-    const res=await blob.download();
-    const txt=await streamToString(res.readableStreamBody);
-    return JSON.parse(txt);
-  }catch{return [];}
-}
-const streamToString=r=>new Promise((res,rej)=>{const c=[];r.on("data",d=>c.push(d.toString()));r.on("end",()=>res(c.join("")));r.on("error",rej);});
-function combineCurves(curves){
-  const map=new Map();
-  for(const arr of curves)for(const p of arr){
-    const t=p.Time||p.time;if(!t)continue;
-    const rec=map.get(t)||{Time:t,DC:0,AC:0};
-    rec.DC+=+p.DC||0; rec.AC+=+p.AC||0; map.set(t,rec);
-  }
-  return [...map.values()].sort((a,b)=>a.Time.localeCompare(b.Time));
-}
+    // --- determine date range ---
+    const today = new Date();
+    const baseDate = new Date(today);
+    baseDate.setDate(today.getDate() + nav);
+    const dateKey = baseDate.toISOString().slice(0, 10);
 
-/* Cache helpers */
-async function getCache(cacheClient,key){
-  try{
-    const e=await cacheClient.getEntity("cache",key);
-    const payload=JSON.parse(e.Payload||"{}");
-    const ts=DateTime.fromISO(e.CachedUtc).setZone("UTC");
-    if(DateTime.utc().diff(ts,"hours").hours<1) return payload;
-  }catch{} return null;
-}
-async function setCache(cacheClient,key,payload){
-  try{
-    await cacheClient.upsertEntity({
-      partitionKey:"cache",
-      rowKey:key,
-      Payload:JSON.stringify(payload),
-      CachedUtc:new Date().toISOString()
-    });
-  }catch(err){console.warn("Cache save failed:",err.message);}
-}
+    // --- prepare filters ---
+    const plantFilter = plantIds.length ? plantIds.map(p => `PartitionKey eq '${p}'`).join(" or ") : "";
+    const inverterFilter = inverterIds.length ? inverterIds.map(i => `RowKey eq '${i}'`).join(" or ") : "";
+    const filter = [plantFilter, inverterFilter].filter(Boolean).join(" and ");
 
-/* --- MAIN --- */
-module.exports = async function(context,req){
-  const start=Date.now();
-  try{
-    const period=(req.query.period||"day").toLowerCase();
-    const nav=+req.query.nav||0;
-    const plants=parseList(req.query.plants);
-    const inverters=parseList(req.query.inverters);
-    const now=DateTime.now().setZone(TIMEZONE);
-    const targetDate=now.plus({days:nav}).toISODate();
+    // --- cache layer ---
+    const cacheKey = `${period}:${dateKey}`;
+    const summaryData = [];
+    const powerPoints = [];
 
-    const summary=TableClient.fromConnectionString(CONN,SUMMARY_TABLE);
-    const cacheClient=TableClient.fromConnectionString(CONN,CACHE_TABLE);
-    const blobSvc=BlobServiceClient.fromConnectionString(CONN);
-
-    /* 1️⃣ Try cache first (for day/week only) */
-    const cacheKey=`${period}_${nav}_${plants.join(",")}_${inverters.join(",")}`;
-    if(["day","week"].includes(period)){
-      const cached=await getCache(cacheClient,cacheKey);
-      if(cached){context.log(`⚡ Cache hit for ${period}`);context.res={status:200,body:cached};return;}
+    // read inverter summary for KPI + yield
+    for await (const entity of tableClient.listEntities({ queryOptions: { filter } })) {
+      if (entity.DateKey && entity.DateKey.startsWith(dateKey)) summaryData.push(entity);
     }
 
-    /* 2️⃣ Stream summary table efficiently */
-    const rows=[];
-    const pager=summary.listEntities().byPage({maxPageSize:500});
-    for await(const page of pager){
-      for(const e of page){
-        const pid=String(e.Plant_ID||"");
-        const inv=String(e.Inverter_ID||e.partitionKey||"");
-        if(plants.length&&!plants.includes(pid))continue;
-        if(inverters.length&&!inverters.includes(inv))continue;
-        rows.push(e);
+    // --- compute cumulative yield ---
+    const totalYield = summaryData.reduce((sum, e) => sum + (e.Total_Yield_kWh || e.Yield_kWh || 0), 0);
+
+    // --- live-day: read latest blob JSONs and merge ---
+    if (period === "day") {
+      const blobNames = [];
+      for await (const blob of containerClient.listBlobsFlat()) {
+        if (blob.name.includes(dateKey) &&
+          (!inverterIds.length || inverterIds.some(id => blob.name.includes(id)))) {
+          blobNames.push(blob.name);
+        }
       }
-      if(period==="day"&&rows.length>2000)break;
+
+      // fetch blobs concurrently
+      const parallel = blobNames.map(async name => {
+        const blobClient = containerClient.getBlobClient(name);
+        const res = await blobClient.download();
+        const text = await streamToString(res.readableStreamBody);
+        const arr = JSON.parse(text);
+        arr.forEach(pt => powerPoints.push(pt));
+      });
+      await Promise.all(parallel);
     }
 
-    /* 3️⃣ Summaries + totals */
-    const yieldTrend=summarize(rows,period);
-    const totalKWh=yieldTrend.reduce((a,b)=>a+(b.valueKWh||0),0);
-    const {value:totalYield,unit:yieldUnit}=fmt(totalKWh);
-
-    /* 4️⃣ Power curve */
-    const targetRows=rows.filter(r=>r.Date===targetDate);
-    const invIds=[...new Set(targetRows.map(r=>r.Inverter_ID))];
-    const limit=8, allCurves=[];
-    for(let i=0;i<invIds.length;i+=limit){
-      const chunk=invIds.slice(i,i+limit);
-      const res=await Promise.all(chunk.map(id=>readCurve(blobSvc,id,targetDate)));
-      allCurves.push(...combineCurves(res));
+    // --- group by timestamp, sum instantaneous power across all inverters ---
+    const timeMap = new Map();
+    for (const p of powerPoints) {
+      const t = p.Time || p.Timestamp || p.time;
+      if (!t) continue;
+      const key = new Date(t).toISOString();
+      const existing = timeMap.get(key) || { Time: key, DC: 0, AC: 0 };
+      existing.DC += Number(p.DC) || 0;
+      existing.AC += Number(p.AC) || 0;
+      timeMap.set(key, existing);
     }
 
-    const payload={
-      powerCurve:allCurves,
-      yieldTrend,
-      totalYield,
-      yieldUnit,
-      window:{
+    const powerCurve = Array.from(timeMap.values()).sort((a, b) => new Date(a.Time) - new Date(b.Time));
+
+    // --- hourly grouping (auto skip 20-min points) ---
+    const hourly = [];
+    const hourSeen = new Set();
+    for (const p of powerCurve) {
+      const hr = new Date(p.Time).getHours();
+      if (!hourSeen.has(hr)) {
+        hourly.push(p);
+        hourSeen.add(hr);
+      }
+    }
+
+    // --- yield trend per period ---
+    const yieldSeries = [];
+    if (period === "day") {
+      yieldSeries.push({ date: dateKey, yield: totalYield });
+    } else {
+      const group = {};
+      for (const e of summaryData) {
+        const key = e.DateKey || e.PartitionKey || dateKey;
+        group[key] = (group[key] || 0) + (e.Total_Yield_kWh || e.Yield_kWh || 0);
+      }
+      for (const [d, val] of Object.entries(group)) yieldSeries.push({ date: d, yield: val });
+    }
+
+    return {
+      status: 200,
+      body: {
+        success: true,
         period,
-        start:yieldTrend[0]?.label||targetDate,
-        end:yieldTrend.at(-1)?.label||targetDate
+        totalYield,
+        powerCurve: hourly,
+        yieldSeries
       }
     };
-
-    /* 5️⃣ Write cache */
-    if(["day","week"].includes(period)) await setCache(cacheClient,cacheKey,payload);
-
-    context.log(`✅ GetInverterData(${period}) done in ${Date.now()-start}ms`);
-    context.res={status:200,body:payload};
-  }catch(err){
-    context.log.error("❌ GetInverterData error:",err);
-    context.res={status:500,body:{error:err.message}};
+  } catch (err) {
+    context.log("GetInverterData error:", err);
+    return { status: 500, body: { success: false, message: err.message } };
   }
 };
+
+// helper
+async function streamToString(readable) {
+  return new Promise((resolve, reject) => {
+    const chunks = [];
+    readable.on("data", d => chunks.push(d.toString()));
+    readable.on("end", () => resolve(chunks.join("")));
+    readable.on("error", reject);
+  });
+}
