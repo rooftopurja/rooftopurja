@@ -1,0 +1,26 @@
+﻿name: UTF-8 Integrity Check
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  utf8-check:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Verify UTF-8 encoding in HTML/CSS/JS
+        run: |
+          echo "🔍 Checking for non-UTF-8 sequences..."
+          BADFILES=$(grep -I -r --include=\*.{html,css,js} -n -P "Ã|Â|â|Æ’|ð.|ï¿½|Å|œ|Ž|ž" . || true)
+          if [ -n "$BADFILES" ]; then
+            echo "❌ Found encoding issues:"
+            echo "$BADFILES"
+            exit 1
+          else
+            echo "✅ All files are UTF-8 clean."
+          fi
