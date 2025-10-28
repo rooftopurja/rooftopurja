@@ -4,7 +4,7 @@
   <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Solar Plant Dashboard ÃƒÂ¢Ã¢â€šÂ¬Ã¢â‚¬Å“ Inverter Data Overview</title>
+  <title>Solar Plant Dashboard ƒÆ’‚¢ƒ¢¢‚¬Å¡‚¬ƒ¢¢€š¬…€œ Inverter Data Overview</title>
 
   <link rel="stylesheet" href="common/style.css" />
   <link rel="stylesheet" href="common/header.css" />
@@ -113,10 +113,10 @@
 
   <div class="stage">
     <div class="filters">
-      <label>ÃƒÂ°Ã…Â¸Ã…â€™Ã‚Â¿ Plant:</label>
+      <label>ƒÆ’‚°ƒ€¦‚¸ƒ€¦¢‚¬„¢ƒ€š‚¿ Plant:</label>
       <select id="plantSel"><option value="">Select Plant</option></select>
 
-      <label>ÃƒÂ¢Ã…Â¡Ã¢â€žÂ¢ÃƒÂ¯Ã‚Â¸Ã‚Â Inverter:</label>
+      <label>ƒÆ’‚¢ƒ€¦‚¡ƒ¢¢‚¬Å¾‚¢ƒÆ’‚¯ƒ€š‚¸ƒ€š‚ Inverter:</label>
       <select id="invSel"><option value="">Select Inverter</option></select>
 
       <label>Date:</label>
@@ -129,7 +129,7 @@
 
     <div class="card">
       <h3>General Information</h3>
-      <div id="generalContent">LoadingÃƒÂ¢Ã¢â€šÂ¬Ã‚Â¦</div>
+      <div id="generalContent">LoadingƒÆ’‚¢ƒ¢¢‚¬Å¡‚¬ƒ€š‚¦</div>
     </div>
 
     <div class="card">
@@ -250,10 +250,10 @@ function drawGeneral(d, inv, date) {
       <div class="cell"><b>Serial:</b> ${d.Inverter_Serial_No ?? "--"}</div>
       <div class="cell"><b>Rated Power:</b> ${d.Inverter_Rated_Power ?? "--"}</div>
 
-      <div class="cell"><b>Array Insulation (kÃƒÅ½Ã‚Â©):</b> ${d["Array_Insulation_Resistance_kÃƒÅ½Ã‚Â©"] ?? "--"}</div>
+      <div class="cell"><b>Array Insulation (kƒÆ’…½ƒ€š‚©):</b> ${d["Array_Insulation_Resistance_kƒÆ’…½ƒ€š‚©"] ?? "--"}</div>
       <div class="cell"><b>Neg Voltage (V):</b> ${d.Negative_Voltage_To_Ground_V ?? "--"}</div>
       <div class="cell"><b>Grid Freq (Hz):</b> ${d.Grid_Frequency_Hz ?? "--"}</div>
-      <div class="cell"><b>Temp (Ãƒâ€šÃ‚Â°C):</b> ${d.Inverter_Temp_C ?? "--"}</div>
+      <div class="cell"><b>Temp (ƒÆ’¢‚¬Å¡ƒ€š‚°C):</b> ${d.Inverter_Temp_C ?? "--"}</div>
 
       <div class="cell"><b>Daily Run (hr):</b> ${d.Daily_Run_Time_Hours ?? "--"}</div>
       <div class="cell"><b>Total Run (hr):</b> ${d.Total_Run_Time_Hours ?? "--"}</div>
