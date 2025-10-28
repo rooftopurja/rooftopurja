@@ -37,6 +37,3 @@ app.http('maintenance_overview', {
     return { jsonBody: { ok: true, count: data.length, data } };
   }
 });
-
-
-

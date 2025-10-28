@@ -35,6 +35,3 @@ app.http('inverter_data_overview', {
     return { jsonBody: { ok: true, count: data.length, data } };
   }
 });
-
-
-

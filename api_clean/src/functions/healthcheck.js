@@ -11,6 +11,3 @@ app.http('healthcheck', {
         return { body: `Hello, ${name}!` };
     }
 });
-
-
-

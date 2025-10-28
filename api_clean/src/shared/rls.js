@@ -30,6 +30,3 @@ function isAllowedPlant(email, plantId) {
 }
 
 module.exports = { getUserEmailFromRequest, isAllowedPlant };
-
-
-

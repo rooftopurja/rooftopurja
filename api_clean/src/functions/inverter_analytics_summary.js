@@ -43,6 +43,3 @@ app.http('inverter_analytics_summary', {
     };
   }
 });
-
-
-
