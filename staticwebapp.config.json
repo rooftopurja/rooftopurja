@@ -1,5 +1,14 @@
-{
-  "routes": [
-    { "route": "/api/plants", "rewrite": "/api/PlantDirectory" }
-  ]
+﻿{
+  "mimeTypes": {
+    ".html": "text/html; charset=utf-8"
+  },
+  "responseOverrides": {
+    "404": {
+      "rewrite": "/index.html",
+      "statusCode": 200
+    }
+  },
+  "globalHeaders": {
+    "Cache-Control": "no-cache, no-store, must-revalidate"
+  }
 }
