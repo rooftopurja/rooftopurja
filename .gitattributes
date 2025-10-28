@@ -1,4 +1,6 @@
-﻿common/header.html lock
-common/header.css lock
-assets/logo.png lock
-common/header.html filter=lfs diff=lfs merge=lfs -text
+﻿*.html text eol=lf working-tree-encoding=UTF-8
+*.css  text eol=lf working-tree-encoding=UTF-8
+*.js   text eol=lf working-tree-encoding=UTF-8
+*.json text eol=lf working-tree-encoding=UTF-8
+*.sql  text eol=lf working-tree-encoding=UTF-8
+*.txt  text eol=lf working-tree-encoding=UTF-8
