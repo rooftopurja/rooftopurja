@@ -1,8 +1,8 @@
-<!doctype html>
+﻿<!doctype html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Meter â€” Solar Monitoring</title>
+  <title>Meter Ã¢â‚¬â€ Solar Monitoring</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <!-- Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -213,7 +213,7 @@
 
       <!-- Bar + Line -->
       <div class="card">
-        <div class="card-title">Last 9 Days â€” Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
+        <div class="card-title">Last 9 Days Ã¢â‚¬â€ Total (bar) &amp; Daily (line) <span class="badge" id="barBadge">MWh</span></div>
         <div class="hint" id="barHint">Labels on bars/line show values; cumulative across selected plants.</div>
         <canvas id="barLine" style="width:100%;height:calc(100% - 48px)"></canvas>
       </div>
@@ -361,7 +361,7 @@ function renderKPI(rows){
   const best = toBestUnit(totalMWh);
   el('#kpiTotal').textContent = fmtNum(best.val, 3);
   el('#kpiUnit').textContent  = `(${best.unit})`;
-  el('#kpiContext').textContent = `Range: ${ymd(start)} â†’ ${ymd(end)} â€¢ Plants: ${selectedPlantIds.size? `${selectedPlantIds.size} selected` : 'All'}`;
+  el('#kpiContext').textContent = `Range: ${ymd(start)} Ã¢â€ â€™ ${ymd(end)} Ã¢â‚¬Â¢ Plants: ${selectedPlantIds.size? `${selectedPlantIds.size} selected` : 'All'}`;
   el('#pieBadge').textContent = best.unit;
   el('#barBadge').textContent = best.unit;
 }
@@ -397,7 +397,7 @@ function renderTable(rows){
     `;
     tb.appendChild(tr);
   }
-  el('#tableHint').textContent = `${latest.length} meters â€¢ latest reading per meter`;
+  el('#tableHint').textContent = `${latest.length} meters Ã¢â‚¬Â¢ latest reading per meter`;
 }
 
 function renderPie(rows){
@@ -429,7 +429,7 @@ function renderPie(rows){
 }
 
 function renderBarLine(rows){
-  // LAST 9 DAYS â€” bars total yield (sum Total_Yield), line sum daily incremental (kWh)
+  // LAST 9 DAYS Ã¢â‚¬â€ bars total yield (sum Total_Yield), line sum daily incremental (kWh)
   const byDay = groupBy(rows, r => ymd(new Date(r.Date_Time)));
   const days = Array.from(byDay.keys()).sort().slice(-9);
 
@@ -507,6 +507,7 @@ document.addEventListener('DOMContentLoaded', async ()=>{
 </script>
 </body>
 </html>
+
 
 
 

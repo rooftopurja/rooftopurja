@@ -1,9 +1,9 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="en">
 <head>
   <meta charset="utf-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Solar Plant Dashboard – Meter</title>
+  <title>Solar Plant Dashboard â€“ Meter</title>
   <link rel="stylesheet" href="common/style.css" />
   <link rel="stylesheet" href="common/header.css" />
 
@@ -98,7 +98,7 @@
   .multi-menu label{display:block;padding:4px 0;font-size:.85rem}
   .multi-menu input{margin-right:6px}
   #plantBtn{position:relative;padding-right:22px;min-width:300px}
-  #plantBtn::after{content:"▾";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:.7rem;color:#143559}
+  #plantBtn::after{content:"â–¾";position:absolute;right:8px;top:50%;transform:translateY(-50%);font-size:.7rem;color:#143559}
   .hide{display:none!important}
   </style>
 </head>
@@ -109,7 +109,7 @@
   <div class="stage">
     <div class="filters">
       <div class="filters-left">
-        <label>🌿 Select Plant(s):</label>
+        <label>ðŸŒ¿ Select Plant(s):</label>
         <div class="multi">
           <button id="plantBtn">All Plants</button>
           <div id="plantMenu" class="multi-menu"></div>
@@ -126,7 +126,7 @@
       </div>
       <div class="export">
         <select id="exportSel">
-          <option>Export ▾</option>
+          <option>Export â–¾</option>
           <option value="csv">Export CSV</option>
           <option value="xlsx">Export Excel</option>
           <option value="pdf">Export PDF</option>
@@ -148,7 +148,7 @@
       <div class="card kpi" style="grid-column:2/3;grid-row:1/2;">
         <h2>Total Yield (Selected Plants)</h2>
         <div id="kpi" class="main">--</div>
-        <div id="delta" class="delta">Δ --</div>
+        <div id="delta" class="delta">Î” --</div>
         <div id="asof" class="asof">Data as of --</div>
       </div>
 
@@ -272,7 +272,7 @@ function render(){
   if(totals.length>1){
     const diff = totals.at(-1) - totals.at(-2);
     const {v,u} = fmtUnit(Math.abs(diff));
-    deltaText = `Δ ${diff>=0?'+':'-'}${v} ${u} vs yesterday`;
+    deltaText = `Î” ${diff>=0?'+':'-'}${v} ${u} vs yesterday`;
   }
   document.getElementById('delta').textContent = `${deltaText} (as of latest readings)`;
   document.getElementById('asof').textContent  = `Data as of ${(tableRows[0]?.Date_Time||'').replace('T',' ') || '--'}`;
@@ -350,9 +350,10 @@ document.getElementById('exportSel').addEventListener('change',e=>{
 </script>
 
 <script>
-fetch("common/header.html")
+fetch("/common/header.html")
   .then(r => r.text())
   .then(h => document.getElementById("header").innerHTML = h);
 </script>
 </body>
 </html>
+

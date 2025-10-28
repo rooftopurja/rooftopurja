@@ -47,9 +47,10 @@
   </main>
 
   <script>
-  fetch("common/header.html")
+  fetch("/common/header.html")
     .then(r => r.text())
     .then(h => document.getElementById("header").innerHTML = h);
   </script>
 </body>
 </html>
+
