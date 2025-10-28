@@ -1,9 +1,10 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="en">
 <head>
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Solar Plant Dashboard â€“ Inverter Data Overview</title>
+  <title>Solar Plant Dashboard Ã¢â‚¬â€œ Inverter Data Overview</title>
 
   <link rel="stylesheet" href="common/style.css" />
   <link rel="stylesheet" href="common/header.css" />
@@ -112,10 +113,10 @@
 
   <div class="stage">
     <div class="filters">
-      <label>ðŸŒ¿ Plant:</label>
+      <label>Ã°Å¸Å’Â¿ Plant:</label>
       <select id="plantSel"><option value="">Select Plant</option></select>
 
-      <label>âš™ï¸ Inverter:</label>
+      <label>Ã¢Å¡â„¢Ã¯Â¸Â Inverter:</label>
       <select id="invSel"><option value="">Select Inverter</option></select>
 
       <label>Date:</label>
@@ -128,7 +129,7 @@
 
     <div class="card">
       <h3>General Information</h3>
-      <div id="generalContent">Loadingâ€¦</div>
+      <div id="generalContent">LoadingÃ¢â‚¬Â¦</div>
     </div>
 
     <div class="card">
@@ -249,10 +250,10 @@ function drawGeneral(d, inv, date) {
       <div class="cell"><b>Serial:</b> ${d.Inverter_Serial_No ?? "--"}</div>
       <div class="cell"><b>Rated Power:</b> ${d.Inverter_Rated_Power ?? "--"}</div>
 
-      <div class="cell"><b>Array Insulation (kÎ©):</b> ${d["Array_Insulation_Resistance_kÎ©"] ?? "--"}</div>
+      <div class="cell"><b>Array Insulation (kÃŽÂ©):</b> ${d["Array_Insulation_Resistance_kÃŽÂ©"] ?? "--"}</div>
       <div class="cell"><b>Neg Voltage (V):</b> ${d.Negative_Voltage_To_Ground_V ?? "--"}</div>
       <div class="cell"><b>Grid Freq (Hz):</b> ${d.Grid_Frequency_Hz ?? "--"}</div>
-      <div class="cell"><b>Temp (Â°C):</b> ${d.Inverter_Temp_C ?? "--"}</div>
+      <div class="cell"><b>Temp (Ã‚Â°C):</b> ${d.Inverter_Temp_C ?? "--"}</div>
 
       <div class="cell"><b>Daily Run (hr):</b> ${d.Daily_Run_Time_Hours ?? "--"}</div>
       <div class="cell"><b>Total Run (hr):</b> ${d.Total_Run_Time_Hours ?? "--"}</div>
