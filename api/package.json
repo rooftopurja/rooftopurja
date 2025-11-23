@@ -6,8 +6,10 @@
   "scripts": {
     "start": "func start"
   },
-  "license": "MIT",
+  "engines": {
+    "node": ">=18.0.0"
+  },
   "dependencies": {
-    "@azure/data-tables": "^13.2.2"
+    "@azure/data-tables": "^13.3.2"
   }
 }
