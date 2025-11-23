@@ -1,7 +1,18 @@
-﻿{
-  "azureFunctions.projectLanguage": "JavaScript",
-  "azureFunctions.projectRuntime": "~4",
-  "azureFunctions.defaultFunctionName": "index",
-  "azureFunctions.extensionsVersion": "~4",
-  "FUNCTIONS_WORKER_RUNTIME": "node"
+{
+  "version": "2.0",
+  "logging": {
+    "applicationInsights": {
+      "samplingSettings": {
+        "isEnabled": true,
+        "maxTelemetryItemsPerSecond": 5
+      }
+    }
+  },
+  "extensionBundle": {
+    "id": "Microsoft.Azure.Functions.ExtensionBundle",
+    "version": "[3.*, 4.0.0)"
+  },
+  "functions": [],
+  "workerRuntime": "node",
+  "nodeVersion": "18"
 }
