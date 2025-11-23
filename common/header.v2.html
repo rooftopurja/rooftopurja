@@ -1,0 +1,38 @@
+<!-- Shared Rooftop Urja Header (clean + UTF-8 safe) -->
+<link rel="stylesheet" href="common/header.css" />
+
+<header class="main-header">  <meta charset="UTF-8">
+  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+  <div class="navbar">
+    <div class="navbar-logo">
+      <img src="assets/logo.png" alt="Rooftop Urja" class="logo-img" />
+      Solar Plant Dashboard
+    </div>
+
+    <ul class="navbar-menu">
+      <li><a href="meter.v2.html">Meter</a></li>
+      <li><a href="inverter_analytics.html">Inverter Analytics</a></li>
+      <li><a href="inverter_data_overview.html">Inverter Data Overview</a></li>
+      <li><a href="inverter_faults.html">Inverter Faults</a></li>
+      <li><a href="maintenance.html">Maintenance</a></li>
+    </ul>
+
+    <div class="user-dropdown">
+      <button class="user-btn">Account</button>
+      <div class="dropdown-content">
+        <a href="#">Profile</a>
+        <a href="#">Logout</a>
+      </div>
+    </div>
+  </div>
+</header>
+
+<script>
+(() => {
+  const current = location.pathname.split("/").pop().toLowerCase();
+  document.querySelectorAll(".navbar-menu a").forEach(a => {
+    const href = (a.getAttribute("href") || "").toLowerCase();
+    a.classList.toggle("active", current === href);
+  });
+})();
+</script>

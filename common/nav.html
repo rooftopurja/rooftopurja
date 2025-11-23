@@ -1,0 +1,19 @@
+<link rel="stylesheet" href="assets/nav.css?v=3">
+<nav class="sp-nav" id="sp-nav">
+  <div class="sp-nav-left">
+    <a href="meter.v2.html"              data-tab="meter">Meter</a>
+    <a href="inverter_analytics.html"    data-tab="inv-analytics">Inverter Analytics</a>
+    <a href="inverter_data_overview.html" data-tab="inv-overview">Inverter Data Overview</a>
+    <a href="inverter_faults.html"       data-tab="inv-faults">Inverter Faults</a>
+    <a href="maintenance.html"           data-tab="maint">Maintenance</a>
+  </div>
+</nav>
+<script>
+(function(){
+  const p = location.pathname.toLowerCase();
+  document.querySelectorAll('.sp-nav a').forEach(a=>{
+    const href = (a.getAttribute('href')||'').toLowerCase();
+    if (p.endsWith(href)) a.classList.add('active');
+  });
+})();
+</script>

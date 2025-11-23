@@ -1,0 +1,16 @@
+﻿:root{--bg:#fff;--bg-soft:#f8fafc;--line:#e5e7eb;--text:#111827;--muted:#6b7280;--primary:#0b53e6;--primary-weak:#e7efff}
+html,body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:var(--text);background:var(--bg);line-height:1.45}
+.container{max-width:1200px;margin:0 auto;padding:16px}
+.topbar{position:sticky;top:0;background:#fff;border-bottom:1px solid var(--line);z-index:10}
+.topbar nav{display:flex;gap:12px;flex-wrap:wrap;padding:10px 16px}
+.topbar a { color:#334155;text-decoration:none;padding:8px 10px;border-radius:8px }
+.topbar a.active,.topbar a:hover{background:#eef2ff;color:#0b53e6}
+.cards{display:grid;grid-template-columns:repeat(12,1fr);gap:16px}
+.card{grid-column:span 12;background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:0 1px 2px rgba(0,0,0,.04)}
+@media(min-width:900px){.card.half{grid-column:span 6} .card.third{grid-column:span 4}}
+h1,h2,h3{margin:0 0 8px 0}
+table{width:100%;border-collapse:separate;border-spacing:0}
+thead th{background:var(--bg-soft);text-align:left;border-bottom:1px solid var(--line);padding:10px 12px;position:sticky;top:0}
+tbody td{padding:10px 12px;border-bottom:1px solid var(--line)}
+tbody tr:hover{background:#fafafa}
+.t-center{text-align:center}.t-right{text-align:right}

@@ -1,0 +1,18 @@
+{
+  "auth": {
+    "identityProviders": {
+      "github": {
+        "registration": {
+    "clientIdSettingName": "GITHUB_CLIENT_ID",
+    "clientSecretSettingName": "GITHUB_CLIENT_SECRET"
+}
+      }
+    }
+  },
+  "routes": [
+    {
+      "route": "/api/*",
+      "allowedRoles": ["anonymous", "authenticated"]
+    }
+  ]
+}

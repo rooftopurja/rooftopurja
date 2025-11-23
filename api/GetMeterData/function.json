@@ -1,0 +1,19 @@
+{
+  "scriptFile": "index.js",
+  "entryPoint": "GetMeterData",
+  "bindings": [
+    {
+      "authLevel": "anonymous",
+      "type": "httpTrigger",
+      "direction": "in",
+      "methods": [ "get" ],
+      "name": "req",
+      "route": "GetMeterData"
+    },
+    {
+      "type": "http",
+      "direction": "out",
+      "name": "res"
+    }
+  ]
+}

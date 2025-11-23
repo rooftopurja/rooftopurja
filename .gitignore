@@ -1,0 +1,28 @@
+﻿# Ignore environment secrets
+.env
+
+# Ignore node modules everywhere
+node_modules/
+
+# Ignore timer apps
+InverterDailySummaryTimerApp/
+api_clean/
+_InverterDailySummaryTimer_disabled/
+
+# Ignore local archives
+__archive/
+
+# Ignore local settings files
+local.settings.json
+*.local.json
+
+# Ignore Python cache
+__pycache__/
+
+# Ignore ZIPs and backups
+*.zip
+*.bak
+*.backup
+
+# Ignore dist (accidentally created folder)
+dist/

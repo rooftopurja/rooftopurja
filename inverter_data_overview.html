@@ -1,0 +1,358 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Solar Plant Dashboard – Inverter Data Overview</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+<link rel="stylesheet" href="common/style.css">
+<link rel="stylesheet" href="common/header.css">
+
+<style>
+:root {
+    --blue:#0057d8;
+    --text:#143559;
+    --bg:#f3f6fb;
+    --panel:#fff;
+    --shadow:0 2px 6px rgba(0,0,0,0.08);
+}
+body { margin:0; background:var(--bg); font-family:"Segoe UI",sans-serif; }
+
+/* Stage container */
+.stage {
+    max-width:1180px;
+    margin:10px auto;  
+    padding:8px;
+    background:var(--panel);
+    border-radius:10px;
+    box-shadow:var(--shadow);
+}
+
+/* Filter bar */
+.filters {
+    display:flex;
+    flex-wrap:wrap;
+    gap:12px;
+    align-items:center;
+    padding-bottom:6px;
+    border-bottom:1px solid #dde3ee;
+}
+select, input[type=date] {
+    border:1px solid var(--blue);
+    border-radius:14px;
+    padding:4px 10px;
+    height:30px;
+    font-size:.85rem;
+    background:#fff;
+    color:var(--text);
+}
+#dateSel {
+    background:#e9f1ff;
+    color:#003d9c;
+    font-weight:600;
+}
+
+/* Card container */
+.card {
+    margin-top:10px;
+    padding:10px;
+    background:#fff;
+    border-radius:8px;
+    box-shadow:var(--shadow);
+}
+
+/* Section titles */
+h3 {
+    margin:0 0 6px;
+    padding-left:6px;
+    border-left:3px solid var(--blue);
+    font-size:.9rem;
+    font-weight:700;
+}
+
+/* GENERAL INFO GRID (3×3) */
+.gen-grid {
+    display:grid;
+    grid-template-columns:repeat(3,1fr);
+    gap:6px;
+}
+.gen-cell {
+    background:#f8fbff;
+    padding:6px 8px;
+    border-radius:8px;
+    border:1px solid #d9e2ef;
+    font-size:.78rem;
+}
+
+/* AC table */
+table { width:100%; border-collapse:collapse; font-size:.78rem; }
+th, td {
+    border:1px solid #d9e2ef;
+    padding:4px;
+    text-align:center;
+}
+th { background:#f4f7fc; }
+
+/* MPPT auto-fit grid */
+#mpptGrid {
+    display:grid;
+    grid-template-columns:repeat(auto-fit, minmax(150px,1fr));
+    gap:8px;
+    margin-top:8px;
+}
+.mpptCard {
+    background:#ffffff;
+    padding:8px;
+    border-radius:8px;
+    border:1px solid #dde7f5;
+    box-shadow:var(--shadow);
+    font-size:.72rem;
+}
+.mpptTitle {
+    font-weight:700;
+    color:var(--blue);
+    margin-bottom:4px;
+}
+.pvRow { padding:2px 0; }
+
+</style>
+</head>
+<body>
+
+<div id="header"></div>
+
+<div class="stage">
+
+    <!-- FILTER BAR -->
+    <div class="filters">
+        <label>Plant:</label>
+        <select id="plantSel"></select>
+
+        <label>Inverter:</label>
+        <select id="invSel"></select>
+
+        <label>Date:</label>
+        <input type="date" id="dateSel" readonly>
+
+        <label style="margin-left:auto;">
+            <input type="checkbox" id="hideZero" checked> Hide zero MPPT rows
+        </label>
+    </div>
+
+    <!-- GENERAL INFO -->
+    <div class="card">
+        <h3>General Information</h3>
+        <div id="generalBox" class="gen-grid"></div>
+    </div>
+
+    <!-- AC PARAMETERS -->
+    <div class="card">
+        <h3>AC Parameters</h3>
+        <table>
+            <thead>
+                <tr>
+                    <th>Phase</th><th>Voltage (V)</th><th>Current (A)</th>
+                </tr>
+            </thead>
+            <tbody id="acBody"></tbody>
+        </table>
+    </div>
+
+    <!-- MPPT + PV -->
+    <div class="card">
+        <h3>DC Parameters (MPPT & PV Strings)</h3>
+        <div id="mpptGrid"></div>
+    </div>
+
+</div>
+
+<script>
+// ------------------------------------ HEADER ------------------------------------
+fetch("/common/header.v2.html")
+  .then(r => r.text())
+  .then(t => document.getElementById("header").innerHTML = t);
+
+// ---------------------------------- GLOBALS -------------------------------------
+let plants = [], plantMap = {};
+let timer = null;
+
+// ------------------------------------ INIT --------------------------------------
+document.addEventListener("DOMContentLoaded", async () => {
+
+    await loadPlantDirectory();
+
+    // Lock date to today (blue)
+    const today = new Date().toISOString().split("T")[0];
+    document.getElementById("dateSel").value = today;
+
+    // Events
+    document.getElementById("plantSel").addEventListener("change", () => {
+        populateInverters();
+        fetchOverview();
+    });
+    document.getElementById("invSel").addEventListener("change", fetchOverview);
+    document.getElementById("hideZero").addEventListener("change", fetchOverview);
+
+    // Default select
+    if (plants.length > 0) {
+        document.getElementById("plantSel").value = plants[0].Plant_Name;
+        populateInverters();
+    }
+
+    fetchOverview();
+    startAutoRefresh();
+});
+
+// ------------------------------ AUTO REFRESH ------------------------------------
+function startAutoRefresh() {
+    if (timer) clearInterval(timer);
+    timer = setInterval(fetchOverview, 23 * 60 * 1000);
+}
+
+// ------------------------------ LOAD PLANTS -------------------------------------
+async function loadPlantDirectory() {
+    try {
+        const r = await fetch("/api/PlantDirectory");
+        const j = await r.json();
+
+        plants = j.items || [];
+        plantMap = {};
+        plants.forEach(p => plantMap[p.Plant_Name] = p.Inverters || []);
+
+        const ps = document.getElementById("plantSel");
+        ps.innerHTML = plants
+           .sort((a,b)=>a.Plant_Name.localeCompare(b.Plant_Name))
+           .map(p => `<option value="${p.Plant_Name}">${p.Plant_Name}</option>`)
+           .join("");
+
+    } catch (e) { console.error("Plant load error", e); }
+}
+
+// ------------------------------ POPULATE INVERTERS -------------------------------
+function populateInverters() {
+    const plant = document.getElementById("plantSel").value;
+    const invs = plantMap[plant] || [];
+
+    const is = document.getElementById("invSel");
+    is.innerHTML = invs.map(i => `<option value="${i}">${i}</option>`).join("");
+}
+
+// ------------------------------ FETCH OVERVIEW -----------------------------------
+async function fetchOverview() {
+    const plant    = document.getElementById("plantSel").value;
+    const inverter = document.getElementById("invSel").value;
+    const date     = document.getElementById("dateSel").value;
+
+    if (!plant || !inverter || !date) return;
+
+    try {
+        const r = await fetch(`/api/GetInverterDataOverview?plant=${encodeURIComponent(plant)}&inverter=${encodeURIComponent(inverter)}&date=${date}`);
+        const j = await r.json();
+
+        if (!j.success || !j.record) {
+            drawGeneral(null);
+            drawAC(null);
+            drawMPPT(null);
+            return;
+        }
+
+        const d = j.record;
+        drawGeneral(d);
+        drawAC(d);
+        drawMPPT(d);
+
+    } catch (e) { console.error(e); }
+}
+
+// ------------------------------ GENERAL INFO -------------------------------------
+function drawGeneral(d) {
+    const box = document.getElementById("generalBox");
+    if (!d) { box.innerHTML = "<div>No data</div>"; return; }
+
+    box.innerHTML = `
+        <div class="gen-cell"><b>Serial:</b> ${d.Inverter_Serial_No ?? "--"}</div>
+        <div class="gen-cell"><b>Grid Freq:</b> ${d.Grid_Frequency_Hz ?? "--"}</div>
+        <div class="gen-cell"><b>Temp (°C):</b> ${d.Inverter_Temp_C ?? "--"}</div>
+
+        <div class="gen-cell"><b>Daily Run Time:</b> ${
+            d.Daily_Run_Time_Hours != null ? d.Daily_Run_Time_Hours.toFixed(2) + " hrs" : "--"
+        }</div>
+        <div class="gen-cell"><b>Total Run Time:</b> ${(d.Total_Run_Time_Hours ?? "--") + " hrs"}</div>
+        <div class="gen-cell"><b>Total Yield:</b> ${d.Total_Yield_Unit ?? d.Total_Yield ?? "--"}</div>
+
+        <div class="gen-cell"><b>Neg Voltage-Gnd:</b> ${d.Negative_Voltage_To_Ground_V ?? "--"}</div>
+        <div class="gen-cell"><b>Array Insulation (kΩ):</b> ${d["Array_Insulation_Resistance_kΩ"] ?? "--"}</div>
+        <div class="gen-cell"><b>Status:</b> ${d.Work_State_Description ?? "--"}</div>
+    `;
+}
+
+// ------------------------------ AC PARAMETERS -------------------------------------
+function drawAC(d) {
+    const body = document.getElementById("acBody");
+    if (!d) { body.innerHTML = ""; return; }
+
+    const rows = [
+        ["A", d.AC_A_V, d.AC_A_A],
+        ["B", d.AC_B_V, d.AC_B_A],
+        ["C", d.AC_C_V, d.AC_C_A]
+    ];
+
+    body.innerHTML = rows.map(r =>
+        `<tr><td>${r[0]}</td><td>${r[1] ?? 0}</td><td>${r[2] ?? 0}</td></tr>`
+    ).join("");
+}
+
+// ------------------------------ MPPT + PV AUTO-FIT -------------------------------
+function drawMPPT(d) {
+    const grid = document.getElementById("mpptGrid");
+    if (!d) { grid.innerHTML = ""; return; }
+
+    let mppts = [];
+    for (let i = 1; i <= 18; i++) {
+        if ((`MPPT${i}_V` in d) || (`MPPT${i}_A` in d))
+            mppts.push(i);
+    }
+
+    let pvs = [];
+    for (let i = 1; i <= 48; i++) {
+        if (`PV${i}_A` in d)
+            pvs.push(i);
+    }
+
+    const mpptCount = mppts.length;
+    const pvPerMppt = mpptCount ? Math.ceil(pvs.length / mpptCount) : 0;
+
+    const hideZero = document.getElementById("hideZero").checked;
+
+    let html = "";
+    mppts.forEach((mp, idx) => {
+
+        const mv = +(d[`MPPT${mp}_V`] ?? 0);
+        const ma = +(d[`MPPT${mp}_A`] ?? 0);
+
+        const start = idx * pvPerMppt;
+        const pvNames = pvs.slice(start, start + pvPerMppt);
+        const pvCurr = pvNames.map(p => +(d[`PV${p}_A`] ?? 0));
+
+        const zeroRow = mv === 0 && ma === 0 && pvCurr.every(x => x === 0);
+        if (hideZero && zeroRow) return;
+
+        html += `
+        <div class="mpptCard">
+            <div class="mpptTitle">MPPT ${mp}</div>
+            <div>V: ${mv}</div>
+            <div>A: ${ma}</div>
+            <hr style="margin:4px 0;">
+            ${pvNames.map((pv, i) =>
+                `<div class="pvRow">PV${pv}: ${pvCurr[i]}</div>`
+            ).join("")}
+        </div>`;
+    });
+
+    grid.innerHTML = html;
+}
+
+</script>
+
+</body>
+</html>

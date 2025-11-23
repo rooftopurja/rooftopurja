@@ -1,0 +1,907 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Inverter Analytics</title>
+
+<!-- Shared Styling -->
+<link rel="stylesheet" href="common/style.css" />
+<link rel="stylesheet" href="common/header.css" />
+
+<!-- Chart Libraries -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+
+<style>
+:root{
+  --maxw:1180px;
+  --pad:14px;
+  --blue:#0057d8;
+  --text:#143559;
+  --bg:#fafbfc;
+  --panel:#fff;
+  --shadow:0 2px 8px rgba(0,0,0,.05);
+}
+
+/* ======================
+   PAGE LAYOUT
+====================== */
+body{
+  margin:0;
+  background:var(--bg);
+  font-family:"Segoe UI",sans-serif;
+  color:var(--text);
+}
+#header{ position:sticky; top:0; z-index:100; }
+
+.stage{
+  max-width:var(--maxw);
+  margin:10px auto;
+  padding:var(--pad);
+  background:#fff;
+  border-radius:12px;
+  box-shadow:var(--shadow);
+  display:flex;
+  flex-direction:column;
+  gap:16px;
+}
+
+/* ======================
+   FILTERS
+====================== */
+.filters{
+  display:flex;
+  align-items:center;
+  gap:12px;
+  flex-wrap:wrap;
+  border-bottom:1px solid #e7ecf2;
+  padding-bottom:8px;
+}
+
+.filters-left{
+  display:flex;
+  align-items:center;
+  gap:10px;
+  flex-wrap:wrap;
+}
+
+label{
+  font-weight:600;
+  font-size:.9rem;
+}
+
+/* Selects / Buttons */
+select, button, input[type="date"]{
+  border:1px solid var(--blue);
+  border-radius:18px;
+  padding:4px 12px;
+  background:#fff;
+  color:var(--text);
+  height:30px;
+  font-size:.85rem;
+}
+
+/* Period buttons */
+.btn{
+  border:1px solid var(--blue);
+  border-radius:18px;
+  padding:4px 12px;
+  background:#fff;
+  font-size:.85rem;
+  font-weight:600;
+  color:var(--blue);
+}
+.btn.period.active{
+  background:var(--blue);
+  color:#fff;
+}
+
+/* ======================
+   MULTI SELECT DROPDOWN
+====================== */
+.multi{
+  position:relative;
+  display:inline-block;
+}
+.multi button{
+  min-width:150px;
+  font-size:.85rem;
+  padding-right:25px;
+  text-align:left;
+}
+#plantBtn{ min-width:300px; }
+
+.multi button::after{
+  content:"▼";
+  position:absolute;
+  right:10px;
+  top:50%;
+  transform:translateY(-50%);
+  font-size:0.55rem;
+}
+
+.multi-menu{
+  display:none;
+  position:absolute;
+  z-index:999;
+  left:0;
+  top:100%;
+  width:300px;
+  max-height:220px;
+  overflow-y:auto;
+  background:#fff;
+  border:1px solid #ccc;
+  border-radius:6px;
+  padding:8px;
+  box-shadow:0 4px 10px rgba(0,0,0,0.15);
+}
+
+.multi-menu input[type="text"]{
+  width:100%;
+  padding:6px;
+  margin-bottom:6px;
+  border:1px solid #aaa;
+  border-radius:4px;
+  font-size:.82rem;
+}
+
+.multi-menu label{
+  display:block;
+  padding:4px;
+  font-size:.82rem;
+}
+
+.multi-menu input[type="checkbox"]{ margin-right:6px; }
+
+/* ======================
+   KPI CARDS
+====================== */
+.kpi-grid{
+  display:grid;
+  grid-template-columns:repeat(3,1fr);
+  gap:12px;
+}
+
+.kpi-card{
+  background:#fff;
+  padding:8px;
+  height:70px;
+  border-radius:10px;
+  box-shadow:var(--shadow);
+  display:flex;
+  flex-direction:column;
+  justify-content:center;
+  text-align:center;
+}
+
+.kpi-card h3{
+  margin:0;
+  font-size:.90rem;
+  font-weight:700;
+}
+
+.kpi-value{
+  font-size:1.4rem;
+  font-weight:800;
+  margin-top:4px;
+  color:var(--blue);
+}
+
+/* ======================
+   CHART GRID
+====================== */
+.chart-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr;
+  gap:14px;
+}
+
+/* Chart cards equal height */
+.chart-card{
+  background:#fff;
+  padding:12px;
+  border-radius:10px;
+  box-shadow:var(--shadow);
+  height:350px;        /* <-- H1 setting */
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  position:relative;
+}
+
+/* TITLE (LEFT) */
+.chart-card h2{
+  margin:0;
+  font-size:.95rem;
+  font-weight:700;
+  border-left:4px solid var(--blue);
+  padding-left:6px;
+}
+
+/* === POWER-CURVE HEADER LAYOUT: TITLE LEFT, LEGEND MIDDLE, TOGGLES RIGHT === */
+
+.power-curve-header{
+  display:flex;
+  justify-content:space-between;
+  align-items:center;
+  margin-bottom:4px;
+}
+
+.pc-left{
+  flex:1;
+}
+
+.pc-center{
+  flex:1;
+  text-align:center;
+  transform:translateY(2px);
+}
+
+.pc-right{
+  flex:1;
+  display:flex;
+  justify-content:flex-end;
+  gap:6px;
+}
+
+/* Legend middle clean */
+.pc-legend span{
+  display:inline-flex;
+  align-items:center;
+  gap:4px;
+  margin:0 10px;
+  font-size:.85rem;
+}
+.pc-legend i{
+  width:12px; height:12px; border-radius:50%;
+  display:inline-block;
+}
+
+/* Toggles compact */
+.toggle-btn{
+  padding:3px 8px;
+  border-radius:6px;
+  font-size:.72rem;
+  border:1px solid var(--blue);
+  color:var(--blue);
+  cursor:pointer;
+}
+.toggle-btn.active{
+  background:var(--blue);
+  color:#fff;
+}
+
+.pc-date input{
+  height:26px;
+  padding:2px 6px;
+  font-size:.75rem;
+}
+
+/* Chart canvas height */
+.chart{ flex-grow:1; display:flex; }
+.chart canvas{ width:100% !important; height:100% !important; }
+
+/* Trend arrows */
+.arrow-box{
+  position:absolute;
+  right:12px;
+  top:8px;
+  display:flex;
+  gap:6px;
+}
+.arrow{
+  padding:2px 6px;
+  border-radius:6px;
+  border:1px solid var(--blue);
+  color:var(--blue);
+  cursor:pointer;
+  font-size:.75rem;
+}
+.arrow:hover{ background:#e3efff; }
+</style>
+</head>
+
+<body>
+
+<div id="header"></div>
+<script>
+fetch("/common/header.v2.html")
+  .then(r=>r.text())
+  .then(h=>document.getElementById("header").innerHTML = h);
+</script>
+
+<div class="stage">
+
+<!-- FILTERS -->
+<div class="filters">
+  <div class="filters-left">
+
+    <label>Plant:</label>
+    <div class="multi">
+      <button id="plantBtn">All Plants</button>
+      <div id="plantMenu" class="multi-menu">
+        <input type="text" placeholder="Search..." id="plantSearch" />
+      </div>
+    </div>
+
+    <label>Inverter:</label>
+    <div class="multi">
+      <button id="invBtn">All Inverters</button>
+      <div id="invMenu" class="multi-menu">
+        <input type="text" placeholder="Search..." id="invSearch" />
+      </div>
+    </div>
+
+    <label>Period:</label>
+    <button class="btn period active" data-p="day">Day</button>
+    <button class="btn period" data-p="week">Week</button>
+    <button class="btn period" data-p="month">Month</button>
+    <button class="btn period" data-p="year">Year</button>
+    <button class="btn period" data-p="lifetime">Lifetime</button>
+
+  </div>
+</div>
+
+<!-- KPI CARDS -->
+<div class="kpi-grid">
+  <div class="kpi-card">
+    <h3>Total Yield</h3>
+    <div class="kpi-value">
+      <span id="kpiYield">--</span>
+      <span id="kpiYieldUnit" style="margin-left:4px;">--</span>
+    </div>
+  </div>
+
+  <div class="kpi-card">
+    <h3>CUF%</h3>
+    <div class="kpi-value" id="kpiCUF">--</div>
+  </div>
+
+  <div class="kpi-card">
+    <h3>PR%</h3>
+    <div class="kpi-value" id="kpiPR">--</div>
+  </div>
+</div>
+
+<!-- CHART GRID -->
+<div class="chart-grid">
+
+<!-- POWER CURVE -->
+<div class="chart-card">
+  <div class="power-curve-header">
+
+    <div class="pc-left">
+      <h2>Daily Power Curve (AC/DC)</h2>
+    </div>
+
+    <div class="pc-center">
+      <div class="pc-legend">
+        <span><i style="background:#f57c00"></i> AC Power</span>
+        <span style="margin-left:30px;"><i style="background:#0057d8"></i> DC Power</span>
+      </div>
+    </div>
+
+    <div class="pc-right">
+      <div class="toggle-btn active" data-m="both">Both</div>
+      <div class="toggle-btn" data-m="ac">AC</div>
+      <div class="toggle-btn" data-m="dc">DC</div>
+      <div class="pc-date">
+        <input type="date" id="curveDate" />
+      </div>
+    </div>
+
+  </div>
+
+  <div class="chart">
+    <canvas id="curveChart"></canvas>
+  </div>
+</div>
+
+<!-- YIELD TREND -->
+<div class="chart-card">
+
+  <h2>Yield Trend</h2>
+
+  <div class="arrow-box">
+    <div class="arrow" id="prevTrend">◀</div>
+    <div class="arrow" id="nextTrend">▶</div>
+  </div>
+
+  <div class="chart">
+    <canvas id="trendChart"></canvas>
+  </div>
+
+</div>
+
+</div><!-- END chart-grid -->
+
+</div><!-- END stage -->
+
+<script>
+Chart.register(ChartDataLabels);
+
+/* GLOBAL SPEED BOOST */
+Chart.defaults.animation = false;
+Chart.defaults.transitions.active.animation.duration = 0;
+Chart.defaults.datasets.line.tension = 0.35;
+
+/* ======================
+   GLOBAL VARS
+====================== */
+let plants=[];
+let inverters=[];
+let currentPeriod="day";
+let curveChart=null;
+let trendChart=null;
+let analyticsCache=new Map();
+/* ==========================================================
+   LOAD DIRECTORY (plants + inverters)
+========================================================== */
+async function loadDirectory(){
+  const r = await fetch("/api/PlantDirectory");
+  const j = await r.json();
+
+  plants = j.items || [];
+  inverters = [];
+
+  plants.forEach(p=>{
+    (p.Inverters||[]).forEach(inv=>{
+      inverters.push({ inverter:inv, plant:p.Plant_ID });
+    });
+  });
+
+  inverters.sort((a,b)=>String(a.inverter).localeCompare(String(b.inverter),"en",{numeric:true}));
+
+  buildPlantMenu();
+  buildInvMenu();
+}
+
+/* ==========================================================
+   MULTI-SELECT MENUS
+========================================================== */
+
+/* ---------- PLANT MENU ---------- */
+function buildPlantMenu(){
+  const menu=document.getElementById("plantMenu");
+  const search=document.getElementById("plantSearch");
+
+  [...menu.querySelectorAll("label")].forEach(l=>l.remove());
+
+  const allLbl=document.createElement("label");
+  const allCb=document.createElement("input");
+  allCb.type="checkbox";
+  allCb.value="__ALL_PLANTS__";
+  allCb.checked=true;
+  allLbl.append(allCb," All Plants");
+  menu.appendChild(allLbl);
+
+  plants.forEach(p=>{
+    const lbl=document.createElement("label");
+    const cb=document.createElement("input");
+    cb.type="checkbox";
+    cb.value=p.Plant_ID;
+    lbl.append(cb," "+(p.Plant_Name||p.Plant_ID));
+    menu.appendChild(lbl);
+  });
+
+  const allPlantCb=allCb;
+  const items=[...menu.querySelectorAll('input[type="checkbox"]')].filter(c=>c!==allPlantCb);
+
+  items.forEach(cb=>{
+    cb.addEventListener("change",()=>{
+      if(cb.checked) allPlantCb.checked=false;
+      else if(!items.some(x=>x.checked)) allPlantCb.checked=true;
+
+      updatePlantButton();
+      filterInvertersForPlant();
+      loadAnalytics();
+    });
+  });
+
+  allPlantCb.addEventListener("change",()=>{
+    if(allPlantCb.checked){
+      items.forEach(c=>c.checked=false);
+      updatePlantButton();
+      filterInvertersForPlant();
+      loadAnalytics();
+    }
+  });
+
+  document.getElementById("plantBtn").onclick=()=>{
+    menu.style.display = menu.style.display==="block" ? "none" : "block";
+  };
+
+  search.addEventListener("input",()=>{
+    const t=search.value.toLowerCase();
+    [...menu.querySelectorAll("label")].forEach(lbl=>{
+      if(lbl.contains(allPlantCb)) return;
+      lbl.style.display = lbl.textContent.toLowerCase().includes(t) ? "" : "none";
+    });
+  });
+
+  updatePlantButton();
+}
+
+/* Update Plant Button Text */
+function updatePlantButton(){
+  const menu=document.getElementById("plantMenu");
+  const cbs=[...menu.querySelectorAll('input[type="checkbox"]')];
+  const allCb=cbs.find(x=>x.value==="__ALL_PLANTS__");
+  const selected=cbs.filter(c=>c.checked && c!==allCb).map(c=>c.parentElement.textContent.trim());
+
+  const btn=document.getElementById("plantBtn");
+  if(allCb.checked || selected.length===0) btn.textContent="All Plants";
+  else if(selected.length===1) btn.textContent=selected[0];
+  else btn.textContent=selected.length+" Plants Selected";
+}
+
+/* ---------- INVERTER MENU ---------- */
+function filterInvertersForPlant(){
+  const plantMenu=document.getElementById("plantMenu");
+  const plantCbs=[...plantMenu.querySelectorAll('input[type="checkbox"]')];
+  const allPlant=plantCbs.find(c=>c.value==="__ALL_PLANTS__");
+
+  let selectedPlants=plantCbs.filter(c=>c.checked && c!==allPlant).map(c=>c.value);
+
+  const menu=document.getElementById("invMenu");
+  [...menu.querySelectorAll("label")].forEach(l=>l.remove());
+
+  const allLbl=document.createElement("label");
+  const allCb=document.createElement("input");
+  allCb.type="checkbox";
+  allCb.value="__ALL_INVERTERS__";
+  allCb.checked=true;
+  allLbl.append(allCb," All Inverters");
+  menu.appendChild(allLbl);
+
+  let filtered = [];
+
+  if(!selectedPlants.length){
+    filtered = inverters.map(x=>x.inverter);
+  } else {
+    inverters.forEach(i=>{
+      if(selectedPlants.includes(i.plant)) filtered.push(i.inverter);
+    });
+  }
+
+  filtered.forEach(inv=>{
+    const lbl=document.createElement("label");
+    const cb=document.createElement("input");
+    cb.type="checkbox";
+    cb.value=inv;
+    lbl.append(cb," "+inv);
+    menu.appendChild(lbl);
+  });
+
+  updateInvMenuEvents();
+  updateInvButton();
+}
+
+/* Build Inverter Menu (initial load) */
+function buildInvMenu(){
+  const menu=document.getElementById("invMenu");
+  const search=document.getElementById("invSearch");
+
+  [...menu.querySelectorAll("label")].forEach(l=>l.remove());
+
+  const allLbl=document.createElement("label");
+  const allCb=document.createElement("input");
+  allCb.type="checkbox";
+  allCb.value="__ALL_INVERTERS__";
+  allCb.checked=true;
+  allLbl.append(allCb," All Inverters");
+  menu.appendChild(allLbl);
+
+  inverters.forEach(i=>{
+    const lbl=document.createElement("label");
+    const cb=document.createElement("input");
+    cb.type="checkbox";
+    cb.value=i.inverter;
+    lbl.append(cb," "+i.inverter);
+    menu.appendChild(lbl);
+  });
+
+  updateInvMenuEvents();
+
+  document.getElementById("invBtn").onclick=()=>{
+    menu.style.display = menu.style.display==="block" ? "none":"block";
+  };
+
+  search.addEventListener("input",()=>{
+    const t=search.value.toLowerCase();
+    [...menu.querySelectorAll("label")].forEach(lbl=>{
+      const allInv=document.querySelector('#invMenu input[value="__ALL_INVERTERS__"]');
+      if(lbl.contains(allInv)) return;
+      lbl.style.display = lbl.textContent.toLowerCase().includes(t) ? "" : "none";
+    });
+  });
+
+  updateInvButton();
+}
+
+function updateInvMenuEvents(){
+  const menu=document.getElementById("invMenu");
+  const allInvCb=menu.querySelector('input[value="__ALL_INVERTERS__"]');
+  const invCbs=[...menu.querySelectorAll('input[type="checkbox"]')].filter(c=>c!==allInvCb);
+
+  invCbs.forEach(cb=>{
+    cb.onclick=()=>{
+      if(cb.checked) allInvCb.checked=false;
+      else if(!invCbs.some(x=>x.checked)) allInvCb.checked=true;
+      updateInvButton();
+      loadAnalytics();
+    };
+  });
+
+  allInvCb.onclick=()=>{
+    if(allInvCb.checked){
+      invCbs.forEach(c=>c.checked=false);
+      updateInvButton();
+      loadAnalytics();
+    }
+  };
+}
+
+function updateInvButton(){
+  const menu=document.getElementById("invMenu");
+  const cbs=[...menu.querySelectorAll('input[type="checkbox"]')];
+  const allCb=cbs.find(c=>c.value==="__ALL_INVERTERS__");
+  const selected=cbs.filter(c=>c.checked && c!==allCb).map(c=>c.value);
+
+  const btn=document.getElementById("invBtn");
+  if(allCb.checked || selected.length===0) btn.textContent="All Inverters";
+  else if(selected.length===1) btn.textContent=selected[0];
+  else btn.textContent=selected.length+" Inverters Selected";
+}
+
+/* ==========================================================
+   KPI UPDATE
+========================================================== */
+function updateKPI(j){
+  const val=document.getElementById("kpiYield");
+  const unit=document.getElementById("kpiYieldUnit");
+
+  if(j.kpiValue!==undefined && j.kpiUnit){
+    const kwh = normalizeKPI(j.kpiValue, j.kpiUnit);
+    const out = autoUnit(kwh);
+    val.textContent = out.value;
+    unit.textContent = out.unit;
+  } else {
+    val.textContent="--";
+    unit.textContent="--";
+  }
+
+  document.getElementById("kpiCUF").textContent="--";
+  document.getElementById("kpiPR").textContent="--";
+}
+
+function normalizeKPI(v,u){
+  v=Number(v)||0;
+  switch(u){
+    case "TWh": return v*1e12;
+    case "GWh": return v*1e9;
+    case "MWh": return v*1e6;
+    default: return v;
+  }
+}
+function autoUnit(kwh){
+  const abs=Math.abs(kwh);
+  if(abs>=1e9) return {value:(kwh/1e9).toFixed(2), unit:"TWh"};
+  if(abs>=1e6) return {value:(kwh/1e6).toFixed(2), unit:"GWh"};
+  if(abs>=1e3) return {value:(kwh/1e3).toFixed(2), unit:"MWh"};
+  return {value:kwh.toFixed(2), unit:"kWh"};
+}
+
+/* ==========================================================
+   DRAW POWER CURVE (Legend centered, no overlap)
+========================================================== */
+function drawPowerCurve(j){
+  if(curveChart) curveChart.destroy();
+
+  const mode=document.querySelector(".toggle-btn.active").dataset.m;
+  const data=j.powerCurve||[];
+
+  const labels=[];
+  const list=[];
+
+  for(let hr=5; hr<=19; hr++){
+    const t=`${hr.toString().padStart(2,"0")}:00`;
+    labels.push(t);
+
+    const row=data.find(x=> (x.Time||"").includes(t));
+    list.push(row || {AC:0,DC:0});
+  }
+
+  const AC=list.map(x=>x.AC);
+  const DC=list.map(x=>x.DC);
+
+  curveChart=new Chart(document.getElementById("curveChart"),{
+    type:"line",
+    data:{
+      labels,
+      datasets:[
+        ...(mode==="dc"?[]:[{
+          label:"AC Power",
+          data:AC,
+          borderColor:"#f57c00",
+          backgroundColor:"rgba(245,124,0,.15)",
+          borderWidth:2,
+          pointRadius:2,
+          fill:true,
+          datalabels:{ anchor:"end", align:"bottom", offset:-6 }
+        }]),
+        ...(mode==="ac"?[]:[{
+          label:"DC Power",
+          data:DC,
+          borderColor:"#0057d8",
+          backgroundColor:"rgba(0,87,216,.15)",
+          borderWidth:2,
+          pointRadius:2,
+          fill:true,
+          datalabels:{ anchor:"start", align:"top", offset:6 }
+        }])
+      ]
+    },
+
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+
+      plugins:{
+        legend:{ display:false },
+
+        datalabels:{
+          color:"#000",
+          font:{size:10,weight:"bold"},
+          formatter:v=>Number(v).toFixed(2)
+        }
+      },
+
+      scales:{
+        x:{
+          ticks:{
+            callback:(v,i)=>{
+              const h=i+5;
+              if(h<12) return h+"AM";
+              if(h===12) return "12PM";
+              return (h-12)+"PM";
+            },
+            maxRotation:0,
+            minRotation:0
+          }
+        },
+        y:{
+          beginAtZero:true,
+          ticks:{ callback:v=>v }
+        }
+      }
+    }
+  });
+}
+
+/* ==========================================================
+   DRAW TREND (Fix lifetime top datalabel clipping)
+========================================================== */
+function drawTrend(j){
+  if(trendChart) trendChart.destroy();
+
+  const src=(j.yieldSeries||[]).filter(x=>x.yield>=0);
+  const labels=src.map(x=>x.date);
+  const values=src.map(x=>x.yield);
+
+  if(!values.length){
+    trendChart=new Chart(document.getElementById("trendChart"),{type:"bar"});
+    return;
+  }
+
+  const conv=values.map(x=>autoUnit(x).value);
+  const unit=autoUnit(Math.max(...values)).unit;
+
+  trendChart=new Chart(document.getElementById("trendChart"),{
+    type:"bar",
+    data:{
+      labels,
+      datasets:[{
+        label:"Yield ("+unit+")",
+        data:conv,
+        backgroundColor:"#63a4ff",
+        borderRadius:6
+      }]
+    },
+
+    options:{
+      responsive:true,
+      maintainAspectRatio:false,
+
+      plugins:{
+        legend:{ display:false },
+        datalabels:{
+          color:"#000",
+          font:{size:11,weight:"bold"},
+          anchor:"end",
+          align:"top",
+          offset:-2,
+          clip:false,
+          formatter:v=>Number(v).toFixed(2)
+        }
+      },
+
+      scales:{
+        y:{ beginAtZero:true, title:{text:unit,display:true} },
+        x:{ ticks:{maxRotation:0,minRotation:0}, grid:{display:false} }
+      }
+    }
+  });
+}
+
+/* ==========================================================
+   LOAD ANALYTICS
+========================================================== */
+async function loadAnalytics(){
+  const plantMenu=document.getElementById("plantMenu");
+  const invMenu=document.getElementById("invMenu");
+
+  const plantCbs=[...plantMenu.querySelectorAll('input[type="checkbox"]')];
+  const invCbs=[...invMenu.querySelectorAll('input[type="checkbox"]')];
+
+  const allPlant=plantCbs.find(c=>c.value==="__ALL_PLANTS__");
+  const allInv=invCbs.find(c=>c.value==="__ALL_INVERTERS__");
+
+  let selPlants=plantCbs.filter(c=>c.checked && c!==allPlant).map(c=>c.value);
+  let selInvs=invCbs.filter(c=>c.checked && c!==allInv).map(c=>c.value);
+
+  if(allPlant.checked || !selPlants.length) selPlants=[];
+  if(allInv.checked   || !selInvs.length)   selInvs=[];
+
+  const date=document.getElementById("curveDate").value || new Date().toISOString().slice(0,10);
+
+  const url=`/api/GetInverterData?period=${currentPeriod}&date=${date}`+
+            `&plants=${selPlants.join(",")}&inverters=${selInvs.join(",")}`;
+
+  const r=await fetch(url);
+  const j=await r.json();
+  if(!j.success) return;
+
+  updateKPI(j);
+  drawPowerCurve(j);
+  drawTrend(j);
+}
+
+/* ==========================================================
+   EVENT HANDLERS
+========================================================== */
+document.querySelectorAll(".btn.period").forEach(b=>{
+  b.onclick=()=>{
+    document.querySelectorAll(".btn.period").forEach(x=>x.classList.remove("active"));
+    b.classList.add("active");
+    currentPeriod=b.dataset.p;
+    loadAnalytics();
+  };
+});
+
+document.querySelectorAll(".toggle-btn").forEach(t=>{
+  t.onclick=()=>{
+    document.querySelectorAll(".toggle-btn").forEach(x=>x.classList.remove("active"));
+    t.classList.add("active");
+    loadAnalytics();
+  };
+});
+
+document.getElementById("curveDate").onchange=()=>loadAnalytics();
+
+document.getElementById("prevTrend").onclick=()=>loadAnalytics();
+document.getElementById("nextTrend").onclick=()=>loadAnalytics();
+
+/* ==========================================================
+   INIT
+========================================================== */
+(async()=>{
+  await loadDirectory();
+  document.getElementById("curveDate").value = new Date().toISOString().slice(0,10);
+  loadAnalytics();
+})();
+</script>
+
+</body>
+</html>
