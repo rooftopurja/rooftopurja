@@ -4,17 +4,10 @@
   "description": "Azure Functions for Solar Monitoring",
   "main": "index.js",
   "scripts": {
-    "start": "func start",
-    "test": "echo \"No tests\""
+    "start": "func start"
   },
-  "engines": {
-    "node": "18.x"
-  },
+  "license": "MIT",
   "dependencies": {
-    "@azure/data-tables": "13.2.2",
-    "@azure/storage-blob": "12.17.0",
-    "@azure/core-auth": "1.6.1",
-    "@azure/core-client": "1.6.2",
-    "@azure/core-rest-pipeline": "1.10.1"
+    "@azure/data-tables": "^13.2.2"
   }
 }
