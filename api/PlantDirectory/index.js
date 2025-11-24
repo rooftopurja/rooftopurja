@@ -6,11 +6,8 @@ const conn = process.env.TABLES_CONNECTION_STRING;
 const TABLE = "PlantDirectory";
 
 module.exports = async function (context, req) {
-  context.log("PlantDirectory called");
-
   try {
     const client = TableClient.fromConnectionString(conn, TABLE);
-
     const items = [];
 
     for await (const e of client.listEntities()) {

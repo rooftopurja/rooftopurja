@@ -1,0 +1,11 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "SWA: full local debug",
+      "command": "swa start . --api-location ./api --port 4280",
+      "request": "launch",
+      "type": "node-terminal"
+    }
+  ]
+}
