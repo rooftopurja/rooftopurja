@@ -1,18 +1,16 @@
 {
-  "auth": {
-    "identityProviders": {
-      "github": {
-        "registration": {
-    "clientIdSettingName": "GITHUB_CLIENT_ID",
-    "clientSecretSettingName": "GITHUB_CLIENT_SECRET"
-}
-      }
-    }
+  "navigationFallback": {
+    "rewrite": "/login.html",
+    "exclude": ["/api/*"]
   },
   "routes": [
     {
-      "route": "/api/*",
-      "allowedRoles": ["anonymous", "authenticated"]
+      "route": "/login",
+      "rewrite": "/login.html"
+    },
+    {
+      "route": "/logout",
+      "redirect": "/login.html"
     }
   ]
 }

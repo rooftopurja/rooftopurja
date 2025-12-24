@@ -98,3 +98,8 @@ body { margin:0; font-family:"Segoe UI", Arial, sans-serif; }
 .user-dropdown:hover .dropdown-content {
   display: block;
 }
+
+/* ===== USED BY loadUser.js TO HIDE MENUS ===== */
+.hide {
+  display: none !important;
+}

@@ -145,7 +145,6 @@ select, button, input[type="date"]{
   border-radius:4px;
   font-size:.82rem;
 }
-
 .multi-menu label{
   display:block;
   padding:4px;
@@ -195,6 +194,7 @@ select, button, input[type="date"]{
   display:grid;
   grid-template-columns:1fr 1fr;
   gap:14px;
+  align-items:stretch;   /* 🔑 force same height */
 }
 
 /* Chart cards equal height */
@@ -203,14 +203,13 @@ select, button, input[type="date"]{
   padding:12px;
   border-radius:10px;
   box-shadow:var(--shadow);
-  height:350px;        /* <-- H1 setting */
+  height:350px;
   display:flex;
   flex-direction:column;
   overflow:hidden;
   position:relative;
 }
 
-/* TITLE (LEFT) */
 .chart-card h2{
   margin:0;
   font-size:.95rem;
@@ -219,8 +218,9 @@ select, button, input[type="date"]{
   padding-left:6px;
 }
 
-/* === POWER-CURVE HEADER LAYOUT: TITLE LEFT, LEGEND MIDDLE, TOGGLES RIGHT === */
-
+/* ======================
+   POWER CURVE HEADER
+====================== */
 .power-curve-header{
   display:flex;
   justify-content:space-between;
@@ -245,44 +245,41 @@ select, button, input[type="date"]{
   gap:6px;
 }
 
-/* Legend middle clean */
-.pc-legend span{
-  display:inline-flex;
-  align-items:center;
-  gap:4px;
-  margin:0 10px;
-  font-size:.85rem;
-}
-.pc-legend i{
-  width:12px; height:12px; border-radius:50%;
-  display:inline-block;
-}
-
-/* Toggles compact */
 .toggle-btn{
-  padding:3px 8px;
-  border-radius:6px;
-  font-size:.72rem;
+  padding:2px 6px;               /* smaller */
+  border-radius:4px;
+  font-size:.70rem;              /* lean font */
   border:1px solid var(--blue);
   color:var(--blue);
   cursor:pointer;
+  margin-left:4px;               /* tight spacing */
 }
+
 .toggle-btn.active{
   background:var(--blue);
   color:#fff;
 }
 
 .pc-date input{
-  height:26px;
-  padding:2px 6px;
-  font-size:.75rem;
+  height:22px;
+  padding:1px 4px;
+  font-size:.70rem;
+  border-radius:4px;
 }
 
-/* Chart canvas height */
-.chart{ flex-grow:1; display:flex; }
-.chart canvas{ width:100% !important; height:100% !important; }
+.chart{
+  flex-grow:1;
+  display:flex;
+}
 
-/* Trend arrows */
+.chart canvas{
+  width:100%!important;
+  height:100%!important;
+}
+
+/* ======================
+   TREND ARROWS
+====================== */
 .arrow-box{
   position:absolute;
   right:12px;
@@ -290,6 +287,7 @@ select, button, input[type="date"]{
   display:flex;
   gap:6px;
 }
+
 .arrow{
   padding:2px 6px;
   border-radius:6px;
@@ -298,7 +296,16 @@ select, button, input[type="date"]{
   cursor:pointer;
   font-size:.75rem;
 }
-.arrow:hover{ background:#e3efff; }
+
+.arrow:hover{
+  background:#e3efff;
+}
+
+/* FORCE BODY VISIBLE IMMEDIATELY */
+body {
+  opacity: 1 !important;
+}
+
 </style>
 </head>
 
@@ -307,8 +314,8 @@ select, button, input[type="date"]{
 <div id="header"></div>
 <script>
 fetch("/common/header.v2.html")
-  .then(r=>r.text())
-  .then(h=>document.getElementById("header").innerHTML = h);
+  .then(r => r.text())
+  .then(h => document.getElementById("header").innerHTML = h);
 </script>
 
 <div class="stage">
@@ -366,36 +373,34 @@ fetch("/common/header.v2.html")
 
 <!-- CHART GRID -->
 <div class="chart-grid">
-
 <!-- POWER CURVE -->
 <div class="chart-card">
-  <div class="power-curve-header">
 
-    <div class="pc-left">
-      <h2>Daily Power Curve (AC/DC)</h2>
+ <div class="power-curve-header">
+
+  <h2 style="margin:0; padding-left:6px; border-left:4px solid var(--blue); flex:1;">
+    Daily Power Curve
+  </h2>
+
+  <div class="pc-right" style="display:flex; align-items:center; gap:8px;">
+
+    <div class="toggle-btn active" data-m="ac" style="background:#f57c00; color:white;">
+      AC
     </div>
 
-    <div class="pc-center">
-      <div class="pc-legend">
-        <span><i style="background:#f57c00"></i> AC Power</span>
-        <span style="margin-left:30px;"><i style="background:#0057d8"></i> DC Power</span>
-      </div>
+    <div class="toggle-btn" data-m="dc" style="background:#0057d8; color:white;">
+      DC
     </div>
 
-    <div class="pc-right">
-      <div class="toggle-btn active" data-m="both">Both</div>
-      <div class="toggle-btn" data-m="ac">AC</div>
-      <div class="toggle-btn" data-m="dc">DC</div>
-      <div class="pc-date">
-        <input type="date" id="curveDate" />
-      </div>
-    </div>
-
+    <input type="date" id="curveDate" class="pc-date" style="height:26px;">
   </div>
+
+</div>
 
   <div class="chart">
     <canvas id="curveChart"></canvas>
   </div>
+
 </div>
 
 <!-- YIELD TREND -->
@@ -417,9 +422,9 @@ fetch("/common/header.v2.html")
 </div><!-- END chart-grid -->
 
 </div><!-- END stage -->
-
 <script>
 Chart.register(ChartDataLabels);
+const API_BASE = "http://localhost:7071/api";
 
 /* GLOBAL SPEED BOOST */
 Chart.defaults.animation = false;
@@ -432,26 +437,34 @@ Chart.defaults.datasets.line.tension = 0.35;
 let plants=[];
 let inverters=[];
 let currentPeriod="day";
+let trendOffset = 0; // added for offset navigation
 let curveChart=null;
 let trendChart=null;
 let analyticsCache=new Map();
+let requestSeq = 0;   // 🔑 prevents stale API responses
+let dailyCurveCache = null;   // 🔑 always holds DAY power curve
+let dayCurveLoaded = false;   // 🔑 ensures day curve is fetched once
+
 /* ==========================================================
    LOAD DIRECTORY (plants + inverters)
 ========================================================== */
 async function loadDirectory(){
-  const r = await fetch("/api/PlantDirectory");
+  const r = await fetch(`${API_BASE}/PlantDirectory`, { cache: "no-store" });
   const j = await r.json();
 
+  // ONLY plant + inverter setup — nothing else
   plants = j.items || [];
   inverters = [];
 
-  plants.forEach(p=>{
-    (p.Inverters||[]).forEach(inv=>{
-      inverters.push({ inverter:inv, plant:p.Plant_ID });
+  plants.forEach(p => {
+    (p.Inverters || []).forEach(inv => {
+      inverters.push({ inverter: inv, plant: p.Plant_ID });
     });
   });
 
-  inverters.sort((a,b)=>String(a.inverter).localeCompare(String(b.inverter),"en",{numeric:true}));
+  inverters.sort((a,b)=>
+    String(a.inverter).localeCompare(String(b.inverter),"en",{numeric:true})
+  );
 
   buildPlantMenu();
   buildInvMenu();
@@ -577,7 +590,6 @@ function filterInvertersForPlant(){
   updateInvMenuEvents();
   updateInvButton();
 }
-
 /* Build Inverter Menu (initial load) */
 function buildInvMenu(){
   const menu=document.getElementById("invMenu");
@@ -685,6 +697,7 @@ function normalizeKPI(v,u){
     default: return v;
   }
 }
+
 function autoUnit(kwh){
   const abs=Math.abs(kwh);
   if(abs>=1e9) return {value:(kwh/1e9).toFixed(2), unit:"TWh"};
@@ -692,7 +705,6 @@ function autoUnit(kwh){
   if(abs>=1e3) return {value:(kwh/1e3).toFixed(2), unit:"MWh"};
   return {value:kwh.toFixed(2), unit:"kWh"};
 }
-
 /* ==========================================================
    DRAW POWER CURVE (Legend centered, no overlap)
 ========================================================== */
@@ -709,7 +721,7 @@ function drawPowerCurve(j){
     const t=`${hr.toString().padStart(2,"0")}:00`;
     labels.push(t);
 
-    const row=data.find(x=> (x.Time||"").includes(t));
+    const row = data.find(x => (x.Time||"").slice(0,5) === t);
     list.push(row || {AC:0,DC:0});
   }
 
@@ -722,7 +734,7 @@ function drawPowerCurve(j){
       labels,
       datasets:[
         ...(mode==="dc"?[]:[{
-          label:"AC Power",
+          label:"",
           data:AC,
           borderColor:"#f57c00",
           backgroundColor:"rgba(245,124,0,.15)",
@@ -732,7 +744,7 @@ function drawPowerCurve(j){
           datalabels:{ anchor:"end", align:"bottom", offset:-6 }
         }]),
         ...(mode==="ac"?[]:[{
-          label:"DC Power",
+          label:"",
           data:DC,
           borderColor:"#0057d8",
           backgroundColor:"rgba(0,87,216,.15)",
@@ -748,15 +760,28 @@ function drawPowerCurve(j){
       responsive:true,
       maintainAspectRatio:false,
 
-      plugins:{
-        legend:{ display:false },
+      plugins: {
+  legend: { display: false },
 
-        datalabels:{
-          color:"#000",
-          font:{size:10,weight:"bold"},
-          formatter:v=>Number(v).toFixed(2)
-        }
-      },
+  // ✅ Tooltip: show value + " kW"
+  tooltip: {
+    callbacks: {
+      label: (ctx) => {
+        const v = ctx.parsed?.y ?? ctx.raw;
+        if (v == null || isNaN(v)) return "";
+        return v.toFixed(2) + " kW";
+      }
+    }
+  },
+
+  // ✅ Datalabel: show only numeric value (no unit)
+  datalabels: {
+    color: "#000",
+    font: { size: 10, weight: "bold" },
+    formatter: (v) => Number(v).toFixed(2)
+  }
+},
+
 
       scales:{
         x:{
@@ -779,14 +804,13 @@ function drawPowerCurve(j){
     }
   });
 }
-
 /* ==========================================================
    DRAW TREND (Fix lifetime top datalabel clipping)
 ========================================================== */
 function drawTrend(j){
   if(trendChart) trendChart.destroy();
 
-  const src=(j.yieldSeries||[]).filter(x=>x.yield>=0);
+  const src = (j.yieldSeries || []).filter(x => x.yield > 0);
   const labels=src.map(x=>x.date);
   const values=src.map(x=>x.yield);
 
@@ -810,59 +834,130 @@ function drawTrend(j){
       }]
     },
 
-    options:{
-      responsive:true,
-      maintainAspectRatio:false,
+options:{
+  responsive:true,
+  maintainAspectRatio:false,
 
-      plugins:{
-        legend:{ display:false },
-        datalabels:{
-          color:"#000",
-          font:{size:11,weight:"bold"},
-          anchor:"end",
-          align:"top",
-          offset:-2,
-          clip:false,
-          formatter:v=>Number(v).toFixed(2)
-        }
-      },
+  layout:{
+    padding:{ top:20 }        // extra space for datalabels
+  },
 
-      scales:{
-        y:{ beginAtZero:true, title:{text:unit,display:true} },
-        x:{ ticks:{maxRotation:0,minRotation:0}, grid:{display:false} }
-      }
+  plugins:{
+    legend:{ display:false },
+
+    datalabels:{
+      color:"#000",
+      font:{ size:11, weight:"bold" },
+      anchor:"end",
+      align:"top",
+      offset:-4,
+      clip:false,
+      clamp:true,             // ensures label stays visible
+      formatter:v=>Number(v).toFixed(2)
     }
+  },
+
+  scales:{
+    y:{ beginAtZero:true, title:{text:unit,display:true} },
+    x:{ ticks:{maxRotation:0,minRotation:0}, grid:{display:false} }
+  }
+}
   });
 }
 
 /* ==========================================================
-   LOAD ANALYTICS
+   MAIN LOAD ANALYTICS  (FINAL – STABLE)
 ========================================================== */
-async function loadAnalytics(){
-  const plantMenu=document.getElementById("plantMenu");
-  const invMenu=document.getElementById("invMenu");
+async function loadAnalytics() {
+  const seq = ++requestSeq;   // 🔑 latest request wins
 
-  const plantCbs=[...plantMenu.querySelectorAll('input[type="checkbox"]')];
-  const invCbs=[...invMenu.querySelectorAll('input[type="checkbox"]')];
+  const plantMenu = document.getElementById("plantMenu");
+  const invMenu   = document.getElementById("invMenu");
 
-  const allPlant=plantCbs.find(c=>c.value==="__ALL_PLANTS__");
-  const allInv=invCbs.find(c=>c.value==="__ALL_INVERTERS__");
+  const plantCbs = [...plantMenu.querySelectorAll('input[type="checkbox"]')];
+  const invCbs   = [...invMenu.querySelectorAll('input[type="checkbox"]')];
 
-  let selPlants=plantCbs.filter(c=>c.checked && c!==allPlant).map(c=>c.value);
-  let selInvs=invCbs.filter(c=>c.checked && c!==allInv).map(c=>c.value);
+  const allPlant = plantCbs.find(c => c.value === "__ALL_PLANTS__");
+  const allInv   = invCbs.find(c => c.value === "__ALL_INVERTERS__");
 
-  if(allPlant.checked || !selPlants.length) selPlants=[];
-  if(allInv.checked   || !selInvs.length)   selInvs=[];
+  let selPlants = plantCbs
+    .filter(c => c.checked && c !== allPlant)
+    .map(c => c.value);
 
-  const date=document.getElementById("curveDate").value || new Date().toISOString().slice(0,10);
+  if (allPlant.checked || selPlants.length === 0) selPlants = [];
 
-  const url=`/api/GetInverterData?period=${currentPeriod}&date=${date}`+
-            `&plants=${selPlants.join(",")}&inverters=${selInvs.join(",")}`;
+  let selInvs = invCbs
+    .filter(c => c.checked && c !== allInv)
+    .map(c => c.value);
 
-  const r=await fetch(url);
-  const j=await r.json();
-  if(!j.success) return;
+  if (allInv.checked || selInvs.length === 0) selInvs = [];
 
+  const date =
+    document.getElementById("curveDate").value ||
+    new Date().toISOString().slice(0,10);
+
+  const params = new URLSearchParams();
+  params.set("period", currentPeriod);
+  params.set("date", date);
+  params.set("offset", trendOffset);
+
+  if (selPlants.length) params.set("plants", selPlants.join(","));
+  if (selInvs.length)   params.set("inverters", selInvs.join(","));
+
+  const token = localStorage.getItem("urja_token");
+
+  /* ==============================
+     MAIN PERIOD FETCH
+  =============================== */
+  const mainResp = await fetch(
+    `${API_BASE}/GetInverterData?${params.toString()}`,
+    { cache: "no-store", headers: { "x-urja-token": token } }
+  );
+
+  const j = await mainResp.json();
+  if (seq !== requestSeq) return;
+
+  if (!j.success) {
+    console.warn("GetInverterData error:", j);
+    return;
+  }
+
+  /* =====================================================
+     🔑 ENSURE DAILY POWER CURVE IS ALWAYS PRESENT
+  ====================================================== */
+
+  // Case A: Day selected → backend already returned curve
+  if (currentPeriod === "day") {
+    dailyCurveCache = j.powerCurve || [];
+  }
+
+  // Case B: Non-day & curve not cached yet → fetch once
+  else if (!dailyCurveCache || dailyCurveCache.length === 0) {
+    const dayParams = new URLSearchParams({
+      period: "day",
+      date
+    });
+
+    const dayResp = await fetch(
+      `${API_BASE}/GetInverterData?${dayParams.toString()}`,
+      { cache: "no-store", headers: { "x-urja-token": token } }
+    ).then(r => r.json());
+
+    if (dayResp.success) {
+      dailyCurveCache = dayResp.powerCurve || [];
+    }
+
+    j.powerCurve = dailyCurveCache || [];
+  }
+
+  // Case C: Non-day & curve already cached
+  else {
+    j.powerCurve = dailyCurveCache || [];
+  }
+
+  /* ==============================
+     RENDER
+  =============================== */
   updateKPI(j);
   drawPowerCurve(j);
   drawTrend(j);
@@ -889,19 +984,25 @@ document.querySelectorAll(".toggle-btn").forEach(t=>{
 });
 
 document.getElementById("curveDate").onchange=()=>loadAnalytics();
-
-document.getElementById("prevTrend").onclick=()=>loadAnalytics();
-document.getElementById("nextTrend").onclick=()=>loadAnalytics();
+document.getElementById("prevTrend").onclick = () => { trendOffset--; loadAnalytics(); };
+document.getElementById("nextTrend").onclick = () => { trendOffset++; loadAnalytics(); };
 
 /* ==========================================================
    INIT
 ========================================================== */
 (async()=>{
   await loadDirectory();
-  document.getElementById("curveDate").value = new Date().toISOString().slice(0,10);
-  loadAnalytics();
+
+  document.getElementById("curveDate").value =
+    new Date().toISOString().slice(0,10);
+
+  // 🔥 Give UI time to render before heavy API/Chart load
+  setTimeout(() => {
+    loadAnalytics();
+  }, 50);
 })();
 </script>
 
+<script src="common/loadUser.js"></script>
 </body>
 </html>

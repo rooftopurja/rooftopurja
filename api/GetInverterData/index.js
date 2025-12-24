@@ -1,357 +1,371 @@
-// ===========================================================
-//  GetInverterData/index.js
-//  FINAL RECONSTRUCTED VERSION – SWA Node 18 Compatible
-// ===========================================================
-
 "use strict";
 
-const { TableClient } = require("@azure/data-tables");
-const { BlobServiceClient } = require("@azure/storage-blob");
+/* ============================================================================
+   FINAL GetInverterData (REST ONLY • UNLIMITED PAGINATION • MEMORY CACHE)
+   ----------------------------------------------------------------------------
+   ✔ Reads InverterQueryCache  + InverterDailySummary (REST, no SDK)
+   ✔ Uses SAME blob naming: Inverter_<ID>_<YYYY-MM-DD>.json
+   ✔ Supports period = day, week, month, year, lifetime
+   ✔ Supports offset for navigation
+   ✔ Full REST pagination
+   ✔ MEMORY CACHE:
+        - cache resets only on cold start
+        - auto-refresh interval = 60 seconds
+   ============================================================================*/
 
-// Connection
-const conn = process.env.AzureWebJobsStorage;
-if (!conn) throw new Error("AzureWebJobsStorage missing.");
+const https = require("https");
 
-// Tables
-const T_CACHE = "InverterQueryCache";
-const T_SUMMARY = "InverterDailySummary";
-const T_DIR = "PlantDirectory";
-const T_RLS = "UserPlantAccess";
+/* ============================================================================
+   ENV
+   ============================================================================ */
+const ACCOUNT = "solariothubstorage";
+const TABLE_SAS = process.env.TABLE_SAS;                       // your master SAS (tables)
+const TABLE_ENDPOINT = `https://${ACCOUNT}.table.core.windows.net`;
 
-const BLOB_CONTAINER = "invertercurves";
+const PLANT_TABLE = process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
+const CACHE_TABLE = "InverterQueryCache";
+const SUMMARY_TABLE = "InverterDailySummary";
 
-// Shortcuts
-const tc = (name) => TableClient.fromConnectionString(conn, name);
-const bc = () =>
-  BlobServiceClient.fromConnectionString(conn).getContainerClient(BLOB_CONTAINER);
-
-const n = (v) => Number(v) || 0;
-const iso = (d) => new Date(d).toISOString().slice(0, 10);
-
-// =========================
-//  UNIT NORMALISER
-// =========================
-function unit(v) {
-  const abs = Math.abs(v);
-  if (abs >= 1e12) return { v: v / 1e12, u: "TWh" };
-  if (abs >= 1e9) return { v: v / 1e9, u: "GWh" };
-  if (abs >= 1e6) return { v: v / 1e6, u: "MWh" };
-  return { v, u: "kWh" };
+const BLOB_SAS_URL = process.env.BLOB_SAS_URL || "";
+let CURVE_BASE = "";
+let CURVE_SAS = "";
+if (BLOB_SAS_URL) {
+    const p = BLOB_SAS_URL.split("?");
+    CURVE_BASE = p[0].replace(/\/+$/, "");
+    CURVE_SAS = p[1] || "";
 }
 
-// =========================
-//  LOAD DIRECTORY
-// =========================
-async function loadDirectory() {
-  const tbl = tc(T_DIR);
-  const out = [];
+/* ============================================================================
+   MEMORY CACHE (Option A)
+   ============================================================================ */
+const MEM = {
+    timestamp: 0,
+    plant: null,
+    cache: null,
+    summary: null,
+};
+// 🔥 Ultra-short response cache (DAY only)
+const DAY_RESPONSE_CACHE = new Map();  // key → {res, ts}
+const DAY_CACHE_TTL = 5000; // 5 seconds
 
-  for await (const e of tbl.listEntities()) {
-    out.push({
-      Plant_ID: String(e.Plant_ID || e.PartitionKey || e.RowKey),
-      Plant_Name: String(e.Plant_Name || ""),
-      Inverters: String(e.Inverters || "")
-        .split(",")
-        .map((x) => x.trim())
-        .filter(Boolean),
+const CACHE_TTL_MS = 60 * 1000; // refresh every 60 sec
+
+/* ============================================================================
+   LOW-LEVEL HTTPS HELPERS
+   ============================================================================ */
+function httpGET(url) {
+    return new Promise((resolve, reject) => {
+        https.get(url, res => {
+            let body = "";
+            res.on("data", d => body += d);
+            res.on("end", () => {
+                if (res.statusCode >= 400)
+                    return reject(new Error(`HTTP ${res.statusCode}: ${body}`));
+                try { resolve(JSON.parse(body)); }
+                catch { reject(new Error("Invalid JSON")); }
+            });
+        }).on("error", reject);
     });
-  }
-
-  return out;
 }
 
-// =========================
-//  LOAD RLS
-// =========================
-async function loadRLS(email) {
-  const out = { isAdmin: false, allowed: [] };
-  if (!email) return out;
+function tableGET(url) {
+    return new Promise((resolve, reject) => {
+        https.get(url, {
+            headers: { "Accept": "application/json;odata=nometadata" }
+        }, res => {
+            let body = "";
+            res.on("data", d => body += d);
+            res.on("end", () => {
+                if (res.statusCode >= 400)
+                    return reject(new Error(`GET FAILED ${res.statusCode}: ${body}`));
+                const json = JSON.parse(body || "{}");
+                resolve({
+                    value: Array.isArray(json.value) ? json.value : [],
+                    nextPK: res.headers["x-ms-continuation-nextpartitionkey"] || "",
+                    nextRK: res.headers["x-ms-continuation-nextrowkey"] || ""
+                });
+            });
+        }).on("error", reject);
+    });
+}
 
-  const admins = (process.env.GLOBAL_ADMINS || "")
-    .split(",")
-    .map((x) => x.trim().toLowerCase());
+/* ============================================================================
+   FULL REST PAGINATION
+   ============================================================================ */
+async function tableReadAll(tableName, filter) {
+    let out = [];
+    let nextPK = "", nextRK = "";
 
-  if (admins.includes(email.toLowerCase())) {
-    out.isAdmin = true;
+    do {
+        let url = `${TABLE_ENDPOINT}/${tableName}()?${TABLE_SAS}&$top=1000`;
+        url += "&$format=application/json;odata=nometadata";
+        if (filter) url += `&$filter=${encodeURIComponent(filter)}`;
+        if (nextPK)
+            url += `&NextPartitionKey=${encodeURIComponent(nextPK)}&NextRowKey=${encodeURIComponent(nextRK)}`;
+
+        const r = await tableGET(url);
+        out.push(...r.value);
+        nextPK = r.nextPK;
+        nextRK = r.nextRK;
+    } while (nextPK);
+
     return out;
-  }
-
-  const tbl = tc(T_RLS);
-  for await (const r of tbl.listEntities({
-    queryOptions: { filter: `PartitionKey eq '${email}'` },
-  })) {
-    out.allowed.push(String(r.Plant_ID));
-  }
-
-  return out;
 }
 
-// =========================
-//  LOAD VISUAL SETTINGS
-// =========================
-async function loadVisual(email) {
-  return {
-    show_power_curve: true,
-    show_yield_trend: true,
-    show_kpi_yield: true,
-  };
-}
+/* ============================================================================
+   BLOB CURVE LOADING (same format as timers: Inverter_<ID>_<YYYY-MM-DD>.json)
+   ============================================================================ */
+async function loadCurveBlob(inv, dateStr) {
+    if (!CURVE_BASE || !CURVE_SAS) return [];
+    const file = `${inv}_${dateStr}.json`;
+    const url = `${CURVE_BASE}/${file}?${CURVE_SAS}`;
 
-// =========================
-//  READ POWER CURVE
-// =========================
-async function readCurve(blobName) {
-  try {
-    const cont = bc();
-    const blob = cont.getBlockBlobClient(blobName);
-
-    if (!(await blob.exists())) return [];
-
-    const raw = (await blob.downloadToBuffer()).toString("utf8").trim();
-    if (!raw) return [];
-
-    let arr;
     try {
-      arr = JSON.parse(raw);
+        const data = await httpGET(url);
+        return Array.isArray(data) ? data : [];
     } catch {
-      arr = JSON.parse("[" + raw.replace(/}{/g, "},{") + "]");
+        return [];
     }
-
-    return arr.map((p) => ({
-      Time: p.Time || p.time || p.Date_Time,
-      DC: n(p.DC || p.Power_DC || p.Total_DC_Power_KW),
-      AC: n(p.AC || p.Power_AC || p.Total_AC_Power_KW || p.Power),
-    }));
-  } catch {
-    return [];
-  }
 }
 
-// =========================
-//  FETCH ROWS BY DATE
-// =========================
-async function fetchRows(dateStr, plantSet, invSet) {
-  const today = iso(new Date());
-  const table = dateStr === today ? T_CACHE : T_SUMMARY;
+/* ============================================================================
+   DATE HELPERS
+   ============================================================================ */
+const fmtDate = d => new Date(d).toISOString().slice(0, 10);
 
-  const tbl = tc(table);
-  const out = [];
-
-  for await (const e of tbl.listEntities({
-    queryOptions: { filter: `Date eq '${dateStr}'` },
-  })) {
-    const p = String(e.Plant_ID);
-    const i = String(e.Inverter_ID || e.PartitionKey);
-
-    if (plantSet.size && !plantSet.has(p)) continue;
-    if (invSet.size && !invSet.has(i)) continue;
-
-    out.push(e);
-  }
-
-  return out;
+function addDays(d, n) {
+    const x = new Date(d);
+    x.setDate(x.getDate() + n);
+    return x;
 }
 
-// =========================
-//  GET MONTH VALUE
-// =========================
-async function getMonthValue(monthKey, plantSet, invSet) {
-  const [year, month] = monthKey.split("-");
-  const isCurrent =
-    year === String(new Date().getFullYear()) &&
-    month === String(new Date().getMonth() + 1).padStart(2, "0");
-
-  const tbl = tc(isCurrent ? T_CACHE : T_SUMMARY);
-  const prefix = `${year}-${month}`;
-  const map = new Map();
-
-  for await (const r of tbl.listEntities()) {
-    const ds = String(r.Date || "").slice(0, 10);
-    if (!ds.startsWith(prefix)) continue;
-
-    const p = String(r.Plant_ID);
-    const i = String(r.Inverter_ID || r.PartitionKey);
-
-    if (!plantSet.has(p)) continue;
-    if (!invSet.has(i)) continue;
-
-    const y = n(r.Monthly_Yield_KWH);
-    map.set(i, y);
-  }
-
-  return [...map.values()].reduce((a, b) => a + b, 0);
+function addMonths(d, n) {
+    const x = new Date(d);
+    x.setDate(15);
+    x.setMonth(x.getMonth() + n);
+    return x;
 }
 
-// =========================
-//  GET YEAR VALUE
-// =========================
-async function getYearValue(year, plantSet, invSet) {
-  const isCurrent = String(year) === String(new Date().getFullYear());
-  const tbl = tc(isCurrent ? T_CACHE : T_SUMMARY);
-
-  const map = new Map();
-
-  for await (const r of tbl.listEntities()) {
-    const ds = String(r.Date || "").slice(0, 10);
-    if (!ds.startsWith(String(year))) continue;
-
-    const p = String(r.Plant_ID);
-    const i = String(r.Inverter_ID || r.PartitionKey);
-
-    if (!plantSet.has(p)) continue;
-    if (!invSet.has(i)) continue;
-
-    map.set(i, n(r.Total_Yield_KWH));
-  }
-
-  return [...map.values()].reduce((a, b) => a + b, 0);
+function pickLast(rows) {
+    let best = null;
+    for (const r of rows) {
+        const t = String(r.Date_Time || r.DateTime || r.RowKey);
+        if (!best || t > String(best.Date_Time || best.DateTime || best.RowKey))
+            best = r;
+    }
+    return best;
 }
 
-// =========================
-//  GET LIFETIME
-// =========================
-async function getLifetime(plantSet, invSet) {
-  const map = new Map();
-
-  const cache = tc(T_CACHE);
-  for await (const r of cache.listEntities()) {
-    const p = String(r.Plant_ID);
-    const i = String(r.Inverter_ID || r.PartitionKey);
-    if (!plantSet.has(p)) continue;
-    if (!invSet.has(i)) continue;
-    map.set(i, n(r.Total_Yield_KWH));
-  }
-
-  const summary = tc(T_SUMMARY);
-  for await (const r of summary.listEntities()) {
-    const p = String(r.Plant_ID);
-    const i = String(r.Inverter_ID || r.PartitionKey);
-    if (!plantSet.has(p)) continue;
-    if (!invSet.has(i)) continue;
-    if (!map.has(i)) map.set(i, n(r.Total_Yield_KWH));
-  }
-
-  return [...map.values()].reduce((a, b) => a + b, 0);
+/* ============================================================================
+   AGGREGATION HELPERS
+   ============================================================================ */
+function filterInv(rows, invList) {
+    const S = new Set(invList.map(String));
+    return rows.filter(r => S.has(String(r.Inverter_ID)));
 }
 
-// ===========================================================
-//  MAIN HANDLER
-// ===========================================================
+function sumDaily(rowsCache, rowsSummary, invList, date) {
+    const S = new Set(invList.map(String));
+    const c = rowsCache.filter(r => r.Date === date && S.has(String(r.Inverter_ID)));
+    const s = rowsSummary.filter(r => r.Date === date && S.has(String(r.Inverter_ID)));
+    const chosen = c.length ? c : s;
+    return chosen.reduce((a, r) => a + Number(r.Daily_Yield_KWH || 0), 0);
+}
+
+function sumMonthly(rowsCache, rowsSummary, invList, prefix) {
+    let total = 0;
+    for (const inv of invList) {
+        const invStr = String(inv);
+        const c = rowsCache.filter(r => r.Inverter_ID === invStr && r.Date.startsWith(prefix));
+        const s = rowsSummary.filter(r => r.Inverter_ID === invStr && r.Date.startsWith(prefix));
+        const row = pickLast(c.length ? c : s);
+        if (row) total += Number(row.Monthly_Yield_KWH || 0);
+    }
+    return total;
+}
+
+function sumYearly(rowsCache, rowsSummary, invList, yearStr) {
+    let total = 0;
+    for (const inv of invList) {
+        const invStr = String(inv);
+        const all = [...rowsCache, ...rowsSummary].filter(
+            r => r.Inverter_ID === invStr && r.Date.startsWith(yearStr)
+        );
+        const last = pickLast(all);
+        if (last) total += Number(last.Total_Yield_KWH || 0);
+    }
+    return total;
+}
+
+function lifetimeKPI(rowsCache, rowsSummary, invList) {
+    let total = 0;
+    for (const inv of invList) {
+        const invStr = String(inv);
+        const all = [...rowsCache, ...rowsSummary].filter(r => r.Inverter_ID === invStr);
+        const last = pickLast(all);
+        if (last) total += Number(last.Total_Yield_KWH || 0);
+    }
+    return total;
+}
+
+/* ============================================================================
+   REFRESH MEMORY CACHE (every 60 sec)
+   ============================================================================ */
+async function refreshMemoryCache() {
+    const now = Date.now();
+    if (now - MEM.timestamp < CACHE_TTL_MS) return;
+
+    const plant = await tableReadAll(PLANT_TABLE, "");
+    const cache = await tableReadAll(CACHE_TABLE, "");
+    const summary = await tableReadAll(SUMMARY_TABLE, "");
+
+    MEM.plant = plant;
+    MEM.cache = cache;
+    MEM.summary = summary;
+    MEM.timestamp = now;
+}
+
+/* ============================================================================
+   MAIN FUNCTION
+   ============================================================================ */
 module.exports = async function (context, req) {
-  try {
-    const email = req.headers["x-ms-client-principal-email"] || "";
-    const period = String(req.query.period || "day").toLowerCase();
-    const date = iso(req.query.date || new Date());
+    try {
+        await refreshMemoryCache();
 
-    const rls = await loadRLS(email);
-    const visual = await loadVisual(email);
-    const dir = await loadDirectory();
+        const period = (req.query.period || "day").toLowerCase();
+        const dateParam = req.query.date || fmtDate(new Date());
+        const offset = parseInt(req.query.offset || "0");
+        const plantSel = req.query.plants || "";
+        const invSel = req.query.inverters || "";
 
-    let allowed = rls.isAdmin || rls.allowed.length === 0
-      ? new Set(dir.map((x) => x.Plant_ID))
-      : new Set(rls.allowed);
+        const plantDir = MEM.plant.map(p => ({
+            Plant_ID: String(p.Plant_ID || p.PartitionKey),
+            Inverters: String(p.Inverters || "")
+                .split(",").map(x => x.trim()).filter(Boolean)
+        }));
 
-    const qPlants = (req.query.plants || "").split(",").filter(Boolean);
-    const plantSet = new Set(
-      qPlants.length ? qPlants.filter((p) => allowed.has(p)) : [...allowed]
-    );
+        let allowedPlants = plantSel
+            ? plantSel.split(",").map(String)
+            : plantDir.map(p => p.Plant_ID);
 
-    const invSet = new Set();
-    dir.forEach((p) => {
-      if (plantSet.has(p.Plant_ID))
-        p.Inverters.forEach((i) => invSet.add(i));
-    });
+        let invList = [];
+        plantDir.filter(p => allowedPlants.includes(p.Plant_ID))
+                .forEach(p => invList.push(...p.Inverters));
 
-    let yieldSeries = [];
-    let powerCurve = [];
-
-    // DAY
-    if (period === "day") {
-      const rows = await fetchRows(date, plantSet, invSet);
-      const y = rows.reduce((a, b) => a + n(b.Daily_Yield_KWH), 0);
-      yieldSeries = [{ date, yield: y }];
-
-      if (visual.show_power_curve) {
-        const bucket = new Map();
-        for (const r of rows) {
-          const inv = String(r.Inverter_ID);
-          const blob = (r.CurveBlob || `${inv}_${date}.json`).replace(/^invertercurves\//, "");
-          const pts = await readCurve(blob);
-
-          pts.forEach((p) => {
-            const cur = bucket.get(p.Time) || { Time: p.Time, DC: 0, AC: 0 };
-            cur.DC += p.DC;
-            cur.AC += p.AC;
-            bucket.set(p.Time, cur);
-          });
+        invList = [...new Set(invList)];
+        if (invSel) {
+            const filter = invSel.split(",").map(String);
+            invList = invList.filter(x => filter.includes(x));
         }
 
-        powerCurve = [...bucket.values()].sort((a, b) => a.Time.localeCompare(b.Time));
-      }
+        const cache = filterInv(MEM.cache, invList);
+        const summary = filterInv(MEM.summary, invList);
+
+        const lifetime = lifetimeKPI(cache, summary, invList);
+
+        const base = {
+            success: true,
+            period,
+            date: dateParam,
+            kpiValue: lifetime,
+            kpiUnit: "kWh"
+        };
+
+        /* DAY */
+       if (period === "day") {
+    const effDate = fmtDate(addDays(dateParam, offset));
+
+    // 🔑 CACHE KEY (date + inverter set)
+    const cacheKey = effDate + "|" + invList.join(",");
+
+    const now = Date.now();
+    const cached = DAY_RESPONSE_CACHE.get(cacheKey);
+
+    if (cached && (now - cached.ts) < DAY_CACHE_TTL) {
+        return context.res = cached.res;
     }
 
-    // WEEK
-    else if (period === "week") {
-      for (let k = 6; k >= 0; k--) {
-        const d = new Date(date);
-        d.setDate(d.getDate() - k);
-        const ds = iso(d);
-        const rows = await fetchRows(ds, plantSet, invSet);
-        const y = rows.reduce((a, b) => a + n(b.Daily_Yield_KWH), 0);
-        yieldSeries.push({ date: ds, yield: y });
-      }
-    }
+    const yieldVal = sumDaily(cache, summary, invList, effDate);
 
-    // MONTH
-    else if (period === "month") {
-      const base = new Date(date);
-      const startYear = base.getUTCFullYear();
-      const startMonth = base.getUTCMonth();
+    // 🔥 PARALLEL curve load
+    const curve = {};
+    const blobs = await Promise.all(
+        invList.map(inv => loadCurveBlob(inv, effDate))
+    );
 
-      for (let k = 5; k >= 0; k--) {
-        const d = new Date(Date.UTC(startYear, startMonth - k, 1));
-        const key = `${d.getUTCFullYear()}-${String(d.getUTCMonth() + 1).padStart(2, "0")}`;
-        const y = await getMonthValue(key, plantSet, invSet);
-        yieldSeries.push({ date: key, yield: y });
-      }
-    }
+    blobs.forEach(rows => {
+        rows.forEach(r => {
+            if (!curve[r.Time]) curve[r.Time] = { Time: r.Time, AC: 0, DC: 0 };
+            curve[r.Time].AC += Number(r.AC || 0);
+            curve[r.Time].DC += Number(r.DC || 0);
+        });
+    });
 
-    // YEAR
-    else if (period === "year") {
-      const y0 = new Date(date).getUTCFullYear();
-      for (let y = y0 - 4; y <= y0; y++) {
-        const val = await getYearValue(y, plantSet, invSet);
-        yieldSeries.push({ date: String(y), yield: val });
-      }
-    }
-
-    // LIFETIME
-    else if (period === "lifetime") {
-      const val = await getLifetime(plantSet, invSet);
-      yieldSeries = [{ date: "Lifetime", yield: val }];
-    }
-
-    // KPI
-    const lifetimeVal = await getLifetime(plantSet, invSet);
-    const kpi = unit(lifetimeVal);
-
-    context.res = {
-      status: 200,
-      body: {
-        success: true,
-        date,
-        period,
-        show: visual,
-        yieldSeries,
-        powerCurve,
-        kpiValue: Number(kpi.v.toFixed(2)),
-        kpiUnit: kpi.u,
-      },
+    const response = {
+        status: 200,
+        body: {
+            ...base,
+            date: effDate,
+            yieldSeries: [{ date: effDate, yield: yieldVal }],
+            powerCurve: Object.values(curve)
+                .sort((a, b) => a.Time.localeCompare(b.Time))
+        }
     };
-  } catch (err) {
-    context.res = {
-      status: 500,
-      body: { success: false, error: String(err) },
-    };
-  }
+
+    // 🔑 store short cache
+    DAY_RESPONSE_CACHE.set(cacheKey, { res: response, ts: now });
+
+    return context.res = response;
+}
+
+
+        /* WEEK */
+        if (period === "week") {
+            const end = addDays(dateParam, offset * 7);
+            const out = [];
+            for (let i = 0; i < 7; i++) {
+                const d = fmtDate(addDays(end, -i));
+                out.push({ date: d, yield: sumDaily(cache, summary, invList, d) });
+            }
+            return context.res = { status: 200, body: { ...base, yieldSeries: out }};
+        }
+
+        /* MONTH */
+        if (period === "month") {
+            const end = addMonths(dateParam, offset * 6);
+            const out = [];
+            for (let i = 0; i < 6; i++) {
+                const d = addMonths(end, -i);
+                const pre = fmtDate(d).slice(0,7);
+                out.push({ date: pre, yield: sumMonthly(cache, summary, invList, pre)});
+            }
+            return context.res = { status: 200, body: { ...base, yieldSeries: out }};
+        }
+
+        /* YEAR */
+        if (period === "year") {
+            const baseYear = parseInt(String(dateParam).slice(0,4));
+            const endYear = baseYear + offset * 5;
+            const out = [];
+            for (let i = 0; i < 5; i++) {
+                const y = String(endYear - i);
+                out.push({ date: y, yield: sumYearly(cache, summary, invList, y) });
+            }
+            return context.res = { status: 200, body: { ...base, yieldSeries: out }};
+        }
+
+        /* LIFETIME */
+        return context.res = {
+            status: 200,
+            body: {
+                ...base,
+                yieldSeries: [{ date: "Lifetime", yield: lifetime }],
+                powerCurve: []
+            }
+        };
+
+    } catch (err) {
+        context.log("❌ GetInverterData ERROR:", err);
+        context.res = { status: 500, body: { success: false, error: String(err) }};
+    }
 };

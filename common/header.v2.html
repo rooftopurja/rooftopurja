@@ -1,38 +1,32 @@
-<!-- Shared Rooftop Urja Header (clean + UTF-8 safe) -->
-<link rel="stylesheet" href="common/header.css" />
+<!-- Rooftop Urja Shared Header -->
+<link rel="stylesheet" href="/common/header.css" />
 
-<header class="main-header">  <meta charset="UTF-8">
-  <meta http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<header class="main-header">
   <div class="navbar">
+
+    <!-- Logo + Title -->
     <div class="navbar-logo">
-      <img src="assets/logo.png" alt="Rooftop Urja" class="logo-img" />
+      <img src="/assets/logo.png" alt="Rooftop Urja" class="logo-img" />
       Solar Plant Dashboard
     </div>
 
+    <!-- MENU -->
     <ul class="navbar-menu">
-      <li><a href="meter.v2.html">Meter</a></li>
-      <li><a href="inverter_analytics.html">Inverter Analytics</a></li>
-      <li><a href="inverter_data_overview.html">Inverter Data Overview</a></li>
-      <li><a href="inverter_faults.html">Inverter Faults</a></li>
-      <li><a href="maintenance.html">Maintenance</a></li>
+      <li id="menu-meter"><a href="/meter.v2.html">Meter</a></li>
+      <li id="menu-inverteranalytics"><a href="/inverter_analytics.html">Inverter Analytics</a></li>
+      <li id="menu-inverterdataoverview"><a href="/inverter_data_overview.html">Inverter Data Overview</a></li>
+      <li id="menu-inverterfaults"><a href="/inverter_faults.html">Inverter Faults</a></li>
+      <li id="menu-maintenance"><a href="/maintenance.html">Maintenance</a></li>
     </ul>
 
+    <!-- ACCOUNT -->
     <div class="user-dropdown">
-      <button class="user-btn">Account</button>
+      <button class="user-btn">Account ▾</button>
       <div class="dropdown-content">
-        <a href="#">Profile</a>
-        <a href="#">Logout</a>
+        <a href="#" id="profile-link">Profile</a>
+        <a href="#" id="logout-link">Logout</a>
       </div>
     </div>
+
   </div>
 </header>
-
-<script>
-(() => {
-  const current = location.pathname.split("/").pop().toLowerCase();
-  document.querySelectorAll(".navbar-menu a").forEach(a => {
-    const href = (a.getAttribute("href") || "").toLowerCase();
-    a.classList.toggle("active", current === href);
-  });
-})();
-</script>

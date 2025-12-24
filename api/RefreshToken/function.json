@@ -5,8 +5,8 @@
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": [ "get" ],
-      "route": "GetMeterData"
+      "methods": [ "get", "post" ],
+      "route": "RefreshToken"
     },
     {
       "type": "http",

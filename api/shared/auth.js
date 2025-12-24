@@ -1,36 +1,56 @@
 "use strict";
 
-/**
- * Extract authenticated user info from SWA headers.
- * Works for both:
- *   - x-ms-client-principal (base64 JSON)
- *   - x-ms-client-principal-email
- */
-
-function getUser(req) {
+/* ------------------------------
+   Read token from request
+------------------------------- */
+function getToken(req) {
   try {
-    // Direct email header (SWA standard)
-    const email = req.headers["x-ms-client-principal-email"];
-    if (email) {
-      return { email: email.toLowerCase().trim() };
+    // 1. Check custom header
+    const t1 = req.headers["x-urja-token"];
+    if (t1) return t1;
+
+    // 2. Check Authorization: Bearer xxxx
+    const auth = req.headers["authorization"];
+    if (auth && auth.toLowerCase().startsWith("bearer ")) {
+      return auth.substring(7);
     }
 
-    // Encoded principal (fallback)
-    const encoded = req.headers["x-ms-client-principal"];
-    if (!encoded) return null;
-
-    const json = JSON.parse(
-      Buffer.from(encoded, "base64").toString("utf8")
-    );
-
-    return {
-      email: (json.userDetails || "").toLowerCase().trim(),
-      userId: json.userId || "",
-      identityProvider: json.identityProvider || ""
-    };
-  } catch (err) {
+    return null;
+  } catch {
     return null;
   }
 }
 
-module.exports = { getUser };
+/* ------------------------------
+   Decode token
+------------------------------- */
+function decodeToken(token) {
+  try {
+    const buf = Buffer.from(token, "base64");
+    const json = JSON.parse(buf.toString());
+    return json;   // { email, issued }
+  } catch {
+    return null;
+  }
+}
+
+/* ------------------------------
+   Validate session token
+------------------------------- */
+function validateSession(req) {
+  const token = getToken(req);
+  if (!token) return null;
+
+  const payload = decodeToken(token);
+  if (!payload) return null;
+
+  // token age check
+  const maxAgeMs = 24 * 60 * 60 * 1000; // 24 hours
+  if (Date.now() - payload.issued > maxAgeMs) {
+    return null;
+  }
+
+  return payload.email;
+}
+
+module.exports = { getToken, decodeToken, validateSession };

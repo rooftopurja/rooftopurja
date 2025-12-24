@@ -1,13 +1,9 @@
 {
   "configurations": {
     "app": {
-      "appLocation": "./",
+      "appLocation": ".",
       "apiLocation": "api",
-      "outputLocation": "./",
-      "run": "npm start",
-      "appBuildCommand": "",
-      "apiBuildCommand": "",
-      "staticWebAppChannel": "stable",
+      "outputLocation": ".",
       "azureStaticWebApps": {
         "workflowFilePath": ".github/workflows/azure-static-web-apps-wonderful-field-08ecf9700.yml"
       }

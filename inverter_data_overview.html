@@ -199,8 +199,16 @@ document.addEventListener("DOMContentLoaded", async () => {
         populateInverters();
     }
 
-    fetchOverview();
-    startAutoRefresh();
+    if (plants.length > 0) {
+    document.getElementById("plantSel").value = plants[0].Plant_Name;
+    populateInverters();
+
+    // ⏱ allow DOM + selects to settle
+    setTimeout(fetchOverview, 50);
+}
+
+startAutoRefresh();
+
 });
 
 // ------------------------------ AUTO REFRESH ------------------------------------
@@ -212,21 +220,50 @@ function startAutoRefresh() {
 // ------------------------------ LOAD PLANTS -------------------------------------
 async function loadPlantDirectory() {
     try {
-        const r = await fetch("/api/PlantDirectory");
+        const token = localStorage.getItem("urja_token");
+        if (!token) {
+            console.warn("No auth token found for PlantDirectory");
+            return;
+        }
+
+        const r = await fetch("http://localhost:7071/api/PlantDirectory", {
+            headers: {
+                "Accept": "application/json",
+                "x-urja-token": token
+            }
+        });
+
+        const ct = r.headers.get("content-type") || "";
+        if (!ct.includes("application/json")) {
+            const t = await r.text();
+            console.error("Non-JSON PlantDirectory response:", t.slice(0, 200));
+            return;
+        }
+
         const j = await r.json();
 
         plants = j.items || [];
         plantMap = {};
-        plants.forEach(p => plantMap[p.Plant_Name] = p.Inverters || []);
+
+        plants.forEach(p => {
+            let invs = [];
+            if (Array.isArray(p.Inverters)) invs = p.Inverters;
+            else if (typeof p.Inverters === "string") invs = p.Inverters.split(",");
+
+            plantMap[p.Plant_Name] = invs.map(x => x.trim()).filter(Boolean);
+        });
 
         const ps = document.getElementById("plantSel");
         ps.innerHTML = plants
-           .sort((a,b)=>a.Plant_Name.localeCompare(b.Plant_Name))
-           .map(p => `<option value="${p.Plant_Name}">${p.Plant_Name}</option>`)
-           .join("");
+            .sort((a, b) => a.Plant_Name.localeCompare(b.Plant_Name))
+            .map(p => `<option value="${p.Plant_Name}">${p.Plant_Name}</option>`)
+            .join("");
 
-    } catch (e) { console.error("Plant load error", e); }
+    } catch (e) {
+        console.error("Plant load error", e);
+    }
 }
+
 
 // ------------------------------ POPULATE INVERTERS -------------------------------
 function populateInverters() {
@@ -246,7 +283,7 @@ async function fetchOverview() {
     if (!plant || !inverter || !date) return;
 
     try {
-        const r = await fetch(`/api/GetInverterDataOverview?plant=${encodeURIComponent(plant)}&inverter=${encodeURIComponent(inverter)}&date=${date}`);
+        const r = await fetch(`http://localhost:7071/api/GetInverterDataOverview?plant=${encodeURIComponent(plant)}&inverter=${encodeURIComponent(inverter)}&date=${date}`);
         const j = await r.json();
 
         if (!j.success || !j.record) {
@@ -267,15 +304,25 @@ async function fetchOverview() {
 // ------------------------------ GENERAL INFO -------------------------------------
 function drawGeneral(d) {
     const box = document.getElementById("generalBox");
-    if (!d) { box.innerHTML = "<div>No data</div>"; return; }
+    if (!d) {
+        box.innerHTML = "<div>No data</div>";
+        return;
+    }
+
+    const serialKey = Object.keys(d).find(
+        k => k.toLowerCase().includes("serial")
+    );
+    const serial = serialKey ? d[serialKey] : "--";
 
     box.innerHTML = `
-        <div class="gen-cell"><b>Serial:</b> ${d.Inverter_Serial_No ?? "--"}</div>
+        <div class="gen-cell"><b>Serial:</b> ${serial}</div>
         <div class="gen-cell"><b>Grid Freq:</b> ${d.Grid_Frequency_Hz ?? "--"}</div>
         <div class="gen-cell"><b>Temp (°C):</b> ${d.Inverter_Temp_C ?? "--"}</div>
 
         <div class="gen-cell"><b>Daily Run Time:</b> ${
-            d.Daily_Run_Time_Hours != null ? d.Daily_Run_Time_Hours.toFixed(2) + " hrs" : "--"
+            d.Daily_Run_Time_Hours != null
+                ? d.Daily_Run_Time_Hours.toFixed(2) + " hrs"
+                : "--"
         }</div>
         <div class="gen-cell"><b>Total Run Time:</b> ${(d.Total_Run_Time_Hours ?? "--") + " hrs"}</div>
         <div class="gen-cell"><b>Total Yield:</b> ${d.Total_Yield_Unit ?? d.Total_Yield ?? "--"}</div>
@@ -283,6 +330,10 @@ function drawGeneral(d) {
         <div class="gen-cell"><b>Neg Voltage-Gnd:</b> ${d.Negative_Voltage_To_Ground_V ?? "--"}</div>
         <div class="gen-cell"><b>Array Insulation (kΩ):</b> ${d["Array_Insulation_Resistance_kΩ"] ?? "--"}</div>
         <div class="gen-cell"><b>Status:</b> ${d.Work_State_Description ?? "--"}</div>
+
+        <div class="gen-cell"><b>Make:</b> ${d.Inverter_Make ?? "--"}</div>
+        <div class="gen-cell"><b>Model:</b> ${d.Inverter_Model ?? "--"}</div>
+        <div class="gen-cell"><b>Rated Power:</b> ${d.Inverter_Rated_Power ?? "--"}</div>
     `;
 }
 
@@ -307,50 +358,63 @@ function drawMPPT(d) {
     const grid = document.getElementById("mpptGrid");
     if (!d) { grid.innerHTML = ""; return; }
 
-    let mppts = [];
-    for (let i = 1; i <= 18; i++) {
-        if ((`MPPT${i}_V` in d) || (`MPPT${i}_A` in d))
-            mppts.push(i);
-    }
-
-    let pvs = [];
-    for (let i = 1; i <= 48; i++) {
-        if (`PV${i}_A` in d)
-            pvs.push(i);
-    }
-
-    const mpptCount = mppts.length;
-    const pvPerMppt = mpptCount ? Math.ceil(pvs.length / mpptCount) : 0;
-
     const hideZero = document.getElementById("hideZero").checked;
 
+    // Detect MPPT count dynamically
+    const mppts = [];
+    for (let i = 1; i <= 24; i++) {
+        if (`MPPT${i}_V` in d || `MPPT${i}_A` in d) {
+            mppts.push(i);
+        }
+    }
+
+    // Detect total PVs
+    const pvIndexes = [];
+    for (let i = 1; i <= 60; i++) {
+        if (`PV${i}_A` in d) pvIndexes.push(i);
+    }
+
+    // Infer PVs per MPPT (industry-safe)
+    const PV_PER_MPPT = Math.round(pvIndexes.length / mppts.length) || 2;
+
     let html = "";
-    mppts.forEach((mp, idx) => {
 
-        const mv = +(d[`MPPT${mp}_V`] ?? 0);
-        const ma = +(d[`MPPT${mp}_A`] ?? 0);
+    mppts.forEach((mpptNo, mpptIdx) => {
 
-        const start = idx * pvPerMppt;
-        const pvNames = pvs.slice(start, start + pvPerMppt);
-        const pvCurr = pvNames.map(p => +(d[`PV${p}_A`] ?? 0));
+        const mv = +(d[`MPPT${mpptNo}_V`] ?? 0);
+        const ma = +(d[`MPPT${mpptNo}_A`] ?? 0);
 
-        const zeroRow = mv === 0 && ma === 0 && pvCurr.every(x => x === 0);
-        if (hideZero && zeroRow) return;
+        const pvStart = mpptIdx * PV_PER_MPPT + 1;
+        const pvEnd   = pvStart + PV_PER_MPPT - 1;
+
+        const pvRows = [];
+        for (let pv = pvStart; pv <= pvEnd; pv++) {
+            const val = +(d[`PV${pv}_A`] ?? 0);
+            if (!hideZero || val !== 0) {
+                pvRows.push(`<div class="pvRow">PV${pv}: ${val}</div>`);
+            }
+        }
+
+        const zeroBlock =
+            mv === 0 &&
+            ma === 0 &&
+            pvRows.length === 0;
+
+        if (hideZero && zeroBlock) return;
 
         html += `
         <div class="mpptCard">
-            <div class="mpptTitle">MPPT ${mp}</div>
+            <div class="mpptTitle">MPPT ${mpptNo}</div>
             <div>V: ${mv}</div>
             <div>A: ${ma}</div>
             <hr style="margin:4px 0;">
-            ${pvNames.map((pv, i) =>
-                `<div class="pvRow">PV${pv}: ${pvCurr[i]}</div>`
-            ).join("")}
+            ${pvRows.join("")}
         </div>`;
     });
 
     grid.innerHTML = html;
 }
+
 
 </script>
 

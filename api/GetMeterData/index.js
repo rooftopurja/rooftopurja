@@ -1,236 +1,470 @@
 "use strict";
 
-const { TableClient } = require("@azure/data-tables");
 
-module.exports = async function GetMeterData(context, req) {
-  try {
-    const connStr = process.env.TABLES_CONNECTION_STRING;
-    if (!connStr)
-      throw new Error("TABLES_CONNECTION_STRING missing in environment variables.");
+/* -------------------------------------------------------
+   CONFIG
+------------------------------------------------------- */
+const TABLE_NAME = process.env.METER_TABLES || "Premier300Meter";
 
-    // tables
-    const DIR_TABLE = process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
-    const METER_TABLE = process.env.METER_TABLES || "Premier300Meter";
+/* -------------------------------------------------------
+   HELPERS
+------------------------------------------------------- */
+function toKwh(value, unit) {
+  const v = Number(value) || 0;
+  const u = String(unit || "").toUpperCase();
+  if (u === "GWH") return v * 1_000_000;
+  if (u === "MWH") return v * 1_000;
+  return v; // already kWh
+}
 
-    // ---- Auth ----
-    let email = "anonymous@user.com";
-    const principal = req.headers["x-ms-client-principal"];
-    if (principal) {
-      try {
-        const obj = JSON.parse(Buffer.from(principal, "base64").toString("utf8"));
-        email = (obj.userDetails || "anonymous@user.com").toLowerCase();
-      } catch (_) {}
-    }
+function prevDate(d) {
+  const dt = new Date(d);
+  dt.setDate(dt.getDate() - 1);
+  return dt.toISOString().slice(0, 10);
+}
 
-    // ---- Load PlantDirectory ----
-    const dirClient = TableClient.fromConnectionString(connStr, DIR_TABLE);
-    const plantMap = {};
-    const plantByMeter = {};
+function sortByDate(a, b) {
+  // expects r.Date = "YYYY-MM-DD"
+  return String(a.Date || "").localeCompare(String(b.Date || ""));
+}
 
-    for await (const row of dirClient.listEntities()) {
-      plantMap[row.Plant_ID] = row;
+function groupBy(rows, key) {
+  const m = {};
+  for (const r of rows) {
+    const k = r[key];
+    if (k == null) continue;
+    if (!m[k]) m[k] = [];
+    m[k].push(r);
+  }
+  return m;
+}
 
-      if (row.Meter_ID) {
-        plantByMeter[String(row.Meter_ID)] = row.Plant_ID;
+function lastBeforeDate(rows, date) {
+  const d = String(date);
+  const filtered = rows.filter(r => String(r.Date) < d);
+  if (!filtered.length) return 0;
+  filtered.sort(sortByDate);
+  return filtered[filtered.length - 1]._kwh;
+}
+
+function lastOnOrBefore(rows, date) {
+  const d = String(date);
+  const filtered = rows.filter(r => String(r.Date) <= d);
+  if (!filtered.length) return 0;
+  filtered.sort(sortByDate);
+  return filtered[filtered.length - 1]._kwh;
+}
+
+
+function monthKeyFromQuery(qMonth, qYear) {
+  // supports:
+  // 1) month="YYYY-MM"
+  // 2) month="MM" + year="YYYY"
+  const m = String(qMonth || "").trim();
+  const y = String(qYear || "").trim();
+  if (/^\d{4}-\d{2}$/.test(m)) return m;
+  if (/^\d{1,2}$/.test(m) && /^\d{4}$/.test(y)) {
+    const mm = m.padStart(2, "0");
+    return `${y}-${mm}`;
+  }
+  return "";
+}
+
+function findLastBefore(sortedRows, startDate) {
+  // last row with Date < startDate (ISO compare safe)
+  let out = null;
+  for (const r of sortedRows) {
+    const d = String(r.Date || "");
+    if (!d) continue;
+    if (d < startDate) out = r;
+    else break; // sorted, so we can stop once we pass startDate
+  }
+  return out;
+}
+
+function findFirstInRange(sortedRows, startDate, endDateExclusive) {
+  for (const r of sortedRows) {
+    const d = String(r.Date || "");
+    if (!d) continue;
+    if (d >= startDate && d < endDateExclusive) return r;
+    if (d >= endDateExclusive) return null;
+  }
+  return null;
+}
+
+function findLastInRange(sortedRows, startDate, endDateExclusive) {
+  let out = null;
+  for (const r of sortedRows) {
+    const d = String(r.Date || "");
+    if (!d) continue;
+    if (d >= startDate && d < endDateExclusive) out = r;
+    if (d >= endDateExclusive) break;
+  }
+  return out;
+}
+
+function endExclusiveForMonth(monthKey) {
+  // monthKey = "YYYY-MM"
+  const y = Number(monthKey.slice(0, 4));
+  const m = Number(monthKey.slice(5, 7));
+  const dt = new Date(Date.UTC(y, m, 1)); // next month 1st (m is 1-based, JS month is 0-based; but here m is already next month index)
+  return dt.toISOString().slice(0, 10);
+}
+
+function endExclusiveForYear(year) {
+  const y = Number(year);
+  const dt = new Date(Date.UTC(y + 1, 0, 1));
+  return dt.toISOString().slice(0, 10);
+}
+
+/* =======================================================
+   AZURE TABLE — SAS PAGINATION (SELF-CONTAINED)
+======================================================= */
+const https = require("https");
+const { URL } = require("url");
+
+async function queryTableAllSelf(tableName, filter = "") {
+  const endpoint = process.env.AZURE_TABLE_ENDPOINT || process.env.TABLE_STORAGE_URL;
+const sas =
+  process.env.TABLE_SAS ||
+  process.env.AZURE_TABLE_SAS ||
+  process.env.TABLE_STORAGE_SAS;
+
+
+  if (!endpoint || !sas) {
+    throw new Error("Table SAS configuration missing");
+  }
+
+  let rows = [];
+  let nextPK = "";
+  let nextRK = "";
+
+  do {
+    const qs = [
+      filter && `$filter=${encodeURIComponent(filter)}`,
+      nextPK && `NextPartitionKey=${encodeURIComponent(nextPK)}`,
+      nextRK && `NextRowKey=${encodeURIComponent(nextRK)}`
+    ]
+      .filter(Boolean)
+      .join("&");
+
+    const url = new URL(
+      `${endpoint}/${tableName}?${qs}${qs ? "&" : ""}${sas}`
+    );
+
+    const data = await new Promise((resolve, reject) => {
+  const req = https.request(
+    {
+      method: "GET",
+      hostname: url.hostname,
+      path: url.pathname + url.search,
+
+      // 🔑 CRITICAL: FORCE JSON (PREVENT ATOM)
+      headers: {
+        Accept: "application/json;odata=nometadata",
+        "Content-Type": "application/json",
+        "x-ms-version": "2019-02-02"
       }
+    },
+    res => {
+      let buf = "";
+      res.on("data", d => (buf += d));
+      res.on("end", () => {
+        if (res.statusCode >= 300) {
+          reject(new Error(buf));
+          return;
+        }
+        resolve({
+          body: JSON.parse(buf),
+          headers: res.headers
+        });
+      });
     }
+  );
 
-    // ---- Read all Meter rows ----
-    const meterClient = TableClient.fromConnectionString(connStr, METER_TABLE);
-    const rows = [];
+  req.on("error", reject);
+  req.end();
+});
 
-    for await (const r of meterClient.listEntities()) {
-      const rawDate =
-        r.Date_Time || r.Timestamp || r.Date || r.DateTime || r["date_time"];
 
-      if (!rawDate) continue;
-      const dt = new Date(rawDate);
-      if (isNaN(dt)) continue;
+    rows.push(...(data.body.value || []));
 
-      const meterId = r.Meter_ID || r.PartitionKey || null;
-      if (!meterId) continue;
+    nextPK = data.headers["x-ms-continuation-nextpartitionkey"];
+    nextRK = data.headers["x-ms-continuation-nextrowkey"];
 
-      const pid = r.Plant_ID || plantByMeter[meterId] || null;
-      if (!pid) continue;
+  } while (nextPK && nextRK);
 
-      r.__date = dt;
-      r.Plant_ID = pid;
-      rows.push(r);
-    }
+  return rows;
+}
+
+/* ---------------------------------------------
+   LOAD PLANT DIRECTORY (TABLE STORAGE)
+--------------------------------------------- */
+async function loadPlantDirectory() {
+  const plants = await queryTableAllSelf("PlantDirectory");
+  return plants.map(p => ({
+    Plant_ID: String(p.Plant_ID || p.PartitionKey),
+    Plant_Name: p.Plant_Name || `Plant ${p.Plant_ID || p.PartitionKey}`
+  }));
+}
+
+/* -------------------------------------------------------
+   MAIN
+------------------------------------------------------- */
+module.exports = async function (context, req) {
+  try {
+    /* ---------------------------------------------
+       INPUTS
+    --------------------------------------------- */
+    const period = (req.query.period || "lifetime").toLowerCase();
+    const date   = req.query.date;   // YYYY-MM-DD
+    const month  = req.query.month;  // "YYYY-MM" OR "MM"
+    const year   = req.query.year;   // YYYY
+
+    const monthKey = monthKeyFromQuery(month, year);
+
+    const plantFilter = (req.query.plants || "")
+  .split(",")
+  .map(s => s.trim())
+  .filter(Boolean);
+ 
+
+    /* ---------------------------------------------
+       LOAD DATA (ALL ROWS, PAGINATED)
+    --------------------------------------------- */
+    const rows = await queryTableAllSelf(TABLE_NAME);
 
     if (!rows.length) {
       context.res = {
-        headers: { "Content-Type": "application/json" },
-        body: {
-          user: email,
-          plants: [],
-          latestReadings: [],
-          dailyData: {},
-          dailyByPlant: {},
-          tableByDate: {},
-          history: { monthlyByPlant: {}, yearlyByPlant: {} },
-          pieData: [],
-          lastUpdated: new Date().toISOString(),
-          totalYield: "0",
-          yieldUnit: "kWh"
-        }
+        status: 200,
+        body: { success: true, kpi: {}, chart: [] }
       };
       return;
     }
 
-    // ---- Utility fns ----
-    const toISO = (d) => new Date(d).toISOString().slice(0, 10);
-    const toKWh = (val, unit) => {
-      const n = Number(val) || 0;
-      if (!unit) return n;
-      const u = unit.toLowerCase();
-      if (u.includes("gwh")) return n * 1e6;
-      if (u.includes("mwh")) return n * 1e3;
-      return n;
-    };
+    /* ---------------------------------------------
+       NORMALIZE
+    --------------------------------------------- */
+    rows.forEach(r => {
+      r._kwh = toKwh(r.Total_Yield, r.Yield_Unit);
+      r.Date = (r.Date || "").slice(0, 10); // safety
+    });
 
-    // ---- Pick closest reading to 09:50 per meter & date ----
-    const TARGET = 9 * 60 + 50;
-    const byMeterDate = {};
+// 🔑 APPLY PLANT FILTER (IF PROVIDED)
+const filteredRows =
+  plantFilter.length
+    ? rows.filter(r => plantFilter.includes(String(r.Plant_ID)))
+    : rows;
 
-    for (const r of rows) {
-      const meterId = r.Meter_ID || r.PartitionKey;
-      const d = r.__date;
 
-      const ymd = toISO(d);
-      const minutes = d.getHours() * 60 + d.getMinutes();
-      const diff = Math.abs(minutes - TARGET);
+/* ---------------------------------------------
+   GROUP BY PLANT (REQUIRED)
+--------------------------------------------- */
+const byPlant = groupBy(filteredRows, "Plant_ID");
+const plantDirectory = await loadPlantDirectory();
 
-      const key = `${meterId}_${ymd}`;
-      if (!byMeterDate[key] || diff < byMeterDate[key].diff) {
-        byMeterDate[key] = { row: r, diff };
-      }
+/* ---------------------------------------------
+   PLANT LOOKUP MAP (Plant_ID → Plant_Name)
+--------------------------------------------- */
+const plantNameMap = {};
+plantDirectory.forEach(p => {
+  plantNameMap[String(p.Plant_ID)] = p.Plant_Name;
+});
+
+   /* ---------------------------------------------
+   KPI CALCS (DYNAMIC-SAFE)
+--------------------------------------------- */
+
+// ---- LIFETIME
+let lifetimeKwh = 0;
+for (const pid in byPlant) {
+  const rows = byPlant[pid].slice().sort(sortByDate);
+  lifetimeKwh += rows[rows.length - 1]._kwh;
+}
+
+// ---- DATE
+let dateKwh = 0;
+if (period === "date" && date) {
+  const prev = prevDate(date);
+  for (const pid in byPlant) {
+    const rows = byPlant[pid];
+    const today = lastOnOrBefore(rows, date);
+    const yesterday = lastOnOrBefore(rows, prev);
+    if (today > yesterday) dateKwh += (today - yesterday);
+  }
+}
+
+// ---- MONTH
+let monthKwh = 0;
+
+if (period === "month" && monthKey) {
+  const monthStart = `${monthKey}-01`;
+  const monthEndExclusive = endExclusiveForMonth(monthKey);
+
+  for (const pid in byPlant) {
+    const rows = byPlant[pid].slice().sort(sortByDate);
+
+    const endRow  = findLastInRange(rows, monthStart, monthEndExclusive);
+    const prevRow = findLastBefore(rows, monthStart);
+
+    const endVal  = endRow?._kwh || 0;
+    const prevVal = prevRow?._kwh || 0;
+
+    if (endVal > prevVal) {
+      monthKwh += (endVal - prevVal);
     }
+  }
+}
 
-    const filtered = Object.values(byMeterDate).map((x) => x.row);
 
-    // ---- Latest per plant ----
-    const latestByPlant = {};
-    for (const r of filtered) {
-      const pid = r.Plant_ID;
-      const ts = r.__date;
-      if (!latestByPlant[pid] || ts > latestByPlant[pid].__date)
-        latestByPlant[pid] = r;
+// ---- YEAR
+let yearKwh = 0;
+if (period === "year" && year) {
+  const yearEnd = `${year}-12-31`;
+  const yearStart = `${year}-01-01`;
+
+  for (const pid in byPlant) {
+    const rows = byPlant[pid];
+    const endVal = lastOnOrBefore(rows, yearEnd);
+    const startVal = lastBeforeDate(rows, yearStart);
+    if (endVal > startVal) yearKwh += (endVal - startVal);
+  }
+}
+
+   
+/* ---------------------------------------------
+   DAILY GENERATION (PLANT-SAFE, REALISTIC)
+--------------------------------------------- */
+const dailyMap = {};
+
+for (const pid in byPlant) {
+  const rows = byPlant[pid].slice().sort(sortByDate);
+
+  for (let i = 1; i < rows.length; i++) {
+    const prev = rows[i - 1];
+    const curr = rows[i];
+
+    if (!prev.Date || !curr.Date) continue;
+    if (curr.Date === prev.Date) continue;
+
+    const delta = curr._kwh - prev._kwh;
+    if (delta > 0 && delta < 20000) { // 🔑 sanity cap per plant/day
+      dailyMap[curr.Date] = (dailyMap[curr.Date] || 0) + delta;
+
     }
+  }
+}
 
-    const latestReadings = Object.values(latestByPlant).map((r) => ({
-      Plant_ID: r.Plant_ID,
-      Plant_Name: plantMap[r.Plant_ID]?.Plant_Name || r.Plant_ID,
-      Meter_ID: r.Meter_ID || "",
-      Meter_Serial_No: r.Meter_Serial_No || "",
-      Meter_Make: r.Meter_Make || "",
-      Meter_Model: r.Meter_Model || "",
-      Meter_Type: r.Meter_Type || "",
-      Meter_Reading: r.Meter_Reading || "",
-      Total_Yield: toKWh(r.Total_Yield, r.Yield_Unit),
-      Incremental_Daily_Yield_KWH: Number(r.Incremental_Daily_Yield_KWH) || 0,
-      Date_Time: r.__date.toISOString()
-    }));
+// LAST 90 DAYS
+const chartSeries = Object.keys(dailyMap)
+  .sort()
+  .slice(-90)
+  .map(d => {
+  let total = 0;
+  for (const pid in byPlant) {
+    const rows = byPlant[pid];
+    const match = rows.filter(x => x.Date <= d).sort(sortByDate);
+if (match.length) {
+  total += match[match.length - 1]._kwh;
+}
 
-    // ---- Daily & Table calculations (last 31 days) ----
-    const dailyByPlant = {};
-    const tableByDate = {};
-    const now = new Date();
-    const cutoff = new Date(now.getTime() - 31 * 86400000);
+  }
+  return {
+    date: d,
+    daily_kwh: dailyMap[d], // incremental
+    total_kwh: total        // cumulative
+  };
+});
 
-    for (const r of filtered) {
-      const dStr = toISO(r.__date);
-      const dObj = new Date(dStr);
-      if (dObj < cutoff) continue;
 
-      const pid = r.Plant_ID;
-      const total = toKWh(r.Total_Yield, r.Yield_Unit);
+/* ---------------------------------------------
+   TABLE ROWS (PER PERIOD + PLANT FILTER)
+--------------------------------------------- */
+let tableRows = [];
 
-      dailyByPlant[dStr] = dailyByPlant[dStr] || {};
-      dailyByPlant[dStr][pid] = Math.max(dailyByPlant[dStr][pid] || 0, total);
+if (period === "date" && date) {
+  // Date → rows from that date + selected plants
+  tableRows = filteredRows.filter(r => r.Date === date);
+} else {
+  // Other periods → ONE latest reading per PLANT
+const latestByPlant = {};
 
-      tableByDate[dStr] = tableByDate[dStr] || [];
-      tableByDate[dStr].push({
-        Plant_ID: pid,
-        Plant_Name: plantMap[pid]?.Plant_Name || pid,
-        Meter_Serial_No: r.Meter_Serial_No || "",
-        Meter_Make: r.Meter_Make || "",
-        Meter_Model: r.Meter_Model || "",
-        Meter_Type: r.Meter_Type || "",
-        Meter_Reading: r.Meter_Reading || "",
-        Total_Yield: total,
-        Date_Time: r.__date.toISOString()
-      });
-    }
+filteredRows.forEach(r => {
+  const pid = String(r.Plant_ID);
+  if (
+    !latestByPlant[pid] ||
+    (r.Date_Time || "") > (latestByPlant[pid].Date_Time || "")
+  ) {
+    latestByPlant[pid] = r;
+  }
+});
 
-    const dailyData = {};
-    for (const d of Object.keys(dailyByPlant)) {
-      dailyData[d] = Object.values(dailyByPlant[d]).reduce((a, b) => a + b, 0);
-    }
+tableRows = Object.values(latestByPlant);
 
-    // ---- Monthly & Yearly ----
-    const monthlyByPlant = {};
-    const yearlyByPlant = {};
+}
 
-    for (const r of filtered) {
-      const pid = r.Plant_ID;
-      const d = toISO(r.__date);
-      const monthKey = d.slice(0, 7);
-      const yearKey = d.slice(0, 4);
-      const inc = Number(r.Incremental_Daily_Yield_KWH) || 0;
+/* ---------------------------------------------
+   PIE DATA — LIFETIME CONTRIBUTION BY PLANT
+--------------------------------------------- */
+const pieData = [];
 
-      if (inc <= 0) continue;
+for (const pid in byPlant) {
+  const rows = byPlant[pid].slice().sort(sortByDate);
+  if (!rows.length) continue;
 
-      monthlyByPlant[monthKey] = monthlyByPlant[monthKey] || {};
-      monthlyByPlant[monthKey][pid] = (monthlyByPlant[monthKey][pid] || 0) + inc;
+  const lifetimeVal = rows[rows.length - 1]._kwh;
 
-      yearlyByPlant[yearKey] = yearlyByPlant[yearKey] || {};
-      yearlyByPlant[yearKey][pid] = (yearlyByPlant[yearKey][pid] || 0) + inc;
-    }
-
-    // ---- Pie chart & KPI ----
-    const totalByPlant = {};
-    for (const r of latestReadings) {
-      totalByPlant[r.Plant_ID] = (totalByPlant[r.Plant_ID] || 0) + r.Total_Yield;
-    }
-
-    const totalYield = Object.values(totalByPlant).reduce((a, b) => a + b, 0);
-
-    let dispVal = totalYield;
-    let dispUnit = "kWh";
-    if (dispVal >= 1e6) {
-      dispVal /= 1e6;
-      dispUnit = "GWh";
-    } else if (dispVal >= 1e3) {
-      dispVal /= 1e3;
-      dispUnit = "MWh";
-    }
-
-    const pieData = Object.entries(totalByPlant).map(([pid, val]) => ({
+  if (lifetimeVal > 0) {
+    pieData.push({
       Plant_ID: pid,
-      Plant_Name: plantMap[pid]?.Plant_Name || pid,
-      Value: val
-    }));
+      Plant_Name: plantNameMap[pid] || `Plant ${pid}`,
+      Value: lifetimeVal
+    });
+  }
+}
 
-    // ---- Final Output ----
-    context.res = {
-      headers: { "Content-Type": "application/json" },
-      body: {
-        user: email,
-        plants: Object.values(plantMap),
-        latestReadings,
-        dailyData,
-        dailyByPlant,
-        tableByDate,
-        history: { monthlyByPlant, yearlyByPlant },
-        pieData,
-        totalYield: dispVal.toFixed(3),
-        yieldUnit: dispUnit,
-        lastUpdated: new Date().toISOString()
-      }
-    };
+/* ---------------------------------------------
+   RESPONSE  ✅ BACKEND AUTHORITATIVE
+--------------------------------------------- */
+context.res = {
+  status: 200,
+  headers: {
+    "Content-Type": "application/json",
+    "Access-Control-Allow-Origin": "*"
+  },
+  body: {
+    success: true,
+
+    // ✅ PLANT FILTER
+    plants: plantDirectory,
+
+    // ✅ KPI
+    kpi: {
+      date_kwh: dateKwh,
+      month_kwh: monthKwh,
+      year_kwh: yearKwh,
+      lifetime_kwh: lifetimeKwh
+    },
+
+    // ✅ BAR + LINE CHART
+    chart: chartSeries,
+
+    // ✅ PIE CHART
+    pie: pieData,
+
+    // ✅ TABLE (PER PERIOD RULE)
+    latest_rows: tableRows.map(r => ({
+      ...r,
+      Plant_Name: plantNameMap[String(r.Plant_ID)] || `Plant ${r.Plant_ID}`
+    }))
+  }
+};
+
   } catch (err) {
-    context.log.error("GetMeterData ERROR:", err);
-    context.res = { status: 500, body: err.message };
+    context.log("❌ GetMeterData ERROR:", err);
+    context.res = {
+      status: 500,
+      body: { success: false, error: err.message }
+    };
   }
 };

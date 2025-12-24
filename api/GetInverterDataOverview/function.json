@@ -1,13 +1,11 @@
 {
-  "scriptFile": "index.js",
   "bindings": [
     {
       "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
-      "methods": ["get"],
       "name": "req",
-      "route": "GetInverterDataOverview"
+      "methods": [ "get" ]
     },
     {
       "type": "http",

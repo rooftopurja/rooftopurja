@@ -1,12 +1,12 @@
 ﻿{
-  "scriptFile": "index.js",
   "bindings": [
     {
       "authLevel": "anonymous",
       "type": "httpTrigger",
       "direction": "in",
       "name": "req",
-      "methods": ["get"]
+      "methods": [ "get" ],
+      "route": "PlantDirectory"
     },
     {
       "type": "http",

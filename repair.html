@@ -1,0 +1,911 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Solar Data Repair Console</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <!--
+    PHASE-1 REPAIR DASHBOARD UI
+    ---------------------------------
+    If you prefer separate files:
+      • Save everything inside <style> as repair.css
+      • Save everything inside <script> as repair.js
+      • Change the <link> and <script> tags to external files.
+  -->
+
+  <style>
+    :root {
+      --bg: #050816;
+      --bg-alt: #0b1020;
+      --card: #0f172a;
+      --accent: #22c55e;
+      --accent-soft: rgba(34, 197, 94, 0.1);
+      --accent-strong: rgba(34, 197, 94, 0.25);
+      --danger: #ef4444;
+      --text: #e5e7eb;
+      --muted: #9ca3af;
+      --border: #1f2937;
+      --radius-lg: 14px;
+      --radius-xl: 20px;
+      --shadow-soft: 0 18px 60px rgba(0, 0, 0, 0.55);
+      --shadow-chip: 0 10px 30px rgba(0, 0, 0, 0.45);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      background: radial-gradient(circle at top, #0f172a 0, #020617 45%, #000 100%);
+      color: var(--text);
+      display: flex;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .shell {
+      width: 100%;
+      max-width: 1320px;
+      background: linear-gradient(135deg, rgba(148, 163, 184, 0.12), transparent 40%)
+        border-box,
+        radial-gradient(circle at top left, rgba(34, 197, 94, 0.3), transparent 55%)
+        border-box,
+        radial-gradient(circle at bottom right, rgba(59, 130, 246, 0.32), transparent 55%)
+        border-box,
+        linear-gradient(135deg, #020617, #020617) padding-box;
+      border-radius: 26px;
+      border: 1px solid rgba(148, 163, 184, 0.35);
+      padding: 20px 22px 22px;
+      box-shadow: var(--shadow-soft);
+      backdrop-filter: blur(20px);
+    }
+
+    header {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 16px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+
+    .title-block {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+
+    .logo-dot {
+      width: 34px;
+      height: 34px;
+      border-radius: 999px;
+      background:
+        radial-gradient(circle at 20% 0%, #bbf7d0 0, transparent 55%),
+        radial-gradient(circle at 75% 80%, #22c55e 0, transparent 55%),
+        radial-gradient(circle at 10% 80%, #0ea5e9 0, transparent 55%),
+        #22c55e;
+      box-shadow: 0 0 20px rgba(34, 197, 94, 0.8);
+    }
+
+    .title-text h1 {
+      margin: 0 0 2px;
+      font-size: 20px;
+      letter-spacing: 0.03em;
+    }
+
+    .title-text p {
+      margin: 0;
+      font-size: 12px;
+      color: var(--muted);
+    }
+
+    .tags-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+    }
+
+    .tag-pill {
+      font-size: 11px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.4);
+      background: radial-gradient(circle at top left, rgba(34, 197, 94, 0.18), transparent 55%),
+        rgba(15, 23, 42, 0.8);
+      color: var(--muted);
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      box-shadow: var(--shadow-chip);
+    }
+
+    .tag-dot {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 6px rgba(34, 197, 94, 0.9);
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: minmax(0, 1.6fr) minmax(0, 1.1fr);
+      gap: 18px;
+    }
+
+    @media (max-width: 980px) {
+      main {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .card {
+      background: radial-gradient(circle at top left, rgba(148, 163, 184, 0.22), transparent 60%),
+        rgba(15, 23, 42, 0.92);
+      border-radius: var(--radius-xl);
+      padding: 14px 14px 12px;
+      border: 1px solid rgba(31, 41, 55, 0.9);
+      box-shadow: var(--shadow-soft);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .card-title {
+      font-size: 13px;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: #9ca3af;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 10px rgba(34, 197, 94, 0.7);
+    }
+
+    .card-subtitle {
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .btn {
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.5);
+      background: radial-gradient(circle at top left, rgba(34, 197, 94, 0.35), transparent 55%),
+        rgba(15, 23, 42, 0.9);
+      color: #ecfdf5;
+      font-size: 12px;
+      padding: 6px 14px;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      box-shadow: var(--shadow-chip);
+      transition: transform 0.1s ease, box-shadow 0.1s ease, background 0.15s ease;
+      white-space: nowrap;
+    }
+
+    .btn span {
+      font-size: 16px;
+    }
+
+    .btn:hover {
+      transform: translateY(-1px);
+      box-shadow: 0 18px 40px rgba(34, 197, 94, 0.55);
+      background: radial-gradient(circle at top left, rgba(34, 197, 94, 0.6), transparent 60%),
+        rgba(15, 23, 42, 0.98);
+    }
+
+    .btn:disabled {
+      opacity: 0.6;
+      cursor: default;
+      transform: none;
+      box-shadow: none;
+    }
+
+    .btn-secondary {
+      background: rgba(15, 23, 42, 0.9);
+      border-color: rgba(148, 163, 184, 0.45);
+      color: var(--muted);
+    }
+
+    .btn-secondary:hover {
+      background: rgba(15, 23, 42, 0.98);
+      box-shadow: 0 12px 26px rgba(15, 23, 42, 0.7);
+    }
+
+    .btn-danger {
+      background: radial-gradient(circle at top left, rgba(239, 68, 68, 0.3), transparent 60%),
+        rgba(15, 23, 42, 0.96);
+      border-color: rgba(248, 113, 113, 0.7);
+      color: #fee2e2;
+    }
+
+    .btn-danger:hover {
+      box-shadow: 0 18px 40px rgba(248, 113, 113, 0.7);
+    }
+
+    .grid-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 10px;
+      margin-bottom: 10px;
+    }
+
+    .metric {
+      border-radius: 14px;
+      border: 1px solid rgba(31, 41, 55, 0.95);
+      padding: 9px 10px;
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.2), transparent 60%),
+        rgba(2, 6, 23, 0.9);
+    }
+
+    .metric-label {
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--muted);
+      margin-bottom: 3px;
+    }
+
+    .metric-value {
+      font-size: 15px;
+      font-weight: 600;
+    }
+
+    .metric-hint {
+      font-size: 11px;
+      color: #4ade80;
+      margin-top: 2px;
+    }
+
+    .metric-warning {
+      color: #f97316;
+    }
+
+    .metric-danger {
+      color: var(--danger);
+    }
+
+    .metric-ok {
+      color: #22c55e;
+    }
+
+    .twocol {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(0, 1fr);
+      gap: 10px;
+    }
+
+    @media (max-width: 880px) {
+      .grid-metrics {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+      .twocol {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    @media (max-width: 640px) {
+      .grid-metrics {
+        grid-template-columns: minmax(0, 1fr);
+      }
+    }
+
+    .field-group {
+      margin-bottom: 8px;
+    }
+
+    .field-label {
+      font-size: 11px;
+      color: var(--muted);
+      margin-bottom: 2px;
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+    }
+
+    .field-label small {
+      color: #6b7280;
+    }
+
+    input,
+    select {
+      width: 100%;
+      padding: 6px 9px;
+      border-radius: 999px;
+      border: 1px solid rgba(31, 41, 55, 0.9);
+      background: rgba(15, 23, 42, 0.96);
+      color: var(--text);
+      font-size: 12px;
+      outline: none;
+    }
+
+    input:focus,
+    select:focus {
+      border-color: rgba(34, 197, 94, 0.9);
+      box-shadow: 0 0 0 1px rgba(34, 197, 94, 0.65);
+    }
+
+    .console {
+      font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono",
+        "Courier New", monospace;
+      font-size: 11px;
+      background: radial-gradient(circle at top left, rgba(15, 23, 42, 0.85), transparent 55%),
+        #020617;
+      border-radius: 16px;
+      border: 1px solid rgba(31, 41, 55, 0.95);
+      padding: 8px 10px 10px;
+      max-height: 320px;
+      overflow: auto;
+      position: relative;
+    }
+
+    .console-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 6px;
+    }
+
+    .console-header-left {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .console-dots {
+      display: flex;
+      gap: 4px;
+    }
+
+    .console-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #4b5563;
+    }
+
+    .console-dot.red {
+      background: #ef4444;
+    }
+
+    .console-dot.amber {
+      background: #f59e0b;
+    }
+
+    .console-dot.green {
+      background: #22c55e;
+    }
+
+    .console-body {
+      white-space: pre-wrap;
+      line-height: 1.45;
+    }
+
+    .log-line {
+      padding: 1px 0;
+    }
+
+    .log-line.debug {
+      color: #6b7280;
+    }
+
+    .log-line.info {
+      color: #e5e7eb;
+    }
+
+    .log-line.success {
+      color: #4ade80;
+    }
+
+    .log-line.error {
+      color: #fecaca;
+    }
+
+    .log-line strong {
+      color: #22c55e;
+    }
+
+    .pill-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+    }
+
+    .pill {
+      border-radius: 999px;
+      padding: 3px 9px;
+      font-size: 10px;
+      border: 1px solid rgba(55, 65, 81, 0.95);
+      background: rgba(15, 23, 42, 0.96);
+      color: var(--muted);
+    }
+
+    .pill.ok {
+      border-color: rgba(34, 197, 94, 0.7);
+      color: #bbf7d0;
+      background: rgba(22, 163, 74, 0.18);
+    }
+
+    .pill.warn {
+      border-color: rgba(249, 115, 22, 0.65);
+      color: #fed7aa;
+      background: rgba(194, 65, 12, 0.25);
+    }
+
+    .pill.bad {
+      border-color: rgba(239, 68, 68, 0.8);
+      color: #fecaca;
+      background: rgba(127, 29, 29, 0.35);
+    }
+
+    .divider-label {
+      margin: 6px 0 4px;
+      font-size: 10px;
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      color: #6b7280;
+    }
+
+    .hr-soft {
+      border: none;
+      border-top: 1px dashed rgba(55, 65, 81, 0.9);
+      margin: 5px 0 6px;
+    }
+
+    .status-bar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 6px;
+      margin-top: 4px;
+      font-size: 11px;
+      color: var(--muted);
+    }
+
+    .status-bar span {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+    }
+
+    .status-chip-dot {
+      width: 7px;
+      height: 7px;
+      border-radius: 999px;
+      background: #22c55e;
+      box-shadow: 0 0 8px rgba(34, 197, 94, 0.9);
+    }
+
+    .status-chip-dot.busy {
+      background: #f59e0b;
+      box-shadow: 0 0 8px rgba(245, 158, 11, 0.9);
+    }
+
+    .status-chip-dot.err {
+      background: #ef4444;
+      box-shadow: 0 0 8px rgba(239, 68, 68, 0.9);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 3px 8px;
+      border-radius: 999px;
+      border: 1px solid rgba(148, 163, 184, 0.6);
+      background: rgba(15, 23, 42, 0.92);
+      font-size: 10px;
+      color: var(--muted);
+    }
+
+    .badge-dot-ok {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #4ade80;
+      box-shadow: 0 0 6px rgba(34, 197, 94, 0.8);
+    }
+
+    .badge-dot-bad {
+      width: 6px;
+      height: 6px;
+      border-radius: 999px;
+      background: #ef4444;
+      box-shadow: 0 0 6px rgba(239, 68, 68, 0.9);
+    }
+
+    a.link-inline {
+      color: #38bdf8;
+      text-decoration: none;
+      font-size: 11px;
+    }
+
+    a.link-inline:hover {
+      text-decoration: underline;
+    }
+  </style>
+</head>
+<body>
+  <div class="shell">
+    <header>
+      <div class="title-block">
+        <div class="logo-dot"></div>
+        <div class="title-text">
+          <h1>Solar Data Repair Console</h1>
+          <p>Mode-B Repair · Cache + Summary · Curve Consistency</p>
+        </div>
+      </div>
+      <div class="tags-row">
+        <div class="tag-pill"><span class="tag-dot"></span>Repair Mode-B</div>
+        <div class="tag-pill">Multi-table · REST-only</div>
+        <div class="tag-pill">Safe Backfill · 3-decimal curves</div>
+      </div>
+    </header>
+
+    <main>
+      <!-- LEFT: Actions + Metrics -->
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title"><span class="status-dot"></span> REPAIR ACTIONS</div>
+            <div class="card-subtitle">Trigger RepairCache &amp; RepairSummary using your local Functions host.</div>
+          </div>
+          <button id="btn-refresh" class="btn btn-secondary" type="button">
+            <span>⟳</span> Refresh Snapshot
+          </button>
+        </div>
+
+        <div class="grid-metrics" id="metrics-row">
+          <div class="metric">
+            <div class="metric-label">Cache Rows</div>
+            <div class="metric-value" id="metric-cache">–</div>
+            <div class="metric-hint" id="metric-cache-hint">InverterQueryCache</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Summary Rows</div>
+            <div class="metric-value" id="metric-summary">–</div>
+            <div class="metric-hint" id="metric-summary-hint">InverterDailySummary</div>
+          </div>
+          <div class="metric">
+            <div class="metric-label">Distinct Inverters</div>
+            <div class="metric-value" id="metric-inverters">–</div>
+            <div class="metric-hint metric-ok" id="metric-inverters-hint">–</div>
+          </div>
+        </div>
+
+        <div class="twocol">
+          <div>
+            <div class="field-group">
+              <div class="field-label">
+                <span>Functions host base URL</span>
+                <small>Local default is fine in most cases.</small>
+              </div>
+              <input id="input-base-url" type="text" value="http://localhost:7071" />
+            </div>
+
+            <div class="field-group">
+              <div class="field-label">
+                <span>Repair scope (days limit)</span>
+                <small>Must match REPAIR_DAYS_LIMIT env in Functions.</small>
+              </div>
+              <input id="input-days-limit" type="number" min="1" max="3650" value="180" />
+            </div>
+
+            <div class="field-group">
+              <div class="field-label">
+                <span>Raw tables in scope</span>
+                <small>Read from REPAIR_INVERTER_TABLES.</small>
+              </div>
+              <input id="input-raw-tables" type="text" placeholder="SungrowInverter125KW,..." />
+            </div>
+          </div>
+
+          <div>
+            <div class="field-group">
+              <div class="field-label">
+                <span>Quick blob check</span>
+                <small>Inverter ID + Date → Verify curve</small>
+              </div>
+              <div style="display:flex; gap:6px; margin-bottom:4px;">
+                <input id="input-check-inv" type="text" placeholder="Inverter_10" />
+                <input id="input-check-date" type="date" />
+              </div>
+              <button id="btn-verify-blob" class="btn btn-secondary" type="button">
+                <span>🔍</span> Verify Curve Blob
+              </button>
+            </div>
+
+            <div class="pill-row">
+              <div class="pill" id="pill-cache-status">Cache: –</div>
+              <div class="pill" id="pill-summary-status">Summary: –</div>
+              <div class="pill" id="pill-blob-status">Blob: –</div>
+            </div>
+          </div>
+        </div>
+
+        <hr class="hr-soft" />
+
+        <div style="display:flex; flex-wrap:wrap; gap:8px; justify-content:space-between; align-items:center; margin-top:4px;">
+          <div style="display:flex; flex-wrap:wrap; gap:8px;">
+            <button id="btn-run-cache" class="btn" type="button">
+              <span>⚡</span> Run RepairCache
+            </button>
+            <button id="btn-run-summary" class="btn" type="button">
+              <span>📈</span> Run RepairSummary
+            </button>
+            <button id="btn-consistency" class="btn btn-secondary" type="button">
+              <span>🧪</span> Consistency Scan
+            </button>
+          </div>
+          <div class="status-bar" id="status-bar">
+            <span><span class="status-chip-dot" id="status-dot"></span> Idle</span>
+            <span id="status-text">Waiting for commands…</span>
+          </div>
+        </div>
+      </section>
+
+      <!-- RIGHT: Console -->
+      <section class="card">
+        <div class="card-header">
+          <div>
+            <div class="card-title">LIVE LOG</div>
+            <div class="card-subtitle">Streaming output from repair endpoints.</div>
+          </div>
+          <button id="btn-clear-log" class="btn btn-secondary" type="button">
+            <span>🧹</span> Clear Log
+          </button>
+        </div>
+
+        <div class="console">
+          <div class="console-header">
+            <div class="console-header-left">
+              <div class="console-dots">
+                <div class="console-dot red"></div>
+                <div class="console-dot amber"></div>
+                <div class="console-dot green"></div>
+              </div>
+              <span id="console-title">repair@local &mdash; summary</span>
+            </div>
+            <div class="badge" id="badge-last-run">
+              <span class="badge-dot-ok"></span>
+              Last: not run
+            </div>
+          </div>
+          <div class="console-body" id="console-body"></div>
+        </div>
+
+        <div class="divider-label">Notes</div>
+        <div style="font-size:11px; color:var(--muted); display:flex; flex-wrap:wrap; gap:10px; justify-content:space-between;">
+          <div>
+            • Endpoints used:
+            <code style="font-family:inherit; font-size:11px; background:rgba(15,23,42,0.85); padding:2px 6px; border-radius:999px; border:1px solid rgba(31,41,55,0.9);">/api/repair/cache</code>
+            &amp;
+            <code style="font-family:inherit; font-size:11px; background:rgba(15,23,42,0.85); padding:2px 6px; border-radius:999px; border:1px solid rgba(31,41,55,0.9);">/api/repair/summary</code>
+          </div>
+          <div>
+            • Make sure Functions host is running:
+            <code style="font-family:inherit; font-size:11px; background:rgba(15,23,42,0.85); padding:2px 6px; border-radius:999px; border:1px solid rgba(31,41,55,0.9);">func start --functions RepairCache,RepairSummary</code>
+          </div>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <script>
+    // ===============================
+    // Small utilities
+    // ===============================
+    function $(id) {
+      return document.getElementById(id);
+    }
+
+    function log(line, level = "info") {
+      const body = $("console-body");
+      const div = document.createElement("div");
+      div.className = `log-line ${level}`;
+      const ts = new Date().toISOString().slice(11, 19);
+      div.textContent = `[${ts}] ${line}`;
+      body.appendChild(div);
+      body.scrollTop = body.scrollHeight;
+    }
+
+    function setStatus(state, text) {
+      const dot = $("status-dot");
+      const txt = $("status-text");
+      dot.classList.remove("busy", "err");
+      if (state === "busy") dot.classList.add("busy");
+      if (state === "error") dot.classList.add("err");
+      txt.textContent = text;
+    }
+
+    function setBadgeLastRun(label, ok = true) {
+      const badge = $("badge-last-run");
+      badge.innerHTML = `
+        <span class="${ok ? "badge-dot-ok" : "badge-dot-bad"}"></span>
+        Last: ${label}
+      `;
+    }
+
+    async function callApi(path, options = {}) {
+      const base = $("input-base-url").value.replace(/\/$/, "");
+      const url = base + path;
+      log(`HTTP → ${url}`, "debug");
+      const res = await fetch(url, {
+        method: options.method || "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: options.body ? JSON.stringify(options.body) : undefined,
+      });
+      let json = null;
+      try {
+        json = await res.json();
+      } catch (e) {
+        log("Response is not JSON; status=" + res.status, "error");
+      }
+      return { res, json };
+    }
+
+    function setPill(id, text, mode) {
+      const pill = $(id);
+      pill.classList.remove("ok", "warn", "bad");
+      if (mode) pill.classList.add(mode);
+      pill.textContent = text;
+    }
+
+    // ===============================
+    // Snapshot loader
+    // (You will implement /api/admin/repair-snapshot later if you like)
+    // For now, we call existing GetInverterData endpoints to estimate
+    // counts & distinct inverters.
+    // ===============================
+
+    async function refreshSnapshot() {
+      setStatus("busy", "Loading snapshot from cache & summary tables…");
+      log("Loading snapshot (this uses lightweight API calls or will stay placeholder).", "info");
+
+      // Placeholder: you can later wire this to a lightweight admin API.
+      // For now we just mark as unknown but keep UI working.
+      $("metric-cache").textContent = "?";
+      $("metric-summary").textContent = "?";
+      $("metric-inverters").textContent = "?";
+      $("metric-cache-hint").textContent = "Use Storage Explorer to confirm";
+      $("metric-summary-hint").textContent = "Use Storage Explorer to confirm";
+      $("metric-inverters-hint").textContent = "Snapshot API not wired yet";
+
+      setPill("pill-cache-status", "Cache table: unknown", "warn");
+      setPill("pill-summary-status", "Summary table: unknown", "warn");
+
+      setStatus("idle", "Snapshot placeholder shown. Optional to wire /api/repair/snapshot later.");
+    }
+
+    // ===============================
+    // Repair triggers
+    // ===============================
+    async function runRepairCache() {
+      setStatus("busy", "Running RepairCache (Mode-B)…");
+      setBadgeLastRun("RepairCache running…", true);
+      log("▶ RepairCache started (check Functions console for detailed writes)", "info");
+
+      try {
+        const { res, json } = await callApi("/api/repair/cache");
+        if (!res.ok) {
+          log(`RepairCache HTTP ${res.status}`, "error");
+          setStatus("error", "RepairCache failed (see log)");
+          setBadgeLastRun("RepairCache failed", false);
+          return;
+        }
+        log("RepairCache finished.", "success");
+        if (json) {
+          log(JSON.stringify(json, null, 2), "debug");
+        }
+        setStatus("idle", "RepairCache completed successfully.");
+        setBadgeLastRun("RepairCache OK", true);
+      } catch (err) {
+        log("RepairCache exception: " + err, "error");
+        setStatus("error", "RepairCache threw an exception.");
+        setBadgeLastRun("RepairCache error", false);
+      }
+    }
+
+    async function runRepairSummary() {
+      setStatus("busy", "Running RepairSummary (Mode-C)…");
+      setBadgeLastRun("RepairSummary running…", true);
+      log("▶ RepairSummary started (check Functions console for detailed writes)", "info");
+
+      try {
+        const { res, json } = await callApi("/api/repair/summary");
+        if (!res.ok) {
+          log(`RepairSummary HTTP ${res.status}`, "error");
+          setStatus("error", "RepairSummary failed (see log)");
+          setBadgeLastRun("RepairSummary failed", false);
+          return;
+        }
+        log("RepairSummary finished.", "success");
+        if (json) {
+          log(JSON.stringify(json, null, 2), "debug");
+        }
+        setStatus("idle", "RepairSummary completed successfully.");
+        setBadgeLastRun("RepairSummary OK", true);
+      } catch (err) {
+        log("RepairSummary exception: " + err, "error");
+        setStatus("error", "RepairSummary threw an exception.");
+        setBadgeLastRun("RepairSummary error", false);
+      }
+    }
+
+    async function runConsistencyScan() {
+      setStatus("busy", "Running basic consistency hints…");
+      log("▶ Consistency scan is currently a UI-only helper.", "info");
+      log(
+        "You can later wire this to a dedicated /api/repair/scan endpoint that returns table counts & gaps.",
+        "debug"
+      );
+      setStatus("idle", "Consistency helper finished (no remote calls yet).");
+    }
+
+    // ===============================
+    // Blob verifier (purely naming check + HTTP HEAD)
+    // ===============================
+    async function verifyBlob() {
+      const inv = $("input-check-inv").value.trim();
+      const date = $("input-check-date").value;
+      if (!inv || !date) {
+        log("Blob verify: please enter inverter ID and date.", "error");
+        return;
+      }
+
+      const safe = inv.replace(/^Inverter_/, "");
+      const file = `Inverter_${safe}_${date}.json`;
+
+      // We cannot see your BLOB_SAS_URL from browser (env var is server-side),
+      // so this verifier is mainly for naming & post-check once you paste the URL.
+      // If you want full HEAD check, you can extend this page later with a
+      // config field for BLOB_SAS_URL.
+
+      log(`Curve blob should be named: ${file}`, "info");
+      setPill("pill-blob-status", `Blob name: ${file}`, "ok");
+    }
+
+    // ===============================
+    // Init wiring
+    // ===============================
+    window.addEventListener("DOMContentLoaded", () => {
+      $("btn-refresh").addEventListener("click", refreshSnapshot);
+      $("btn-run-cache").addEventListener("click", runRepairCache);
+      $("btn-run-summary").addEventListener("click", runRepairSummary);
+      $("btn-consistency").addEventListener("click", runConsistencyScan);
+      $("btn-clear-log").addEventListener("click", () => {
+        $("console-body").innerHTML = "";
+        log("Console cleared.", "debug");
+      });
+      $("btn-verify-blob").addEventListener("click", verifyBlob);
+
+      // Initial message
+      log("Repair dashboard loaded. Set base URL if different, then run RepairCache / RepairSummary.", "info");
+      refreshSnapshot();
+    });
+  </script>
+</body>
+</html>
