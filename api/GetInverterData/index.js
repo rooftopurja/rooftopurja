@@ -121,7 +121,7 @@ async function tableReadAll(tableName, filter) {
    ============================================================================ */
 async function loadCurveBlob(inv, dateStr) {
     if (!CURVE_BASE || !CURVE_SAS) return [];
-    const file = `${inv}_${dateStr}.json`;
+    const file = `Inverter_${inv}_${dateStr}.json`;
     const url = `${CURVE_BASE}/${file}?${CURVE_SAS}`;
 
     try {
