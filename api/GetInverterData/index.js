@@ -122,22 +122,18 @@ async function tableReadAll(tableName, filter) {
 async function loadCurveBlob(inv, dateStr) {
     if (!CURVE_BASE || !CURVE_SAS) return [];
 
-    const candidates = [
-        `Inverter_${inv}_${dateStr}.json`,
-        `${inv}_${dateStr}.json`
-    ];
+    // 🔑 force correct folder + naming
+    const invId = String(inv).replace(/^Inverter_/, "");
+    const file = `Inverter_${invId}_${dateStr}.json`;
 
-    for (const file of candidates) {
-        const url = `${CURVE_BASE}/${file}?${CURVE_SAS}`;
-        try {
-            const data = await httpGET(url);
-            if (Array.isArray(data) && data.length) return data;
-        } catch (_) {
-            // try next pattern
-        }
+    const url = `${CURVE_BASE}/Inverter/${file}?${CURVE_SAS}`;
+
+    try {
+        const data = await httpGET(url);
+        return Array.isArray(data) ? data : [];
+    } catch {
+        return [];
     }
-
-    return [];
 }
 
 /* ============================================================================
