@@ -119,14 +119,10 @@ async function tableReadAll(tableName, filter) {
 /* ============================================================================
    BLOB CURVE LOADING (same format as timers: Inverter_<ID>_<YYYY-MM-DD>.json)
    ============================================================================ */
-async function loadCurveBlob(inv, dateStr) {
-    if (!CURVE_BASE || !CURVE_SAS) return [];
+async function loadCurveBlob(blobName) {
+    if (!CURVE_BASE || !CURVE_SAS || !blobName) return [];
 
-    // 🔑 force correct folder + naming
-    const invId = String(inv).replace(/^Inverter_/, "");
-    const file = `Inverter_${invId}_${dateStr}.json`;
-
-    const url = `${CURVE_BASE}/Inverter/${file}?${CURVE_SAS}`;
+    const url = `${CURVE_BASE}/${blobName}?${CURVE_SAS}`;
 
     try {
         const data = await httpGET(url);
@@ -298,8 +294,15 @@ module.exports = async function (context, req) {
     // 🔥 PARALLEL curve load
     const curve = {};
     const blobs = await Promise.all(
-        invList.map(inv => loadCurveBlob(inv, effDate))
-    );
+    invList.map(inv => {
+        const row =
+            cache.find(r => r.Inverter_ID === inv && r.Date === effDate) ||
+            summary.find(r => r.Inverter_ID === inv && r.Date === effDate);
+
+        return loadCurveBlob(row?.CurveBlob);
+    })
+);
+
 
     blobs.forEach(rows => {
         rows.forEach(r => {
