@@ -283,7 +283,18 @@ async function fetchOverview() {
     if (!plant || !inverter || !date) return;
 
     try {
-        const r = await fetch(`http://localhost:7071/api/GetInverterDataOverview?plant=${encodeURIComponent(plant)}&inverter=${encodeURIComponent(inverter)}&date=${date}`);
+        const token = localStorage.getItem("urja_token");
+
+        const r = await fetch(
+            `/api/GetInverterDataOverview?plant=${encodeURIComponent(plant)}&inverter=${encodeURIComponent(inverter)}&date=${date}`,
+            {
+                cache: "no-store",
+                headers: {
+                    "x-urja-token": token
+                }
+            }
+        );
+
         const j = await r.json();
 
         if (!j.success || !j.record) {
@@ -298,7 +309,9 @@ async function fetchOverview() {
         drawAC(d);
         drawMPPT(d);
 
-    } catch (e) { console.error(e); }
+    } catch (e) {
+        console.error("GetInverterDataOverview error:", e);
+    }
 }
 
 // ------------------------------ GENERAL INFO -------------------------------------
