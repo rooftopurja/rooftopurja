@@ -226,7 +226,7 @@ async function loadPlantDirectory() {
             return;
         }
 
-        const r = await fetch("http://localhost:7071/api/PlantDirectory", {
+        const r = await fetch("/api/PlantDirectory", {
             headers: {
                 "Accept": "application/json",
                 "x-urja-token": token
