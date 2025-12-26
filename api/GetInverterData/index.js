@@ -18,9 +18,13 @@ const https = require("https");
 /* ============================================================================
    ENV
    ============================================================================ */
-const ACCOUNT = "solariothubstorage";
-const TABLE_SAS = process.env.TABLE_SAS;                       // your master SAS (tables)
-const TABLE_ENDPOINT = `https://${ACCOUNT}.table.core.windows.net`;
+const TABLE_ENDPOINT =
+  process.env.TABLE_STORAGE_URL ||
+  process.env.AZURE_TABLE_ENDPOINT;
+
+const TABLE_SAS =
+  process.env.TABLE_STORAGE_SAS ||
+  process.env.TABLE_SAS;
 
 const PLANT_TABLE = process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
 const CACHE_TABLE = "InverterQueryCache";
