@@ -23,7 +23,7 @@
   }
 
   // 🔹 Functions host (for local dev use port 7071)
-  const API_BASE = (window.URJA_API_BASE || "http://localhost:7071") + "/api";
+const API_BASE = "/api";
 
   async function safeJson(resp) {
     const ct = resp.headers.get("content-type") || "";
@@ -48,7 +48,10 @@
         const r = await fetch(`${API_BASE}/RefreshToken`, {
           method: "GET",
           cache: "no-store",
-          headers: { "x-urja-refresh": refresh }
+          headers: {
+  "Authorization": `Bearer ${refresh}`
+}
+
         });
 
         if (r.ok) {
@@ -81,7 +84,10 @@
       const r = await fetch(`${API_BASE}/GetUserAccess`, {
         method: "GET",
         cache: "no-store",
-        headers: { "x-urja-token": token }
+        headers: {
+  "Authorization": `Bearer ${token}`
+}
+
       });
 
       if (!r.ok) {

@@ -411,9 +411,29 @@ fetch("common/header.v2.html")
 <script>
 console.log("Meter page starting…");
 Chart.register(ChartDataLabels);
+/* 🔐 AUTH FETCH WRAPPER — SINGLE SOURCE */
+function authFetch(url, options = {}) {
+  const token = localStorage.getItem("urja_token");
+
+  if (!token) {
+    window.location.replace("login.html");
+    throw new Error("No auth token");
+  }
+
+  return fetch(url, {
+    ...options,
+    cache: "no-store",
+    headers: {
+      ...(options.headers || {}),
+      "Authorization": `Bearer ${token}`,
+      "Content-Type": "application/json"
+    }
+  });
+}
+
 
 /* TOKEN-AWARE API CALLER */
-const API_URL = "http://localhost:7071/api/GetMeterData";
+const API_URL = "/api/GetMeterData";
 
 /* FORMATTER: kWh → MWh / GWh / TWh */
 function fmtUnit(v) {
@@ -566,12 +586,7 @@ function buildPlantMenu() {
    FETCH METER DATA (PERIOD-AWARE)
 ====================================================== */
 async function fetchMeter() {
-  const token = localStorage.getItem("urja_token");
-  if (!token) {
-    location.href = "login.html";
-    return;
-  }
-
+  
   const ids = selPlants();
   const plantsParam = ids ? ids.join(",") : "";
 
@@ -628,10 +643,7 @@ if (plantsParam) qs.set("plants", plantsParam);
   const url = `${API_URL}?${qs.toString()}`;
 console.log("FETCH URL =>", url);
 
-const r = await fetch(url, {
-  cache: "no-store",
-  headers: { "x-urja-token": token }
-});
+const r = await authFetch(url);
 
 if (!r.ok) {
   console.error("Meter API failed", r.status);
@@ -1044,7 +1056,7 @@ if (period !== "date") {
    INIT
 ====================================================== */
 document.addEventListener("DOMContentLoaded", () => {
-  fetchMeter();
+  setTimeout(fetchMeter, 200);
 
   document.getElementById("barPrev").onclick = () => {
     const totalDays = cache?.allDays?.length || 0;
