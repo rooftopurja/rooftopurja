@@ -1,17 +1,12 @@
 "use strict";
 
-let EmailClient;
-function getEmailClient() {
-  if (!EmailClient) {
-    ({ EmailClient } = require("@azure/communication-email"));
-  }
-  return EmailClient;
-}
-
+const { EmailClient } = require("@azure/communication-email");
 const OTP_CACHE = require("../shared/otp_cache");
 
+const ACS_CONNECTION_STRING =
+  `endpoint=${process.env.ACS_ENDPOINT};accesskey=${process.env.ACS_KEY}`;
+
 const SENDER = process.env.ACS_EMAIL_SENDER;
-const ACS_CONN = process.env.COMMUNICATION_SERVICES_CONNECTION_STRING;
 
 function generateOtp() {
   return String(Math.floor(100000 + Math.random() * 900000));
@@ -19,10 +14,6 @@ function generateOtp() {
 
 module.exports = async function (context, req) {
   try {
-    if (!ACS_CONN || !SENDER) {
-      throw new Error("ACS Email configuration missing");
-    }
-
     const email = (req.query.email || "").trim().toLowerCase();
     if (!email) {
       context.res = { status: 400, body: { success: false, error: "Email missing" } };
@@ -35,27 +26,32 @@ module.exports = async function (context, req) {
       expires: Date.now() + 5 * 60 * 1000
     };
 
-    const Client = getEmailClient();
-    const client = new Client(ACS_CONN);
+    const client = new EmailClient(ACS_CONNECTION_STRING);
 
-    const poller = await client.beginSend({
-      senderAddress: SENDER,
+    await client.send({
+      senderAddress: {
+        address: SENDER,
+        displayName: "Rooftop Urja"
+      },
       content: {
         subject: "Your Rooftop Urja Login OTP",
-        html: `<h2 style="letter-spacing:2px">${otp}</h2>
-               <p>Valid for 5 minutes</p>`
+        html: `
+          <div style="font-family:Arial">
+            <h2>Your OTP</h2>
+            <h1 style="letter-spacing:3px">${otp}</h1>
+            <p>Valid for 5 minutes</p>
+          </div>
+        `
       },
       recipients: {
         to: [{ address: email }]
       }
     });
 
-    await poller.pollUntilDone();
-
     context.res = { status: 200, body: { success: true } };
 
   } catch (err) {
-    context.log("❌ SendOtp failed:", err);
+    context.log.error("❌ SendOtp error:", err);
     context.res = {
       status: 500,
       body: { success: false, error: "OTP send failed" }
