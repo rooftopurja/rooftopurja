@@ -18,13 +18,9 @@ const https = require("https");
 /* ============================================================================
    ENV
    ============================================================================ */
-const TABLE_ENDPOINT =
-  process.env.TABLE_STORAGE_URL ||
-  process.env.AZURE_TABLE_ENDPOINT;
-
-const TABLE_SAS =
-  process.env.TABLE_STORAGE_SAS ||
-  process.env.TABLE_SAS;
+const ACCOUNT = "solariothubstorage";
+const TABLE_SAS = process.env.TABLE_SAS;                       // your master SAS (tables)
+const TABLE_ENDPOINT = `https://${ACCOUNT}.table.core.windows.net`;
 
 const PLANT_TABLE = process.env.PLANT_DIRECTORY_TABLE || "PlantDirectory";
 const CACHE_TABLE = "InverterQueryCache";
@@ -119,10 +115,10 @@ async function tableReadAll(tableName, filter) {
 /* ============================================================================
    BLOB CURVE LOADING (same format as timers: Inverter_<ID>_<YYYY-MM-DD>.json)
    ============================================================================ */
-async function loadCurveBlob(blobName) {
-    if (!CURVE_BASE || !CURVE_SAS || !blobName) return [];
-
-    const url = `${CURVE_BASE}/${blobName}?${CURVE_SAS}`;
+async function loadCurveBlob(inv, dateStr) {
+    if (!CURVE_BASE || !CURVE_SAS) return [];
+    const file = `${inv}_${dateStr}.json`;
+    const url = `${CURVE_BASE}/${file}?${CURVE_SAS}`;
 
     try {
         const data = await httpGET(url);
@@ -294,15 +290,8 @@ module.exports = async function (context, req) {
     // 🔥 PARALLEL curve load
     const curve = {};
     const blobs = await Promise.all(
-    invList.map(inv => {
-        const row =
-            cache.find(r => r.Inverter_ID === inv && r.Date === effDate) ||
-            summary.find(r => r.Inverter_ID === inv && r.Date === effDate);
-
-        return loadCurveBlob(row?.CurveBlob);
-    })
-);
-
+        invList.map(inv => loadCurveBlob(inv, effDate))
+    );
 
     blobs.forEach(rows => {
         rows.forEach(r => {
