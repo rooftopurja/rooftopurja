@@ -59,15 +59,12 @@
     <button id="btnSendOtp">Send OTP</button>
 
     <input type="text" id="otp" placeholder="Enter OTP" style="display:none" />
-    <input type="text" id="otp" placeholder="Enter OTP" style="display:none" />
-<button id="btnVerify" style="display:none">Verify</button>
+    <button id="btnVerify" style="display:none">Verify</button>
 
     <div class="note">By logging in, you consent to secure OTP-based access.</div>
   </div>
 
   <script>
-   <script>
-  // Azure Static Web Apps automatically maps /api → Functions
   const API_BASE = "/api";
 
   async function sendOtp() {
@@ -77,25 +74,20 @@
       return;
     }
 
-    try {
-      const res = await fetch(
-        `${API_BASE}/SendOtp?email=${encodeURIComponent(email)}`,
-        { method: "GET", cache: "no-store" }
-      );
+    const res = await fetch(
+      `${API_BASE}/SendOtp?email=${encodeURIComponent(email)}`,
+      { cache: "no-store" }
+    );
 
-      const data = await res.json();
-
-      if (data.success === true) {
-        document.getElementById("otp").style.display = "block";
-        document.getElementById("btnVerify").style.display = "block";
-        alert("OTP sent to " + email);
-      } else {
-        alert(data.error || "OTP send failed");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("Error sending OTP");
+    const data = await res.json();
+    if (!data.success) {
+      alert(data.error || "OTP send failed");
+      return;
     }
+
+    document.getElementById("otp").style.display = "block";
+    document.getElementById("btnVerify").style.display = "block";
+    alert("OTP sent");
   }
 
   async function verifyOtp() {
@@ -107,39 +99,30 @@
       return;
     }
 
-    try {
-      const res = await fetch(`${API_BASE}/VerifyOtp`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, otp })
-      });
+    const res = await fetch(`${API_BASE}/VerifyOtp`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, otp })
+    });
 
-      const data = await res.json();
-
-      if (data.success === true) {
-        localStorage.setItem("urja_token", data.session_token);
-        localStorage.setItem("urja_refresh", data.refresh_token);
-        localStorage.setItem("urja_email", data.email);
-
-        window.location.replace("meter.v2.html");
-      } else {
-        alert(data.error || "Invalid OTP");
-      }
-    } catch (e) {
-      console.error(e);
-      alert("Error verifying OTP");
+    const data = await res.json();
+    if (!data.success) {
+      alert(data.error || "Invalid OTP");
+      return;
     }
+
+    localStorage.setItem("urja_token", data.session_token);
+    localStorage.setItem("urja_refresh", data.refresh_token);
+    localStorage.setItem("urja_email", data.email);
+
+    window.location.replace("meter.v2.html");
   }
 
-  // SAFE EVENT BINDING (NO INLINE JS)
   document.addEventListener("DOMContentLoaded", () => {
-    document.getElementById("btnSendOtp")
-      .addEventListener("click", sendOtp);
-
-    document.getElementById("btnVerify")
-      .addEventListener("click", verifyOtp);
+    document.getElementById("btnSendOtp").onclick = sendOtp;
+    document.getElementById("btnVerify").onclick = verifyOtp;
   });
 </script>
-  </script>
+
 </body>
 </html>
