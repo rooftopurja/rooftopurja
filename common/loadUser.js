@@ -140,7 +140,7 @@ document.querySelectorAll(".navbar-menu a").forEach(a => {
       }
     } catch (err) {
       console.error("loadUser.js GetUserAccess error:", err);
-      window.location.href = "login.html";
+      window.location.replace("login.html");
     }
   }
 
