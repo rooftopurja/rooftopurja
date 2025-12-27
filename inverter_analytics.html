@@ -32,7 +32,9 @@ body{
   background:var(--bg);
   font-family:"Segoe UI",sans-serif;
   color:var(--text);
+  display:block;              /* 🔑 remove flex stretching */
 }
+
 #header{ position:sticky; top:0; z-index:100; }
 
 .stage{
@@ -304,6 +306,15 @@ select, button, input[type="date"]{
 /* FORCE BODY VISIBLE IMMEDIATELY */
 body {
   opacity: 1 !important;
+}
+
+/* 🔑 Match Meter / Overview page ending */
+.stage {
+  min-height: auto;
+}
+
+.chart-grid {
+  align-items: flex-start;   /* stop vertical stretch */
 }
 
 </style>
