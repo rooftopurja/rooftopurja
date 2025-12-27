@@ -241,42 +241,83 @@ th { background: #f1f6fd; }
 }
 
 
-.kpi .main { font-size: 2rem; color: var(--blue); font-weight: 800; }
-.kpi .delta { font-size: .9rem; color: var(--orange); margin-top: 6px; }
-.kpi .asof { font-size: .78rem; margin-top: 4px; }
 
-/* ===== KPI CARD — CENTER CONTENT ONLY ===== */
-.kpi {
-  align-items: stretch; /* keep heading full width */
+/* ======================
+   CHART CANVAS
+====================== */
+.chart {
+  flex: 1;
+  min-height: 0;   /* allow grid to control height */
 }
 
-.kpi .main,
-.kpi .delta,
-.kpi .asof {
+.chart canvas {
+  width: 100% !important;
+  height: 100% !important;
+}
+
+/* ======================
+   KPI CARD — CENTER CONTENT (NOT HEADING)
+====================== */
+.kpi {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;   /* vertical center */
+  align-items: center;       /* horizontal center */
+}
+
+.kpi .main {
+  font-size: 2rem;
+  color: var(--blue);
+  font-weight: 800;
   text-align: center;
   width: 100%;
 }
 
+.kpi .delta {
+  font-size: .9rem;
+  color: var(--orange);
+  margin-top: 6px;
+  text-align: center;
+  width: 100%;
+}
 
-/* ===== PIE CHART — FORCE PERFECT CIRCLE (GRID SAFE) ===== */
+.kpi .asof {
+  font-size: .78rem;
+  margin-top: 4px;
+  text-align: center;
+  width: 100%;
+}
+
+/* ======================
+   PIE CHART — PERFECT CIRCLE
+====================== */
 .pie-card {
   display: flex;
   flex-direction: column;
 }
 
 .pie-card .chart {
-  flex: 1;                 /* 🔑 occupies grid cell height */
+  flex: 1;
   display: flex;
   align-items: center;
   justify-content: center;
 }
 
 .pie-card canvas {
-  aspect-ratio: 1 / 1;     /* 🔑 perfect circle */
+  aspect-ratio: 1 / 1;
   max-width: 100%;
   max-height: 100%;
 }
 
+/* ======================
+   PLANT LABEL
+====================== */
 .plant-label {
   display: flex;
   align-items: center;
@@ -288,6 +329,7 @@ th { background: #f1f6fd; }
   font-size: 1rem;
   line-height: 1;
 }
+
 
 /* ===== KPI CARD — CENTER CONTENT (NOT HEADING) ===== */
 .kpi {
@@ -309,7 +351,6 @@ th { background: #f1f6fd; }
   text-align: center;
   width: 100%;
 }
-
 
 </style>
 
@@ -425,7 +466,7 @@ fetch("common/header.v2.html")
   <!-- BAR + LINE CHART -->
  <div class="card">
   <h2>
-    Energy (Last Days)
+    Energy (Last 9 Days)
     <span style="float:right; display:flex; gap:6px;">
       <button id="barPrev" class="bar-nav">◀</button>
       <button id="barNext" class="bar-nav">▶</button>
