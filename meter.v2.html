@@ -230,18 +230,6 @@ th, td {
 }
 th { background: #f1f6fd; }
 
-.chart {
-  flex: 1;
-  min-height: 0;   /* 🔑 allow grid to control height */
-}
-
-.chart canvas {
-  width: 100% !important;
-  height: 100% !important;
-}
-
-
-
 /* ======================
    CHART CANVAS
 ====================== */
@@ -331,27 +319,6 @@ th { background: #f1f6fd; }
 }
 
 
-/* ===== KPI CARD — CENTER CONTENT (NOT HEADING) ===== */
-.kpi {
-  display: flex;
-  flex-direction: column;
-}
-
-.kpi-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;   /* vertical center */
-  align-items: center;       /* horizontal center */
-}
-
-.kpi .main,
-.kpi .delta,
-.kpi .asof {
-  text-align: center;
-  width: 100%;
-}
-
 </style>
 
 </head>
@@ -440,28 +407,6 @@ fetch("common/header.v2.html")
     <div id="asof" class="asof">As of --</div>
   </div>
 </div>
-
-/* ===== KPI CARD — CENTER CONTENT (NOT HEADING) ===== */
-.kpi {
-  display: flex;
-  flex-direction: column;
-}
-
-.kpi-body {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;   /* vertical center */
-  align-items: center;       /* horizontal center */
-}
-
-.kpi .main,
-.kpi .delta,
-.kpi .asof {
-  text-align: center;
-  width: 100%;
-}
-
 
   <!-- BAR + LINE CHART -->
  <div class="card">
