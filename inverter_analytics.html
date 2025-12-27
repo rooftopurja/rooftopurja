@@ -39,7 +39,7 @@ body{
 
 .stage{
   max-width:var(--maxw);
-  margin:10px auto;
+  margin:16px auto 10px;
   padding:var(--pad);
   background:#fff;
   border-radius:12px;
@@ -47,6 +47,9 @@ body{
   display:flex;
   flex-direction:column;
   gap:16px;
+
+  /* 🔑 MATCH METER PAGE */
+  height: calc(100vh - 80px);
 }
 
 /* ======================
@@ -190,37 +193,48 @@ select, button, input[type="date"]{
 }
 
 /* ======================
-   CHART GRID
+   CHART GRID — FINAL (Analytics)
 ====================== */
 .chart-grid{
-  display:grid;
-  grid-template-columns:1fr 1fr;
-  gap:14px;
-  align-items:stretch;   /* 🔑 force same height */
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
 }
 
-/* Chart cards equal height */
+/* Chart card */
 .chart-card{
-  background:#fff;
-  padding:12px;
-  border-radius:10px;
-  box-shadow:var(--shadow);
-
-  min-height:350px;        /* ✅ was height */
-  display:flex;
-  flex-direction:column;
-
-  overflow:hidden;
-  position:relative;
+  background: #fff;
+  padding: 12px;
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+  height: 350px;              /* 🔑 MATCH meter page visual height */
+  position: relative;
 }
 
+/* Card title */
 .chart-card h2{
-  margin:0;
-  font-size:.95rem;
-  font-weight:700;
-  border-left:4px solid var(--blue);
-  padding-left:6px;
+  margin: 0;
+  font-size: .95rem;
+  font-weight: 700;
+  border-left: 4px solid var(--blue);
+  padding-left: 6px;
 }
+
+/* Chart container must stretch */
+.chart{
+  flex: 1;
+  min-height: 0;
+  display: flex;
+}
+
+/* Canvas must fill container */
+.chart canvas{
+  width: 100% !important;
+  height: 100% !important;
+}
+
 
 /* ======================
    POWER CURVE HEADER

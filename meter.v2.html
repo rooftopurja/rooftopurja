@@ -289,6 +289,28 @@ th { background: #f1f6fd; }
   line-height: 1;
 }
 
+/* ===== KPI CARD — CENTER CONTENT (NOT HEADING) ===== */
+.kpi {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;   /* vertical center */
+  align-items: center;       /* horizontal center */
+}
+
+.kpi .main,
+.kpi .delta,
+.kpi .asof {
+  text-align: center;
+  width: 100%;
+}
+
+
 </style>
 
 </head>
@@ -371,13 +393,33 @@ fetch("common/header.v2.html")
 <div class="card kpi">
   <h2>Total Yield (Selected Plants)</h2>
 
-  <!-- 🔑 Centered KPI content -->
-  <div class="kpi-content">
+  <div class="kpi-body">
     <div id="kpi" class="main">--</div>
     <div id="delta" class="delta" style="display:none;"></div>
     <div id="asof" class="asof">As of --</div>
   </div>
 </div>
+
+/* ===== KPI CARD — CENTER CONTENT (NOT HEADING) ===== */
+.kpi {
+  display: flex;
+  flex-direction: column;
+}
+
+.kpi-body {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;   /* vertical center */
+  align-items: center;       /* horizontal center */
+}
+
+.kpi .main,
+.kpi .delta,
+.kpi .asof {
+  text-align: center;
+  width: 100%;
+}
 
 
   <!-- BAR + LINE CHART -->
