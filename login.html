@@ -70,6 +70,12 @@
     // Azure Static Web Apps automatically maps /api → Functions
     const API_BASE = "/api";
 
+    / ✅ VERY IMPORTANT: clear any stale session on login page
+  sessionStorage.removeItem("urja_logged_out");
+  localStorage.removeItem("urja_token");
+  localStorage.removeItem("urja_refresh");
+  localStorage.removeItem("urja_email");
+
     async function sendOtp() {
       const email = document.getElementById("email").value.trim().toLowerCase();
 

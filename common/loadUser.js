@@ -165,11 +165,11 @@ document.addEventListener("click", (e) => {
     // explicit logout marker
     sessionStorage.setItem("urja_logged_out", "1");
 
-    localStorage.removeItem("urja_token");
-    localStorage.removeItem("urja_refresh");
-    localStorage.removeItem("urja_email");
+// clear auth
+localStorage.clear();
 
-    window.location.href = "login.html";
+// hard redirect (prevents token refresh race)
+window.location.replace("login.html");
   }
 });
 
