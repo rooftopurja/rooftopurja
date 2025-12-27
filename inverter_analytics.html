@@ -48,8 +48,8 @@ body{
   flex-direction:column;
   gap:16px;
 
-  /* 🔑 MATCH METER PAGE */
-  height: calc(100vh - 80px);
+  /* ✅ match Meter page behavior */
+  min-height: calc(100vh - 80px);
 }
 
 /* ======================
@@ -209,12 +209,14 @@ select, button, input[type="date"]{
   padding: 12px;
   border-radius: 10px;
   box-shadow: var(--shadow);
+
+  /* ✅ SINGLE hard boundary — prevents infinite resize loop */
+  height: 360px;
+
   display: flex;
   flex-direction: column;
   position: relative;
-
-  height: 360px;        /* ✅ HARD STOP — prevents growth */
-  min-height: 360px;
+  overflow: hidden;   /* ✅ important */
 }
 
 .chart-card h2 {
