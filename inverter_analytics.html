@@ -212,6 +212,9 @@ select, button, input[type="date"]{
   display: flex;
   flex-direction: column;
   position: relative;
+
+  height: 360px;        /* ✅ HARD STOP — prevents growth */
+  min-height: 360px;
 }
 
 .chart-card h2 {
@@ -229,7 +232,7 @@ select, button, input[type="date"]{
 
 .chart canvas {
   width: 100% !important;
-  height: 100% !important;
+  height: auto !important;   /* ✅ breaks resize loop */
 }
 
 
