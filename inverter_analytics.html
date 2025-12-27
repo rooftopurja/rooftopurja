@@ -714,16 +714,38 @@ function drawPowerCurve(j){
   const mode=document.querySelector(".toggle-btn.active").dataset.m;
   const data=j.powerCurve||[];
 
-  const labels=[];
-  const list=[];
+  const labels = [];
+const hourMap = {};
 
-  for(let hr=5; hr<=19; hr++){
-    const t=`${hr.toString().padStart(2,"0")}:00`;
-    labels.push(t);
+// bucket all blob points into hours
+data.forEach(r => {
+  const h = parseInt((r.Time || "00:00").slice(0,2));
+  if (h < 5 || h > 19) return;
 
-    const row = data.find(x => (x.Time||"").slice(0,5) === t);
-    list.push(row || {AC:0,DC:0});
+  if (!hourMap[h]) {
+    hourMap[h] = { AC: 0, DC: 0, c: 0 };
   }
+
+  hourMap[h].AC += Number(r.AC || 0);
+  hourMap[h].DC += Number(r.DC || 0);
+  hourMap[h].c++;
+});
+
+// build hourly averaged list
+const list = [];
+for (let hr = 5; hr <= 19; hr++) {
+  labels.push(`${hr.toString().padStart(2,"0")}:00`);
+
+  if (hourMap[hr]) {
+    list.push({
+      AC: hourMap[hr].AC / hourMap[hr].c,
+      DC: hourMap[hr].DC / hourMap[hr].c
+    });
+  } else {
+    list.push({ AC: 0, DC: 0 });
+  }
+}
+
 
   const AC=list.map(x=>x.AC);
   const DC=list.map(x=>x.DC);
