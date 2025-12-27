@@ -199,6 +199,9 @@ select, button, input[type="date"]{
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 14px;
+
+ flex: 1;
+ min-height: 0;
 }
 
 .chart-card {
@@ -318,14 +321,6 @@ body {
   opacity: 1 !important;
 }
 
-/* 🔑 Match Meter / Overview page ending */
-.stage {
-  min-height: auto;
-}
-
-.chart-grid {
-  align-items: flex-start;   /* stop vertical stretch */
-}
 
 </style>
 </head>
