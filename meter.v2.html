@@ -453,14 +453,15 @@ function authFetch(url, options = {}) {
   }
 
   return fetch(url, {
-    ...options,
-    cache: "no-store",
-    headers: {
-      ...(options.headers || {}),
-      "Authorization": `Bearer ${token}`,
-      "Content-Type": "application/json"
-    }
-  });
+  ...options,
+  cache: "no-store",
+  credentials: "include",   // 🔑 REQUIRED FOR req.user
+  headers: {
+    ...(options.headers || {}),
+    "Authorization": `Bearer ${token}`,
+    "Content-Type": "application/json"
+  }
+});
 }
 
 

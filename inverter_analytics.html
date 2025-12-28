@@ -964,9 +964,16 @@ async function loadAnalytics() {
      MAIN PERIOD FETCH
   =============================== */
   const mainResp = await fetch(
-    `${API_BASE}/GetInverterData?${params.toString()}`,
-    { cache: "no-store", headers: { "x-urja-token": token } }
-  );
+  `${API_BASE}/GetInverterData?${params.toString()}`,
+  {
+    cache: "no-store",
+    credentials: "include",   // 🔑 REQUIRED
+    headers: {
+      "Authorization": `Bearer ${token}`  // 🔑 optional but OK
+    }
+  }
+);
+
 
   const j = await mainResp.json();
   if (seq !== requestSeq) return;
@@ -994,10 +1001,17 @@ console.log("POWER CURVE LENGTH:", j.powerCurve?.length);
       date
     });
 
-    const dayResp = await fetch(
-      `${API_BASE}/GetInverterData?${dayParams.toString()}`,
-      { cache: "no-store", headers: { "x-urja-token": token } }
-    ).then(r => r.json());
+   const dayResp = await fetch(
+  `${API_BASE}/GetInverterData?${dayParams.toString()}`,
+  {
+    cache: "no-store",
+    credentials: "include",   // 🔑 REQUIRED
+    headers: {
+      "Authorization": `Bearer ${token}`
+    }
+  }
+).then(r => r.json());
+
 
     if (dayResp.success) {
       dailyCurveCache = dayResp.powerCurve || [];
