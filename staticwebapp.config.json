@@ -1,7 +1,10 @@
 {
   "navigationFallback": {
     "rewrite": "/login.html",
-    "exclude": ["/api/*", "/.auth/*"]
+    "exclude": [
+      "/api/*",
+      "/.auth/*"
+    ]
   },
   "routes": [
     {
@@ -15,6 +18,10 @@
     {
       "route": "/api/VerifyOtp",
       "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/*",
+      "allowedRoles": ["authenticated"]
     }
   ]
 }

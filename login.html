@@ -74,39 +74,55 @@ h3 {
     <div class="note">By logging in, you consent to secure OTP-based access.</div>
   </div>
 
-<script>
-const API_BASE = "/api";
+"use strict";
 
-async function verifyOtp() {
-  const email = document.getElementById("email").value.trim().toLowerCase();
-  const otp = document.getElementById("otp").value.trim();
+const OTP_CACHE = require("../shared/otp_cache");
 
-  if (!email || !otp) {
-    alert("Enter email and OTP");
-    return;
+module.exports = async function (context, req) {
+  try {
+    const body  = req.body || {};
+    const email = (body.email || "").trim().toLowerCase();
+    const otp   = (body.otp || "").trim();
+
+    if (!email || !otp) {
+      context.res = { status: 400, body: { success: false, error: "Missing email or OTP" } };
+      return;
+    }
+
+    const entry = OTP_CACHE[email];
+
+    if (!entry) {
+      context.res = { status: 401, body: { success: false, error: "OTP expired" } };
+      return;
+    }
+
+    if (entry.otp !== otp) {
+      context.res = { status: 401, body: { success: false, error: "Invalid OTP" } };
+      return;
+    }
+
+    if (Date.now() > entry.expires) {
+      delete OTP_CACHE[email];
+      context.res = { status: 401, body: { success: false, error: "OTP expired" } };
+      return;
+    }
+
+    // ✅ consume OTP
+    delete OTP_CACHE[email];
+
+    // ✅ HAND OVER TO AZURE STATIC WEB APPS AUTH
+    context.res = {
+      status: 302,
+      headers: {
+        Location: `/.auth/login/custom?email=${encodeURIComponent(email)}`
+      }
+    };
+
+  } catch (err) {
+    context.log("VerifyOtp ERROR:", err);
+    context.res = { status: 500, body: { success: false, error: "Verify failed" } };
   }
-
-  const res = await fetch(`${API_BASE}/VerifyOtp`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, otp })
-  });
-
-  const data = await res.json();
-
-  if (!data.success) {
-    alert(data.error || "OTP verification failed");
-    return;
-  }
-
-  // ✅ STORE SESSION
-  localStorage.setItem("urja_token", data.session_token);
-  localStorage.setItem("urja_email", data.email);
-
-  // ✅ GO TO APP
-  window.location.replace("meter.v2.html");
-}
-</script>
+};
 
 
 
