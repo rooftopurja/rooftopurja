@@ -1,53 +1,13 @@
 "use strict";
 
-const https = require("https");
 const crypto = require("crypto");
+const { TableClient } = require("@azure/data-tables");
+const { EmailClient } = require("@azure/communication-email");
 
-/* ================= CONFIG ================= */
-const TABLE_SAS = process.env.TABLE_STORAGE_SAS;
 const TABLE = "OtpSessions";
+const OTP_TTL_MS = 5 * 60 * 1000;     // 5 min
+const RESEND_GAP_MS = 60 * 1000;      // 60 sec
 
-const OTP_TTL_MS = 5 * 60 * 1000;
-const RESEND_GAP_MS = 60 * 1000;
-
-const TABLE_ENDPOINT = process.env.TABLE_STORAGE_URL;
-
-/* ================= HTTP HELPERS ================= */
-function tableGET(url) {
-  return new Promise((resolve, reject) => {
-    https.get(url, { headers: { Accept: "application/json;odata=nometadata" } }, res => {
-      let buf = "";
-      res.on("data", d => buf += d);
-      res.on("end", () => {
-        if (res.statusCode >= 400) return reject(buf);
-        resolve(JSON.parse(buf || "{}"));
-      });
-    }).on("error", reject);
-  });
-}
-
-function tablePUT(url, entity) {
-  const body = JSON.stringify(entity);
-  return new Promise((resolve, reject) => {
-    const req = https.request(url, {
-      method: "PUT",
-      headers: {
-        "Accept": "application/json;odata=nometadata",
-        "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body)
-      }
-    }, res => {
-      if (res.statusCode < 300) return resolve();
-      let t = "";
-      res.on("data", d => t += d);
-      res.on("end", () => reject(t));
-    });
-    req.write(body);
-    req.end();
-  });
-}
-
-/* ================= FUNCTION ================= */
 module.exports = async function (context, req) {
   try {
     const email = (req.query.email || "").trim().toLowerCase();
@@ -56,40 +16,62 @@ module.exports = async function (context, req) {
       return;
     }
 
-    const pk = encodeURIComponent(email);
-    const rk = "otp";
+    /* ---------- TABLE ---------- */
+    const tableClient = TableClient.fromConnectionString(
+      process.env.TABLES_CONNECTION_STRING,
+      TABLE
+    );
 
-    // Check resend gap
     try {
-      const existing = await tableGET(
-        `${TABLE_ENDPOINT}/${TABLE}(PartitionKey='${pk}',RowKey='${rk}')?${TABLE_SAS}`
-      );
+      const existing = await tableClient.getEntity(email, "otp");
       if (Date.now() - existing.lastSent < RESEND_GAP_MS) {
-        context.res = { status: 429, body: { success: false, error: "Wait before resending OTP" } };
+        context.res = {
+          status: 429,
+          body: { success: false, error: "Wait before resending OTP" }
+        };
         return;
       }
     } catch (_) {}
 
     const otp = crypto.randomInt(100000, 999999).toString();
 
-    await tablePUT(
-      `${TABLE_ENDPOINT}/${TABLE}(PartitionKey='${pk}',RowKey='${rk}')?${TABLE_SAS}`,
-      {
-        PartitionKey: email,
-        RowKey: "otp",
-        otp,
-        attempts: 0,
-        lastSent: Date.now(),
-        expires: Date.now() + OTP_TTL_MS
-      }
+    await tableClient.upsertEntity({
+      partitionKey: email,
+      rowKey: "otp",
+      otp,
+      attempts: 0,
+      lastSent: Date.now(),
+      expires: Date.now() + OTP_TTL_MS
+    });
+
+    /* ---------- EMAIL (ACS) ---------- */
+    const emailClient = new EmailClient(
+      process.env.ACS_ENDPOINT,
+      { key: process.env.ACS_KEY }
     );
 
-    context.log("OTP SENT:", email, otp); // email gateway hooks here
+    const message = {
+      senderAddress: process.env.ACS_EMAIL_SENDER,
+      content: {
+        subject: "Your Rooftop Urja Login OTP",
+        plainText: `Your OTP is ${otp}. It is valid for 5 minutes.`,
+        html: `
+          <p>Your OTP for <b>Rooftop Urja</b> is:</p>
+          <h2>${otp}</h2>
+          <p>This OTP is valid for 5 minutes.</p>
+        `
+      },
+      recipients: {
+        to: [{ address: email }]
+      }
+    };
+
+    await emailClient.beginSend(message);
 
     context.res = { status: 200, body: { success: true } };
 
   } catch (err) {
     context.log("SendOtp ERROR", err);
-    context.res = { status: 500, body: { success: false, error: "OTP error" } };
+    context.res = { status: 500, body: { success: false } };
   }
 };

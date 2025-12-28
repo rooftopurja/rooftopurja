@@ -1,3 +1,4 @@
+
 {
   "name": "solar-api",
   "version": "1.0.0",
@@ -6,6 +7,7 @@
     "start": "func start"
   },
   "dependencies": {
-    "@azure/communication-email": "1.0.0"
+    "@azure/communication-email": "1.0.0",
+    "@azure/data-tables": "^13.2.0"
   }
 }
