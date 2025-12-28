@@ -25,10 +25,10 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // 🔥 Consume OTP
+    // ✅ Consume OTP
     await table.deleteEntity(pk, rk);
 
-    // 🔐 SWA LOGIN (CORRECT)
+    // ✅ CORRECT SWA AUTH HANDOFF
     context.res = {
       status: 302,
       headers: {
