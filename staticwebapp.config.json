@@ -11,6 +11,10 @@
     {
       "route": "/logout",
       "redirect": "/login.html"
+    },
+    {
+      "route": "/api/*",
+      "allowedRoles": ["authenticated"]
     }
   ]
 }
