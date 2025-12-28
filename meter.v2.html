@@ -448,10 +448,12 @@ function authFetch(url, options = {}) {
   return fetch(url, {
     ...options,
     cache: "no-store",
-    credentials: "include"   // 🔑 SWA identity ONLY
+    credentials: "same-origin",   // 🔑 REQUIRED FOR SWA
+    headers: {
+      ...(options.headers || {})
+    }
   });
 }
-
 
 /* TOKEN-AWARE API CALLER */
 const API_URL = "/api/GetMeterData";
