@@ -1,37 +1,27 @@
 "use strict";
 
-/*
-  SendOtp (SELF-CONTAINED REST)
-  ----------------------------
-  • Pure HTTPS + Table SAS
-  • No Azure SDK
-*/
-
 const https = require("https");
 const crypto = require("crypto");
 
-/* ================= ENV ================= */
-const ACCOUNT = "solariothubstorage";
+/* ================= CONFIG ================= */
+const ACCOUNT = process.env.TABLE_ACCOUNT;
 const TABLE_SAS = process.env.TABLE_SAS;
-const TABLE = process.env.OTP_TABLE || "OtpSessions";
+const TABLE = "OtpSessions";
+
+const OTP_TTL_MS = 5 * 60 * 1000;
+const RESEND_GAP_MS = 60 * 1000;
 
 const TABLE_ENDPOINT = `https://${ACCOUNT}.table.core.windows.net`;
 
-const OTP_TTL_MS = 5 * 60 * 1000;   // 5 minutes
-const RESEND_GAP_MS = 60 * 1000;    // 60 seconds
-
-/* ================= HELPERS ================= */
-
+/* ================= HTTP HELPERS ================= */
 function tableGET(url) {
   return new Promise((resolve, reject) => {
-    https.get(url, {
-      headers: { "Accept": "application/json;odata=nometadata" }
-    }, res => {
-      let body = "";
-      res.on("data", d => body += d);
+    https.get(url, { headers: { Accept: "application/json;odata=nometadata" } }, res => {
+      let buf = "";
+      res.on("data", d => buf += d);
       res.on("end", () => {
-        if (res.statusCode >= 400) return reject(new Error(body));
-        resolve(JSON.parse(body || "{}"));
+        if (res.statusCode >= 400) return reject(buf);
+        resolve(JSON.parse(buf || "{}"));
       });
     }).on("error", reject);
   });
@@ -43,14 +33,15 @@ function tablePUT(url, entity) {
     const req = https.request(url, {
       method: "PUT",
       headers: {
+        "Accept": "application/json;odata=nometadata",
         "Content-Type": "application/json",
         "Content-Length": Buffer.byteLength(body)
       }
     }, res => {
-      if (res.statusCode >= 200 && res.statusCode < 300) return resolve();
+      if (res.statusCode < 300) return resolve();
       let t = "";
       res.on("data", d => t += d);
-      res.on("end", () => reject(new Error(t)));
+      res.on("end", () => reject(t));
     });
     req.write(body);
     req.end();
@@ -58,40 +49,48 @@ function tablePUT(url, entity) {
 }
 
 /* ================= FUNCTION ================= */
-
 module.exports = async function (context, req) {
-  const email = (req.query.email || "").trim().toLowerCase();
-  if (!email) {
-    context.res = { status: 400, body: { success: false, error: "Email required" } };
-    return;
-  }
-
-  const rowUrl =
-    `${TABLE_ENDPOINT}/${TABLE}` +
-    `(PartitionKey='${encodeURIComponent(email)}',RowKey='otp')?${TABLE_SAS}`;
-
-  // Check resend gap
   try {
-    const existing = await tableGET(rowUrl);
-    if (Date.now() - existing.lastSent < RESEND_GAP_MS) {
-      context.res = { status: 429, body: { success: false, error: "Wait before resend" } };
+    const email = (req.query.email || "").trim().toLowerCase();
+    if (!email) {
+      context.res = { status: 400, body: { success: false, error: "Email required" } };
       return;
     }
-  } catch (_) {}
 
-  const otp = crypto.randomInt(100000, 999999).toString();
+    const pk = encodeURIComponent(email);
+    const rk = "otp";
 
-  await tablePUT(rowUrl, {
-    PartitionKey: email,
-    RowKey: "otp",
-    otp,
-    attempts: 0,
-    lastSent: Date.now(),
-    expires: Date.now() + OTP_TTL_MS
-  });
+    // Check resend gap
+    try {
+      const existing = await tableGET(
+        `${TABLE_ENDPOINT}/${TABLE}(PartitionKey='${pk}',RowKey='${rk}')?${TABLE_SAS}`
+      );
+      if (Date.now() - existing.lastSent < RESEND_GAP_MS) {
+        context.res = { status: 429, body: { success: false, error: "Wait before resending OTP" } };
+        return;
+      }
+    } catch (_) {}
 
-  // TODO: email/SMS integration (already working in your env)
-  context.log(`OTP sent to ${email}: ${otp}`);
+    const otp = crypto.randomInt(100000, 999999).toString();
 
-  context.res = { status: 200, body: { success: true } };
+    await tablePUT(
+      `${TABLE_ENDPOINT}/${TABLE}(PartitionKey='${pk}',RowKey='${rk}')?${TABLE_SAS}`,
+      {
+        PartitionKey: email,
+        RowKey: "otp",
+        otp,
+        attempts: 0,
+        lastSent: Date.now(),
+        expires: Date.now() + OTP_TTL_MS
+      }
+    );
+
+    context.log("OTP SENT:", email, otp); // email gateway hooks here
+
+    context.res = { status: 200, body: { success: true } };
+
+  } catch (err) {
+    context.log("SendOtp ERROR", err);
+    context.res = { status: 500, body: { success: false, error: "OTP error" } };
+  }
 };
