@@ -11,28 +11,24 @@ module.exports = async function (context, req) {
   try {
     const { email, otp } = req.body || {};
     if (!email || !otp) {
-      context.res = { status: 400, body: "Missing email or OTP" };
+      context.res = { status: 400 };
       return;
     }
 
     const pk = email.toLowerCase();
     const rk = "OTP";
 
-    // 🔍 Read OTP from Table
     const entity = await table.getEntity(pk, rk);
 
-    if (
-      entity.otp !== otp ||
-      Date.now() > entity.expires
-    ) {
-      context.res = { status: 401, body: "Invalid or expired OTP" };
+    if (entity.otp !== otp || Date.now() > entity.expires) {
+      context.res = { status: 401 };
       return;
     }
 
-    // ✅ Delete OTP (single-use)
+    // 🔥 Consume OTP
     await table.deleteEntity(pk, rk);
 
-    // 🔐 HANDOVER TO SWA AUTH (CORRECT WAY)
+    // 🔐 SWA LOGIN (CORRECT)
     context.res = {
       status: 302,
       headers: {
@@ -47,6 +43,6 @@ module.exports = async function (context, req) {
 
   } catch (err) {
     context.log.error("VerifyOtp ERROR:", err);
-    context.res = { status: 500, body: "Verify failed" };
+    context.res = { status: 401 };
   }
 };
