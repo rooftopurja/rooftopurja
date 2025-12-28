@@ -58,8 +58,13 @@ module.exports = async function (context, req) {
   } catch (err) {
     context.log.error("SendOtp ERROR:", err);
     context.res = {
-      status: 500,
-      body: { success: false, error: err.message }
-    };
+  status: 500,
+  body: {
+    success: false,
+    error: err.message,
+    stack: err.stack
+  }
+};
+
   }
 };
