@@ -968,9 +968,6 @@ async function loadAnalytics() {
   {
     cache: "no-store",
     credentials: "include",   // 🔑 REQUIRED
-    headers: {
-      "Authorization": `Bearer ${token}`  // 🔑 optional but OK
-    }
   }
 );
 
@@ -1006,9 +1003,6 @@ console.log("POWER CURVE LENGTH:", j.powerCurve?.length);
   {
     cache: "no-store",
     credentials: "include",   // 🔑 REQUIRED
-    headers: {
-      "Authorization": `Bearer ${token}`
-    }
   }
 ).then(r => r.json());
 
