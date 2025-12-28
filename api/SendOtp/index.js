@@ -1,12 +1,11 @@
 "use strict";
 
-const { TableClient } = require("@azure/data-tables");
-const { EmailClient } = require("@azure/communication-email");
 const crypto = require("crypto");
+const { EmailClient } = require("@azure/communication-email");
 
 const TABLE = "OtpSessions";
-const OTP_TTL_MS = 5 * 60 * 1000;   // 5 minutes
-const RESEND_GAP_MS = 60 * 1000;    // 60 seconds
+const OTP_TTL_MS = 5 * 60 * 1000;   // 5 min
+const RESEND_GAP_MS = 60 * 1000;    // 60 sec
 
 module.exports = async function (context, req) {
   try {
@@ -16,15 +15,25 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // ---------- TABLE CLIENT ----------
-    const tableClient = TableClient.fromConnectionString(
-      process.env.TABLES_CONNECTION_STRING,
-      TABLE
-    );
+    // ---- ENV CHECK (fail fast)
+    const ACS_ENDPOINT = process.env.ACS_ENDPOINT;
+    const ACS_KEY = process.env.ACS_KEY;
+    const ACS_EMAIL_SENDER = process.env.ACS_EMAIL_SENDER;
+    const TABLE_CONN = process.env.TABLES_CONNECTION_STRING;
 
+    if (!ACS_ENDPOINT || !ACS_KEY || !ACS_EMAIL_SENDER || !TABLE_CONN) {
+      context.log("❌ Missing environment variables");
+      context.res = { status: 500, body: { success: false, error: "Server misconfigured" } };
+      return;
+    }
+
+    const { TableClient } = require("@azure/data-tables");
+    const table = TableClient.fromConnectionString(TABLE_CONN, TABLE);
+
+    // ---- RATE LIMIT CHECK
     let existing;
     try {
-      existing = await tableClient.getEntity(email, "otp");
+      existing = await table.getEntity(email, "otp");
       if (Date.now() - existing.lastSent < RESEND_GAP_MS) {
         context.res = {
           status: 429,
@@ -32,14 +41,12 @@ module.exports = async function (context, req) {
         };
         return;
       }
-    } catch (_) {
-      // entity not found → OK
-    }
+    } catch (_) {}
 
-    // ---------- OTP ----------
+    // ---- GENERATE OTP
     const otp = crypto.randomInt(100000, 999999).toString();
 
-    await tableClient.upsertEntity({
+    await table.upsertEntity({
       partitionKey: email,
       rowKey: "otp",
       otp,
@@ -48,33 +55,34 @@ module.exports = async function (context, req) {
       expires: Date.now() + OTP_TTL_MS
     });
 
-    // ---------- EMAIL (ACS) ----------
-    const emailClient = new EmailClient(
-      process.env.ACS_ENDPOINT,
-      process.env.ACS_KEY
-    );
+    // ---- SEND EMAIL (ACS)
+    const emailClient = new EmailClient(ACS_ENDPOINT, { key: ACS_KEY });
 
-    const message = {
-      senderAddress: process.env.ACS_EMAIL_SENDER,
+    await emailClient.send({
+      senderAddress: ACS_EMAIL_SENDER,
       content: {
         subject: "Your Rooftop Urja Login OTP",
         plainText: `Your OTP is ${otp}. It is valid for 5 minutes.`,
-        html: `<p>Your OTP is <b>${otp}</b>.</p><p>Valid for 5 minutes.</p>`
+        html: `
+          <div style="font-family:Segoe UI,sans-serif">
+            <h3>Rooftop Urja Login OTP</h3>
+            <p>Your OTP is:</p>
+            <h2>${otp}</h2>
+            <p>This OTP is valid for 5 minutes.</p>
+          </div>
+        `
       },
       recipients: {
         to: [{ address: email }]
       }
-    };
+    });
 
-    await emailClient.send(message);
+    context.log("✅ OTP email sent to", email);
 
     context.res = { status: 200, body: { success: true } };
 
   } catch (err) {
-    context.log("SendOtp FAILED:", err);
-    context.res = {
-      status: 500,
-      body: { success: false, error: "OTP send failed" }
-    };
+    context.log("❌ SendOtp error:", err);
+    context.res = { status: 500, body: { success: false, error: "OTP send failed" } };
   }
 };
