@@ -345,6 +345,18 @@ invList = [...new Set(invList)];
             invList = invList.filter(x => filter.includes(x));
         }
 
+/* ============================================================
+   🔒 MEMORY / FAN-OUT SAFETY CAP (FUTURE-PROOF)
+   ============================================================ */
+
+// hard cap to prevent runaway fan-out in extreme GW scale
+const MAX_INVERTERS_PER_REQUEST = 500;
+
+if (invList.length > MAX_INVERTERS_PER_REQUEST) {
+    invList = invList.slice(0, MAX_INVERTERS_PER_REQUEST);
+}
+
+
 /* ============================================================================
    🔥 PRE-WARM POWER CURVE CACHE (FIRST LOAD BOOST)
    ============================================================================ */

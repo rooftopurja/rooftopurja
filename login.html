@@ -77,46 +77,37 @@ h3 {
 <script>
 const API_BASE = "/api";
 
-async function sendOtp() {
-  const email = document.getElementById("email").value.trim().toLowerCase();
-  if (!email) return alert("Enter email");
-
-  const res = await fetch(`${API_BASE}/SendOtp?email=${encodeURIComponent(email)}`, {
-    cache: "no-store"
-  });
-
-  if (!res.ok) return alert("OTP service error");
-
-  document.getElementById("otp").style.display = "block";
-  document.getElementById("btnVerify").style.display = "block";
-  alert("OTP sent");
-}
-
 async function verifyOtp() {
   const email = document.getElementById("email").value.trim().toLowerCase();
-  const otp   = document.getElementById("otp").value.trim();
+  const otp = document.getElementById("otp").value.trim();
 
-  if (!email || !otp) return alert("Enter OTP");
+  if (!email || !otp) {
+    alert("Enter email and OTP");
+    return;
+  }
 
   const res = await fetch(`${API_BASE}/VerifyOtp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, otp }),
-    redirect: "follow"
+    body: JSON.stringify({ email, otp })
   });
 
-  // 🔑 SWA will redirect on success
-  if (res.redirected) {
-    window.location.href = "/meter.v2.html";
+  const data = await res.json();
+
+  if (!data.success) {
+    alert(data.error || "OTP verification failed");
     return;
   }
 
-  alert("Invalid OTP");
-}
+  // ✅ STORE SESSION
+  localStorage.setItem("urja_token", data.session_token);
+  localStorage.setItem("urja_email", data.email);
 
-document.getElementById("btnSendOtp").onclick = sendOtp;
-document.getElementById("btnVerify").onclick = verifyOtp;
+  // ✅ GO TO APP
+  window.location.replace("meter.v2.html");
+}
 </script>
+
 
 
 </body>
