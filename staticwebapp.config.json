@@ -1,18 +1,13 @@
 {
   "navigationFallback": {
     "rewrite": "/login.html",
-    "exclude": [
-      "/api/*",
-      "/.auth/*"
-    ]
+    "exclude": ["/api/*", "/.auth/*"]
   },
   "routes": [
     {
-      "route": "/login",
-      "rewrite": "/login.html"
+      "route": "/login.html",
+      "allowedRoles": ["anonymous"]
     },
-
-    /* 🔓 OTP APIs MUST BE PUBLIC */
     {
       "route": "/api/SendOtp",
       "allowedRoles": ["anonymous"]
@@ -20,12 +15,6 @@
     {
       "route": "/api/VerifyOtp",
       "allowedRoles": ["anonymous"]
-    },
-
-    /* 🔐 PROTECT EVERYTHING ELSE */
-    {
-      "route": "/*",
-      "allowedRoles": ["authenticated"]
     }
   ]
 }
