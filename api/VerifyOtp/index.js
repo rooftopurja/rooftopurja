@@ -1,40 +1,43 @@
 "use strict";
 
-const OTP_CACHE = require("../shared/otp_cache");
+const { TableClient } = require("@azure/data-tables");
+
+const TABLE_NAME = "OtpSessions";
+
+const tableClient = new TableClient(
+  process.env.AZURE_TABLE_ENDPOINT,
+  TABLE_NAME,
+  { sasToken: process.env.AZURE_TABLE_SAS }
+);
 
 module.exports = async function (context, req) {
   try {
-    const body  = req.body || {};
+    const body = req.body || {};
     const email = (body.email || "").trim().toLowerCase();
-    const otp   = (body.otp || "").trim();
+    const otp = (body.otp || "").trim();
 
     if (!email || !otp) {
-      context.res = { status: 400, body: { success: false, error: "Missing email or OTP" } };
+      context.res = { status: 400, body: "Missing email or OTP" };
       return;
     }
 
-    const entry = OTP_CACHE[email];
-
-    if (!entry) {
-      context.res = { status: 401, body: { success: false, error: "OTP expired" } };
+    let entity;
+    try {
+      entity = await tableClient.getEntity("OTP", email);
+    } catch {
+      context.res = { status: 401, body: "Invalid OTP" };
       return;
     }
 
-    if (entry.otp !== otp) {
-      context.res = { status: 401, body: { success: false, error: "Invalid OTP" } };
+    if (entity.otp !== otp || Date.now() > entity.expires) {
+      context.res = { status: 401, body: "Invalid or expired OTP" };
       return;
     }
 
-    if (Date.now() > entry.expires) {
-      delete OTP_CACHE[email];
-      context.res = { status: 401, body: { success: false, error: "OTP expired" } };
-      return;
-    }
+    // 🔥 consume OTP
+    await tableClient.deleteEntity("OTP", email);
 
-    // ✅ consume OTP
-    delete OTP_CACHE[email];
-
-    // ✅ HAND OVER TO AZURE STATIC WEB APPS AUTH
+    // 🔑 hand off to SWA auth
     context.res = {
       status: 302,
       headers: {
@@ -43,7 +46,7 @@ module.exports = async function (context, req) {
     };
 
   } catch (err) {
-    context.log("VerifyOtp ERROR:", err);
-    context.res = { status: 500, body: { success: false, error: "Verify failed" } };
+    context.log.error("VerifyOtp error:", err);
+    context.res = { status: 500, body: "Verify failed" };
   }
 };
