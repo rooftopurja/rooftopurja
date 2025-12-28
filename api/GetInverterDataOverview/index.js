@@ -62,7 +62,7 @@ async function getLatestFromTable(table, inverter, date) {
       `PartitionKey eq '${inverter}' and RowKey ge '${rkStart}' and RowKey lt '${rkEnd}'`
     )}` +
     `&$select=RowKey` +
-    `&$top=1000`;
+    `&$top=50`;
 
   const r = await tableGET(url);
   if (!r.value || !r.value.length) return null;

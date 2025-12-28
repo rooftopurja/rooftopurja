@@ -1,179 +1,198 @@
 // common/loadUser.js
-// Handles:
-//  - Session + refresh tokens
-//  - GetUserAccess
-//  - Hides menu items based on permissions
-//  - NO flicker / no redirects on login page
-//  - Proper logout handling (no auto re-login)
+// Responsibilities:
+// 1. Session + refresh token handling
+// 2. Page-level access enforcement (HARD)
+// 3. Menu + UI permission enforcement
+// 4. Zero flicker UX
+// ❌ NO data filtering here (backend handles RLS)
 
 (function () {
   const path = (location.pathname || "").toLowerCase();
+  const page = path.split("/").pop();
 
-  // 🔒 Respect explicit logout (VERY IMPORTANT)
+  // ======================================================
+  // 🔒 RESPECT EXPLICIT LOGOUT (CRITICAL)
+  // ======================================================
   if (sessionStorage.getItem("urja_logged_out") === "1") {
     console.log("loadUser.js: logout flag detected, skipping auth");
     sessionStorage.removeItem("urja_logged_out");
     return;
   }
 
-  // 🔹 Don't run anything on the login page
-  if (path.endsWith("/login.html")) {
+  // ======================================================
+  // 🔒 SKIP LOGIN PAGE
+  // ======================================================
+  if (page === "login.html") {
     console.log("loadUser.js: skipped on login page");
     return;
   }
 
-  // 🔹 Functions host (for local dev use port 7071)
-const API_BASE = "/api";
+  // ======================================================
+  // CONFIG
+  // ======================================================
+  const API_BASE = "/api";
+
+  function hidePage() {
+    const body = document.getElementById("appBody") || document.body;
+    body.style.opacity = "0";
+  }
+
+  function showPage() {
+    const body = document.getElementById("appBody") || document.body;
+    body.style.opacity = "1";
+  }
+
+  hidePage(); // prevent flicker
 
   async function safeJson(resp) {
     const ct = resp.headers.get("content-type") || "";
     if (!ct.includes("application/json")) {
       const text = await resp.text();
       console.warn("Non-JSON response:", text.slice(0, 120));
-      throw new Error("Expected JSON but got HTML");
+      throw new Error("Expected JSON");
     }
     return resp.json();
   }
 
+  // ======================================================
+  // MAIN FLOW
+  // ======================================================
   async function start() {
-    console.log("loadUser.js running on:", path);
+    console.log("loadUser.js running on:", page);
 
     let token   = localStorage.getItem("urja_token")   || "";
     let refresh = localStorage.getItem("urja_refresh") || "";
 
-    // If we have no session token but we DO have refresh → try to refresh
+    // --------------------------------------------------
+    // 🔄 TRY REFRESH TOKEN
+    // --------------------------------------------------
     if ((!token || token.length < 20) && refresh && refresh.length > 20) {
       try {
-        console.log("Trying RefreshToken…");
         const r = await fetch(`${API_BASE}/RefreshToken`, {
           method: "GET",
           cache: "no-store",
-          headers: {
-  "Authorization": `Bearer ${refresh}`
-}
-
+          headers: { "Authorization": `Bearer ${refresh}` }
         });
 
         if (r.ok) {
           const j = await safeJson(r);
           if (j.success) {
-            localStorage.setItem("urja_token",   j.session_token);
+            localStorage.setItem("urja_token", j.session_token);
             localStorage.setItem("urja_refresh", j.refresh_token);
             token = j.session_token;
             console.log("RefreshToken OK");
-          } else {
-            console.warn("RefreshToken failed:", j.error);
           }
-        } else {
-          console.warn("RefreshToken HTTP", r.status);
         }
-      } catch (err) {
-        console.warn("Refresh error", err);
+      } catch (e) {
+        console.warn("Refresh failed:", e);
       }
     }
 
-    // Still no usable token → send to login
+    // --------------------------------------------------
+    // ❌ NO SESSION → LOGIN
+    // --------------------------------------------------
     if (!token || token.length < 20) {
-      console.warn("No valid session token → redirect to login");
-      window.location.href = "login.html";
+      window.location.replace("login.html");
       return;
     }
 
-    // 🔹 GetUserAccess
+    // --------------------------------------------------
+    // 🔐 GET USER ACCESS (SINGLE SOURCE OF TRUTH)
+    // --------------------------------------------------
+    let access;
     try {
       const r = await fetch(`${API_BASE}/GetUserAccess`, {
         method: "GET",
         cache: "no-store",
-        headers: {
-  "Authorization": `Bearer ${token}`
-}
-
+        headers: { "Authorization": `Bearer ${token}` }
       });
 
-      if (!r.ok) {
-        console.warn("GetUserAccess HTTP", r.status);
-        window.location.href = "login.html";
-        return;
-      }
+      if (!r.ok) throw new Error("GetUserAccess failed");
+      access = await safeJson(r);
 
-      const data = await safeJson(r);
+      if (!access.success) throw new Error(access.error);
 
-      if (!data.success) {
-        console.warn("GetUserAccess error:", data.error);
-        window.location.href = "login.html";
-        return;
-      }
-
-      console.log("GetUserAccess OK");
-      
-// ===============================
-// Highlight active menu (optional)
-// ===============================
-const current = location.pathname.split("/").pop().toLowerCase();
-document.querySelectorAll(".navbar-menu a").forEach(a => {
-  const href = (a.getAttribute("href") || "")
-    .split("/")
-    .pop()
-    .toLowerCase();
-  a.classList.toggle("active", current === href);
-});
-
-      // ====== PERMISSIONS / MENU HIDING ======
-      const p = data.pages || {};
-      const q = (sel) => document.querySelector(sel);
-
-      if (!p.meter)                q("#menu-meter")?.classList.add("hide");
-      if (!p.inverteranalytics)    q("#menu-inverteranalytics")?.classList.add("hide");
-      if (!p.inverterdataoverview) q("#menu-inverterdataoverview")?.classList.add("hide");
-      if (!p.inverterfaults)       q("#menu-inverterfaults")?.classList.add("hide");
-      if (!p.maintenance)          q("#menu-maintenance")?.classList.add("hide");
-
-      // plant group for other scripts
-      window.USER_PLANT_GROUP = data.plant_group || "all";
-
-      // finally show the page (no flicker)
-      const bodyEl = document.getElementById("appBody");
-      if (bodyEl) {
-        bodyEl.style.opacity = "1";
-      } else {
-        document.body.style.opacity = "1";
-      }
     } catch (err) {
-      console.error("loadUser.js GetUserAccess error:", err);
+      console.error("Access error:", err);
+      window.location.replace("login.html");
+      return;
+    }
+
+    console.log("GetUserAccess OK");
+
+    // ==================================================
+    // 🔒 HARD PAGE ACCESS ENFORCEMENT
+    // ==================================================
+    const pageMap = {
+      "meter.html": "meter",
+      "inverter_analytics.html": "inverteranalytics",
+      "inverter_data_overview.html": "inverterdataoverview",
+      "inverter_faults.html": "inverterfaults",
+      "maintenance.html": "maintenance"
+    };
+
+    const pageKey = pageMap[page];
+    if (pageKey && access.pages?.[pageKey] === false) {
+      console.warn("Unauthorized page:", page);
+      window.location.replace("login.html");
+      return;
+    }
+
+    // ==================================================
+    // 🧭 MENU HIDING
+    // ==================================================
+    const q = s => document.querySelector(s);
+    const p = access.pages || {};
+
+    if (!p.meter)                q("#menu-meter")?.classList.add("hide");
+    if (!p.inverteranalytics)    q("#menu-inverteranalytics")?.classList.add("hide");
+    if (!p.inverterdataoverview) q("#menu-inverterdataoverview")?.classList.add("hide");
+    if (!p.inverterfaults)       q("#menu-inverterfaults")?.classList.add("hide");
+    if (!p.maintenance)          q("#menu-maintenance")?.classList.add("hide");
+
+    // ==================================================
+    // 🧠 GLOBAL CONTEXT (READ-ONLY)
+    // ==================================================
+    window.USER_CONTEXT = Object.freeze({
+      email: access.email || "",
+      role: access.role || "user",
+      plant_group: access.plant_group || "all"
+    });
+
+    // ==================================================
+    // 🎯 ACTIVE MENU HIGHLIGHT
+    // ==================================================
+    document.querySelectorAll(".navbar-menu a").forEach(a => {
+      const href = (a.getAttribute("href") || "").split("/").pop().toLowerCase();
+      a.classList.toggle("active", href === page);
+    });
+
+    // ==================================================
+    // ✅ SHOW PAGE (NO FLICKER)
+    // ==================================================
+    showPage();
+  }
+
+  // ======================================================
+  // HEADER ACTIONS
+  // ======================================================
+  document.addEventListener("click", e => {
+    const link = e.target.closest("a");
+    if (!link) return;
+
+    if (link.id === "logout-link") {
+      e.preventDefault();
+      sessionStorage.setItem("urja_logged_out", "1");
+      localStorage.clear();
       window.location.replace("login.html");
     }
-  }
 
- // ===============================
-// HEADER ACTIONS (Account menu)
-// ===============================
-document.addEventListener("click", (e) => {
-  const link = e.target.closest("a");
-  if (!link) return;
+    if (link.id === "profile-link") {
+      e.preventDefault();
+      alert("Profile coming soon.");
+    }
+  });
 
-  // PROFILE (Option 1 – placeholder)
-  if (link.id === "profile-link") {
-    e.preventDefault();
-    alert("Profile feature coming soon.");
-    return;
-  }
-
-  // LOGOUT
-  if (link.id === "logout-link") {
-    e.preventDefault();
-
-    // explicit logout marker
-    sessionStorage.setItem("urja_logged_out", "1");
-
-// clear auth
-localStorage.clear();
-
-// hard redirect (prevents token refresh race)
-window.location.replace("login.html");
-  }
-});
-
-
-  // Kick off
+  // BOOT
   start();
 })();

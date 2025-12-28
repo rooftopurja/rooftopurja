@@ -46,7 +46,7 @@ const MEM = {
 };
 // 🔥 Ultra-short response cache (DAY only)
 const DAY_RESPONSE_CACHE = new Map();  // key → {res, ts}
-const DAY_CACHE_TTL = 5000; // 5 seconds
+const DAY_CACHE_TTL = 15000; // 15 seconds
 
 const CACHE_TTL_MS = 60 * 1000; // refresh every 60 sec
 
@@ -227,11 +227,66 @@ async function refreshMemoryCache() {
 }
 
 /* ============================================================================
+   🔒 RLS HELPERS (SELF-CONTAINED)
+   ============================================================================ */
+async function getAllowedPlants(email) {
+    // ADMIN shortcut
+    const prof = await tableReadAll(
+        "UserProfile",
+        `PartitionKey eq '${email}'`
+    );
+
+    if (prof.length && String(prof[0].Role).toLowerCase() === "admin") {
+        return null; // ALL plants
+    }
+
+    // User-specific access
+    const rows = await tableReadAll(
+        "UserPlantAccess",
+        `PartitionKey eq '${email}'`
+    );
+
+    return rows.map(r => String(r.Plant_ID));
+}
+
+
+/* ============================================================================
    MAIN FUNCTION
    ============================================================================ */
 module.exports = async function (context, req) {
     try {
-        await refreshMemoryCache();
+
+/* ============================================================================
+   🔒 AUTH CONTEXT (MANDATORY)
+   ============================================================================ */
+const user = req.user;
+const userEmail =
+    user?.email ||
+    user?.userDetails ||
+    user?.claims?.email;
+
+if (!userEmail) {
+    context.res = {
+        status: 401,
+        body: { success: false, error: "Unauthorized" }
+    };
+    return;
+}
+
+      await refreshMemoryCache();
+
+const allowedPlants = await getAllowedPlants(userEmail);
+
+if (allowedPlants !== null && allowedPlants.length === 0) {
+    context.res = {
+        status: 403,
+        body: { success: false, error: "No plant access assigned" }
+    };
+    return;
+}
+
+
+  
 
         const period = (req.query.period || "day").toLowerCase();
         const dateParam = req.query.date || fmtDate(new Date());
@@ -245,19 +300,64 @@ module.exports = async function (context, req) {
                 .split(",").map(x => x.trim()).filter(Boolean)
         }));
 
-        let allowedPlants = plantSel
-            ? plantSel.split(",").map(String)
-            : plantDir.map(p => p.Plant_ID);
+        /* ============================================================================
+   🔒 EFFECTIVE PLANT FILTER (SERVER-SIDE)
+   ============================================================================ */
+
+// plants requested from UI (optional)
+const requestedPlants = plantSel
+    ? plantSel.split(",").map(String)
+    : [];
+
+// Admin → ALL
+let effectivePlants = [];
+
+if (allowedPlants === null) {
+    effectivePlants = requestedPlants.length
+        ? requestedPlants
+        : plantDir.map(p => p.Plant_ID);
+} else {
+    effectivePlants = requestedPlants.length
+        ? requestedPlants.filter(p => allowedPlants.includes(p))
+        : allowedPlants;
+}
+
+// ❌ hard deny invalid access
+if (requestedPlants.length && effectivePlants.length === 0) {
+    context.res = {
+        status: 403,
+        body: { success: false, error: "Unauthorized plant access" }
+    };
+    return;
+}
+
 
         let invList = [];
-        plantDir.filter(p => allowedPlants.includes(p.Plant_ID))
-                .forEach(p => invList.push(...p.Inverters));
 
-        invList = [...new Set(invList)];
+plantDir
+    .filter(p => effectivePlants.includes(p.Plant_ID))
+    .forEach(p => invList.push(...p.Inverters));
+
+invList = [...new Set(invList)];
+
         if (invSel) {
             const filter = invSel.split(",").map(String);
             invList = invList.filter(x => filter.includes(x));
         }
+
+/* ============================================================================
+   🔥 PRE-WARM POWER CURVE CACHE (FIRST LOAD BOOST)
+   ============================================================================ */
+if (period === "day" && offset === 0 && invList.length) {
+    const today = fmtDate(new Date());
+
+    // fire-and-forget (DO NOT await)
+    invList.forEach(inv => {
+        loadCurveBlob(inv, today).catch(() => {});
+    });
+}
+
+
 
         const cache = filterInv(MEM.cache, invList);
         const summary = filterInv(MEM.summary, invList);
@@ -277,7 +377,7 @@ module.exports = async function (context, req) {
     const effDate = fmtDate(addDays(dateParam, offset));
 
     // 🔑 CACHE KEY (date + inverter set)
-    const cacheKey = effDate + "|" + invList.join(",");
+    const cacheKey = userEmail + "|" + effDate + "|" + invList.join(",");
 
     const now = Date.now();
     const cached = DAY_RESPONSE_CACHE.get(cacheKey);

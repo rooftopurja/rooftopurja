@@ -200,19 +200,96 @@ const sas =
 /* ---------------------------------------------
    LOAD PLANT DIRECTORY (TABLE STORAGE)
 --------------------------------------------- */
-async function loadPlantDirectory() {
-  const plants = await queryTableAllSelf("PlantDirectory");
-  return plants.map(p => ({
+async function loadPlantDirectory(allowedPlants) {
+  // allowedPlants:
+  //   null  → admin (ALL plants)
+  //   []    → no access
+  //   [..]  → specific plants
+
+  let rows = [];
+
+  if (allowedPlants === null) {
+    // ADMIN → load all plants
+    rows = await queryTableAllSelf("PlantDirectory");
+  } else if (allowedPlants.length > 0) {
+    // USER → load only allowed plants
+    const filters = allowedPlants
+      .map(pid => `PartitionKey eq '${pid}'`)
+      .join(" or ");
+
+    rows = await queryTableAllSelf(
+      "PlantDirectory",
+      filters
+    );
+  }
+
+  return rows.map(p => ({
     Plant_ID: String(p.Plant_ID || p.PartitionKey),
     Plant_Name: p.Plant_Name || `Plant ${p.Plant_ID || p.PartitionKey}`
   }));
 }
+
+/* ======================================================
+   🔒 RLS: GET ALLOWED PLANTS FOR USER
+====================================================== */
+async function getAllowedPlants(email) {
+  // ADMIN shortcut
+  const profiles = await queryTableAllSelf(
+    "UserProfile",
+    `PartitionKey eq '${email}'`
+  );
+
+  if (profiles.length && profiles[0].Role === "admin") {
+    return null; // null = ALL plants allowed
+  }
+
+  // USER → load plant list
+  const accessRows = await queryTableAllSelf(
+    "UserPlantAccess",
+    `PartitionKey eq '${email}'`
+  );
+
+  return accessRows.map(r => String(r.Plant_ID));
+}
+
 
 /* -------------------------------------------------------
    MAIN
 ------------------------------------------------------- */
 module.exports = async function (context, req) {
   try {
+
+    /* ---------------------------------------------
+       🔒 AUTH + USER CONTEXT (MANDATORY)
+    --------------------------------------------- */
+
+    // Azure Static Web Apps injects user info here
+    const user = req.user;
+    const userEmail =
+      user?.email ||
+      user?.userDetails ||
+      user?.claims?.email;
+
+    if (!userEmail) {
+      context.res = {
+        status: 401,
+        body: { error: "Unauthorized: user not identified" }
+      };
+      return;
+    }
+
+    // 🔑 LOAD USER → ALLOWED PLANTS
+    const allowedPlants = await getAllowedPlants(userEmail);
+
+   if (allowedPlants !== null && allowedPlants.length === 0) {
+  context.res = {
+    status: 403,
+    body: { error: "No plant access assigned" }
+  };
+  return;
+}
+
+
     /* ---------------------------------------------
        INPUTS
     --------------------------------------------- */
@@ -223,10 +300,40 @@ module.exports = async function (context, req) {
 
     const monthKey = monthKeyFromQuery(month, year);
 
-    const plantFilter = (req.query.plants || "")
+   /* ======================================================
+   🔒 STEP 2: ENFORCE PLANT ACCESS (SERVER-SIDE)
+====================================================== */
+
+// plants requested from UI (optional)
+const requestedPlants = (req.query.plants || "")
   .split(",")
   .map(s => s.trim())
   .filter(Boolean);
+
+// FINAL plant filter applied by backend
+let effectivePlantFilter = [];
+
+// Admin → ALL plants
+if (allowedPlants === null) {
+  effectivePlantFilter = requestedPlants.length
+    ? requestedPlants
+    : []; // empty means ALL
+} else {
+  // User → intersection
+  effectivePlantFilter = requestedPlants.length
+    ? requestedPlants.filter(p => allowedPlants.includes(p))
+    : allowedPlants;
+}
+
+// ❌ HARD DENY if user requests invalid plants
+if (requestedPlants.length && effectivePlantFilter.length === 0) {
+  context.res = {
+    status: 403,
+    body: { success: false, error: "Unauthorized plant access" }
+  };
+  return;
+}
+
  
 
     /* ---------------------------------------------
@@ -250,10 +357,9 @@ module.exports = async function (context, req) {
       r.Date = (r.Date || "").slice(0, 10); // safety
     });
 
-// 🔑 APPLY PLANT FILTER (IF PROVIDED)
 const filteredRows =
-  plantFilter.length
-    ? rows.filter(r => plantFilter.includes(String(r.Plant_ID)))
+  effectivePlantFilter.length
+    ? rows.filter(r => effectivePlantFilter.includes(String(r.Plant_ID)))
     : rows;
 
 
@@ -261,7 +367,7 @@ const filteredRows =
    GROUP BY PLANT (REQUIRED)
 --------------------------------------------- */
 const byPlant = groupBy(filteredRows, "Plant_ID");
-const plantDirectory = await loadPlantDirectory();
+const plantDirectory = await loadPlantDirectory(allowedPlants);
 
 /* ---------------------------------------------
    PLANT LOOKUP MAP (Plant_ID → Plant_Name)
@@ -436,7 +542,12 @@ context.res = {
     success: true,
 
     // ✅ PLANT FILTER
-    plants: plantDirectory,
+    plants:
+  allowedPlants === null
+    ? plantDirectory
+    : plantDirectory.filter(p =>
+        allowedPlants.includes(String(p.Plant_ID))
+      ),
 
     // ✅ KPI
     kpi: {
