@@ -1,7 +1,10 @@
 {
   "navigationFallback": {
     "rewrite": "/login.html",
-    "exclude": ["/api/*"]
+    "exclude": [
+      "/api/*",
+      "/.auth/*"
+    ]
   },
   "routes": [
     {
