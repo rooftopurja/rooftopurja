@@ -259,24 +259,51 @@ async function getAllowedPlants(email) {
 module.exports = async function (context, req) {
   try {
 
-    /* ---------------------------------------------
-       🔒 AUTH + USER CONTEXT (MANDATORY)
-    --------------------------------------------- */
+   /* ---------------------------------------------
+   🔒 AUTH + USER CONTEXT (SWA — COOKIE BASED)
+--------------------------------------------- */
 
-    // Azure Static Web Apps injects user info here
-    const user = req.user;
-    const userEmail =
-      user?.email ||
-      user?.userDetails ||
-      user?.claims?.email;
+// Azure Static Web Apps injects identity here
+const principal = req.headers["x-ms-client-principal"];
 
-    if (!userEmail) {
-      context.res = {
-        status: 401,
-        body: { error: "Unauthorized: user not identified" }
-      };
-      return;
-    }
+if (!principal) {
+  context.res = {
+    status: 401,
+    body: { success: false, error: "Unauthorized (no SWA principal)" }
+  };
+  return;
+}
+
+let user;
+try {
+  user = JSON.parse(
+    Buffer.from(principal, "base64").toString("utf8")
+  );
+} catch (e) {
+  context.res = {
+    status: 401,
+    body: { success: false, error: "Unauthorized (bad principal)" }
+  };
+  return;
+}
+
+const userEmail = String(
+  user.userDetails ||
+  user.claims?.find(c => c.typ === "emails")?.val ||
+  ""
+).toLowerCase();
+
+if (!userEmail) {
+  context.res = {
+    status: 403,
+    body: { success: false, error: "Forbidden (email missing)" }
+  };
+  return;
+}
+
+// 🔑 USER CONTEXT CONFIRMED
+context.log("SWA user:", userEmail);
+
 
     // 🔑 LOAD USER → ALLOWED PLANTS
     const allowedPlants = await getAllowedPlants(userEmail);
