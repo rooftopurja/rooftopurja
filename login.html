@@ -83,7 +83,7 @@ async function sendOtp() {
   if (!j.success) alert(j.error || "OTP failed");
   else {
     otp.style.display = "block";
-    verify.style.display = "block";
+    btnVerify.style.display = "block";
   }
 }
 
@@ -94,12 +94,14 @@ async function verifyOtp() {
   const r = await fetch("/api/VerifyOtp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, otp }),
-    redirect: "follow"
+    body: JSON.stringify({ email, otp })
   });
 
-  if (r.redirected) location.href = "/";
-  else alert("Invalid OTP");
+  const j = await r.json();
+  if (!j.success) return alert("Invalid OTP");
+
+  localStorage.setItem("urja_token", j.token);
+  location.href = "/";
 }
 </script>
 
