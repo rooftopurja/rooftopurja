@@ -851,77 +851,65 @@ for (let hr = 5; hr <= 19; hr++) {
    DRAW TREND (Fix lifetime top datalabel clipping)
 ========================================================== */
 function drawTrend(j){
-  if(trendChart) trendChart.destroy();
+  if (trendChart) trendChart.destroy();
 
-  cache.chart.forEach(r => {
-  cache.allDays.push(r.date);
+  const src = (j.yieldSeries || []).filter(x => x.yield > 0);
 
-  cache.dailyIncrementalAll[r.date] = Number(r.daily_kwh || 0);
-  cache.dailyDataAll[r.date]        = Number(r.total_kwh || 0);
-});
-  const labels=src.map(x=>x.date);
-  const values=src.map(x=>x.yield);
-
-  if(!values.length){
-    trendChart=new Chart(document.getElementById("trendChart"),{type:"bar"});
+  if (!src.length) {
+    trendChart = new Chart(
+      document.getElementById("trendChart"),
+      { type: "bar" }
+    );
     return;
   }
 
-  const conv=values.map(x=>autoUnit(x).value);
-  const unit=autoUnit(Math.max(...values)).unit;
+  const labels = src.map(x => x.date);
+  const values = src.map(x => x.yield);
 
-  trendChart=new Chart(document.getElementById("trendChart"),{
-    type:"bar",
-    data:{
+  const conv = values.map(x => autoUnit(x).value);
+  const unit = autoUnit(Math.max(...values)).unit;
+
+  trendChart = new Chart(document.getElementById("trendChart"), {
+    type: "bar",
+    data: {
       labels,
-      datasets:[{
-        label:"Yield ("+unit+")",
-        data:conv,
-        backgroundColor:"#63a4ff",
-        borderRadius:6
+      datasets: [{
+        label: "Yield (" + unit + ")",
+        data: conv,
+        backgroundColor: "#63a4ff",
+        borderRadius: 6
       }]
     },
-
- options: {
-  responsive: true,
-  maintainAspectRatio: false,
-
-  layout: {
-    padding: {
-      top: 24,     // 🔑 creates headroom for value labels
-      right: 8,
-      left: 8
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      layout: {
+        padding: { top: 24, left: 8, right: 8 }
+      },
+      plugins: {
+        legend: { display: false },
+        datalabels: {
+          color: "#000",
+          font: { size: 11, weight: "bold" },
+          anchor: "end",
+          align: "top",
+          offset: -4,
+          clip: false,
+          clamp: true,
+          formatter: v => Number(v).toFixed(2)
+        }
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          grace: "10%"
+        },
+        x: {
+          grid: { display: false }
+        }
+      }
     }
-  },
-
-  plugins: {
-    legend: { display: false },
-
-    datalabels: {
-      color: "#000",
-      font: { size: 11, weight: "bold" },
-      anchor: "end",
-      align: "top",
-      offset: -4,
-      clip: false,        // 🔑 CRITICAL: prevents cutting
-      clamp: true,        // 🔑 keep inside chart area
-      formatter: v => Number(v).toFixed(2)
-    }
-  },
-
-  scales: {
-    y: {
-      beginAtZero: true,
-      grace: "10%",       // 🔑 extra vertical breathing space
-      ticks: { precision: 0 }
-    },
-    x: {
-      grid: { display: false }
-    }
-  }
-}
-
- });
+  });
 }
 
 /* ==========================================================
@@ -968,11 +956,11 @@ async function loadAnalytics() {
   /* ==============================
      MAIN PERIOD FETCH
   =============================== */
-  const mainResp = await fetch(
+ const mainResp = await fetch(
   `${API_BASE}/GetInverterData?${params.toString()}`,
   {
     cache: "no-store",
-    credentials: "include",   // 🔑 REQUIRED
+    credentials: "include"   // 🔑 REQUIRED FOR SWA req.user
   }
 );
 
@@ -1004,11 +992,12 @@ console.log("POWER CURVE LENGTH:", j.powerCurve?.length);
       date
     });
 
-   const dayResp = await fetch(
+  
+const dayResp = await fetch(
   `${API_BASE}/GetInverterData?${dayParams.toString()}`,
   {
     cache: "no-store",
-    credentials: "include",   // 🔑 REQUIRED
+    credentials: "include"   // 🔑 REQUIRED
   }
 ).then(r => r.json());
 
