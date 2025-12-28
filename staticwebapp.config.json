@@ -3,12 +3,17 @@
     "rewrite": "/login.html",
     "exclude": [
       "/api/*",
-      "/.auth/*"
+      "/.auth/*",
+      "/favicon.ico"
     ]
   },
   "routes": [
     {
       "route": "/login.html",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/favicon.ico",
       "allowedRoles": ["anonymous"]
     },
     {
