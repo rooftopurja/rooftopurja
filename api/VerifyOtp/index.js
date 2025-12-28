@@ -6,7 +6,7 @@ module.exports = async function (context, req) {
   try {
     const body  = req.body || {};
     const email = (body.email || "").trim().toLowerCase();
-    const otp   = (body.otp   || "").trim();
+    const otp   = (body.otp || "").trim();
 
     if (!email || !otp) {
       context.res = { status: 400, body: "Missing email or OTP" };
@@ -20,10 +20,10 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // ✅ OTP VERIFIED → REMOVE
+    // ✅ consume OTP
     delete OTP_CACHE[email];
 
-    // 🔑 HAND OVER TO SWA AUTH
+    // ✅ HAND OFF TO SWA AUTH (THIS IS THE KEY)
     context.res = {
       status: 302,
       headers: {
