@@ -446,6 +446,12 @@ fetch("/common/header.v2.html")
 <script>
 Chart.register(ChartDataLabels);
 const API_BASE = "/api";
+function swaFetch(url) {
+  return fetch(url, {
+    cache: "no-store",
+    credentials: "include"   // 🔑 SWA identity
+  });
+}
 
 /* GLOBAL SPEED BOOST */
 Chart.defaults.animation = false;
@@ -951,19 +957,13 @@ async function loadAnalytics() {
   if (selPlants.length) params.set("plants", selPlants.join(","));
   if (selInvs.length)   params.set("inverters", selInvs.join(","));
 
-  const token = localStorage.getItem("urja_token");
-
+  
   /* ==============================
      MAIN PERIOD FETCH
   =============================== */
- const mainResp = await fetch(
-  `${API_BASE}/GetInverterData?${params.toString()}`,
-  {
-    cache: "no-store",
-    credentials: "include"   // 🔑 REQUIRED FOR SWA req.user
-  }
+ const mainResp = await swaFetch(
+  `${API_BASE}/GetInverterData?${params.toString()}`
 );
-
 
   const j = await mainResp.json();
   console.log("INVERTER API RESPONSE:", j);
@@ -992,14 +992,10 @@ console.log("POWER CURVE LENGTH:", j.powerCurve?.length);
       date
     });
 
-  
-const dayResp = await fetch(
-  `${API_BASE}/GetInverterData?${dayParams.toString()}`,
-  {
-    cache: "no-store",
-    credentials: "include"   // 🔑 REQUIRED
-  }
+  const dayResp = await swaFetch(
+  `${API_BASE}/GetInverterData?${dayParams.toString()}`
 ).then(r => r.json());
+
 
 
     if (dayResp.success) {

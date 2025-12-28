@@ -445,22 +445,11 @@ console.log("Meter page starting…");
 Chart.register(ChartDataLabels);
 /* 🔐 AUTH FETCH WRAPPER — SINGLE SOURCE */
 function authFetch(url, options = {}) {
-  const token = localStorage.getItem("urja_token");
-
-  if (!token) {
-    window.location.replace("login.html");
-    throw new Error("No auth token");
-  }
-
   return fetch(url, {
-  ...options,
-  cache: "no-store",
-  credentials: "include",   // 🔑 REQUIRED FOR req.user
-  headers: {
-    ...(options.headers || {}),
-    "Content-Type": "application/json"
-  }
-});
+    ...options,
+    cache: "no-store",
+    credentials: "include"   // 🔑 SWA identity ONLY
+  });
 }
 
 
@@ -690,6 +679,7 @@ if (!ct.includes("application/json")) {
 }
 
 cache = await r.json();
+console.log("METER API RESPONSE:", cache);
 cache.period = period;
 
 cache.pieData = cache.pie || [];
@@ -734,18 +724,6 @@ if (Array.isArray(cache.chart)) {
 
   cache.availableYears.sort();
   Object.values(cache.availableMonthsByYear).forEach(arr => arr.sort());
-}
-
-
-// 🔁 ADAPT chart[] → dailyData / allDays (FOR CHARTS)
-cache.dailyData = {};
-cache.allDays = [];
-
-if (Array.isArray(cache.chart)) {
-  cache.chart.forEach(r => {
-    cache.dailyData[r.date] = r.kwh;
-    cache.allDays.push(r.date);
-  });
 }
 
 // 🔁 DAILY SERIES (CORRECT: cumulative + incremental)
