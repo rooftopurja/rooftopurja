@@ -11,12 +11,8 @@
       "route": "/login",
       "rewrite": "/login.html"
     },
-    {
-      "route": "/logout",
-      "redirect": "/login.html"
-    },
 
-    /* 🔓 PUBLIC AUTH APIs */
+    /* 🔓 OTP APIs MUST BE PUBLIC */
     {
       "route": "/api/SendOtp",
       "allowedRoles": ["anonymous"]
@@ -26,9 +22,9 @@
       "allowedRoles": ["anonymous"]
     },
 
-    /* 🔒 ALL OTHER APIs REQUIRE LOGIN */
+    /* 🔐 PROTECT EVERYTHING ELSE */
     {
-      "route": "/api/*",
+      "route": "/*",
       "allowedRoles": ["authenticated"]
     }
   ]
