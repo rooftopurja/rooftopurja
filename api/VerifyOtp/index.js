@@ -20,10 +20,8 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // ✅ consume OTP
     delete OTP_CACHE[email];
 
-    // ✅ HAND OFF TO SWA AUTH (THIS IS THE KEY)
     context.res = {
       status: 302,
       headers: {
