@@ -2,10 +2,10 @@
 
 const https = require("https");
 
-const ACCOUNT = process.env.TABLE_ACCOUNT;
-const TABLE_SAS = process.env.TABLE_SAS;
+const TABLE_ENDPOINT = process.env.TABLE_STORAGE_URL;
+const TABLE_SAS = process.env.TABLE_STORAGE_SAS;
 const TABLE = "OtpSessions";
-const TABLE_ENDPOINT = `https://${ACCOUNT}.table.core.windows.net`;
+
 
 const MAX_ATTEMPTS = 5;
 

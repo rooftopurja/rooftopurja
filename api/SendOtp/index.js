@@ -4,14 +4,13 @@ const https = require("https");
 const crypto = require("crypto");
 
 /* ================= CONFIG ================= */
-const ACCOUNT = process.env.TABLE_ACCOUNT;
-const TABLE_SAS = process.env.TABLE_SAS;
+const TABLE_SAS = process.env.TABLE_STORAGE_SAS;
 const TABLE = "OtpSessions";
 
 const OTP_TTL_MS = 5 * 60 * 1000;
 const RESEND_GAP_MS = 60 * 1000;
 
-const TABLE_ENDPOINT = `https://${ACCOUNT}.table.core.windows.net`;
+const TABLE_ENDPOINT = process.env.TABLE_STORAGE_URL;
 
 /* ================= HTTP HELPERS ================= */
 function tableGET(url) {
