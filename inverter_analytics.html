@@ -853,7 +853,12 @@ for (let hr = 5; hr <= 19; hr++) {
 function drawTrend(j){
   if(trendChart) trendChart.destroy();
 
-  const src = (j.yieldSeries || []).filter(x => x.yield > 0);
+  cache.chart.forEach(r => {
+  cache.allDays.push(r.date);
+
+  cache.dailyIncrementalAll[r.date] = Number(r.daily_kwh || 0);
+  cache.dailyDataAll[r.date]        = Number(r.total_kwh || 0);
+});
   const labels=src.map(x=>x.date);
   const values=src.map(x=>x.yield);
 
@@ -973,6 +978,7 @@ async function loadAnalytics() {
 
 
   const j = await mainResp.json();
+  console.log("INVERTER API RESPONSE:", j);
   if (seq !== requestSeq) return;
 
   if (!j.success) {
