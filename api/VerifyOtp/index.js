@@ -5,8 +5,6 @@ const https = require("https");
 const TABLE_ENDPOINT = process.env.TABLE_STORAGE_URL;
 const TABLE_SAS = process.env.TABLE_STORAGE_SAS;
 const TABLE = "OtpSessions";
-
-
 const MAX_ATTEMPTS = 5;
 
 function tableGET(url) {
@@ -22,15 +20,16 @@ function tableGET(url) {
   });
 }
 
-function tablePUT(url, entity) {
+function tableMERGE(url, entity) {
+  const body = JSON.stringify(entity);
   return new Promise((resolve, reject) => {
-    const body = JSON.stringify(entity);
     const req = https.request(url, {
-      method: "PUT",
+      method: "MERGE",
       headers: {
         "Accept": "application/json;odata=nometadata",
         "Content-Type": "application/json",
-        "Content-Length": Buffer.byteLength(body)
+        "Content-Length": Buffer.byteLength(body),
+        "If-Match": "*"
       }
     }, res => res.statusCode < 300 ? resolve() : reject());
     req.write(body);
@@ -40,9 +39,10 @@ function tablePUT(url, entity) {
 
 function tableDELETE(url) {
   return new Promise((resolve, reject) => {
-    const req = https.request(url, { method: "DELETE" }, res =>
-      res.statusCode < 300 ? resolve() : reject()
-    );
+    const req = https.request(url, {
+      method: "DELETE",
+      headers: { "If-Match": "*" }
+    }, res => res.statusCode < 300 ? resolve() : reject());
     req.end();
   });
 }
@@ -55,9 +55,12 @@ module.exports = async function (context, req) {
       return;
     }
 
-    const pk = encodeURIComponent(email.toLowerCase());
+    const pk = email.toLowerCase();
     const rk = "otp";
-    const url = `${TABLE_ENDPOINT}/${TABLE}(PartitionKey='${pk}',RowKey='${rk}')?${TABLE_SAS}`;
+
+    const url =
+      `${TABLE_ENDPOINT}/${TABLE}` +
+      `(PartitionKey='${encodeURIComponent(pk)}',RowKey='${rk}')?${TABLE_SAS}`;
 
     const entity = await tableGET(url);
 
@@ -68,8 +71,7 @@ module.exports = async function (context, req) {
     }
 
     if (entity.otp !== otp) {
-      entity.attempts++;
-      await tablePUT(url, entity);
+      await tableMERGE(url, { attempts: (entity.attempts || 0) + 1 });
       context.res = { status: 401, body: "Invalid OTP" };
       return;
     }
@@ -79,7 +81,7 @@ module.exports = async function (context, req) {
     context.res = {
       status: 302,
       headers: {
-        Location: `/.auth/login/custom?email=${encodeURIComponent(email)}`
+        Location: `/.auth/login/custom?email=${encodeURIComponent(pk)}`
       }
     };
 
