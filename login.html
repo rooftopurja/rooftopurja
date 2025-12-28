@@ -74,40 +74,34 @@ h3 {
     <div class="note">By logging in, you consent to secure OTP-based access.</div>
   </div>
 
+
 <script>
-const API_BASE = "/api";
+async function sendOtp() {
+  const email = document.getElementById("email").value.trim();
+  const r = await fetch(`/api/SendOtp?email=${encodeURIComponent(email)}`);
+  const j = await r.json();
+  if (!j.success) alert(j.error || "OTP failed");
+  else {
+    otp.style.display = "block";
+    verify.style.display = "block";
+  }
+}
 
 async function verifyOtp() {
-  const email = document.getElementById("email").value.trim().toLowerCase();
+  const email = document.getElementById("email").value.trim();
   const otp = document.getElementById("otp").value.trim();
 
-  if (!email || !otp) {
-    alert("Enter email and OTP");
-    return;
-  }
-
-  const res = await fetch(`${API_BASE}/VerifyOtp`, {
+  const r = await fetch("/api/VerifyOtp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, otp })
+    body: JSON.stringify({ email, otp }),
+    redirect: "follow"
   });
 
-  const data = await res.json();
-
-  if (!data.success) {
-    alert(data.error || "OTP verification failed");
-    return;
-  }
-
-  // ✅ STORE SESSION
-  localStorage.setItem("urja_token", data.session_token);
-  localStorage.setItem("urja_email", data.email);
-
-  // ✅ GO TO APP
-  window.location.replace("meter.v2.html");
+  if (r.redirected) location.href = "/";
+  else alert("Invalid OTP");
 }
 </script>
-
 
 
 </body>
