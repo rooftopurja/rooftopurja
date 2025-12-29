@@ -69,7 +69,6 @@
 
     <button id="sendBtn" onclick="sendOtp()">Send OTP</button>
 
-    <!-- OTP SECTION -->
     <input
       type="text"
       id="otp"
@@ -102,15 +101,22 @@ async function sendOtp() {
   const btn = document.getElementById("sendBtn");
   btn.disabled = true;
 
-  const r = await fetch(`/api/SendOtp?email=${encodeURIComponent(email)}`);
-  const text = await r.text();
+  const r = await fetch(`/api/SendOtp?email=${encodeURIComponent(email)}`, {
+    redirect: "manual"
+  });
 
+  if (r.status === 301 || r.status === 302) {
+    alert("SendOtp blocked by SWA auth (redirect). Check staticwebapp.config.json.");
+    btn.disabled = false;
+    return;
+  }
+
+  const text = await r.text();
   let j;
-  try {
-    j = JSON.parse(text);
-  } catch {
-    console.error("Non-JSON SendOtp response:", text);
-    alert("OTP system error");
+  try { j = JSON.parse(text); }
+  catch {
+    console.error("SendOtp returned non-JSON:", text);
+    alert("SendOtp returned HTML/text. Fix SWA routing.");
     btn.disabled = false;
     return;
   }
@@ -121,9 +127,11 @@ async function sendOtp() {
     return;
   }
 
+  // Show OTP + Verify
   document.getElementById("otp").style.display = "block";
   document.getElementById("verifyBtn").style.display = "block";
 
+  // Countdown
   resendSeconds = 60;
   btn.innerText = `Resend in ${resendSeconds}s`;
 
@@ -151,24 +159,30 @@ async function verifyOtp() {
   const r = await fetch("/api/VerifyOtp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, otp })
+    body: JSON.stringify({ email, otp }),
+    redirect: "manual"
   });
 
-  const text = await r.text();
+  if (r.status === 301 || r.status === 302) {
+    alert("VerifyOtp redirected by SWA auth. Authentication must be disabled.");
+    return;
+  }
 
+  const text = await r.text();
   let j;
-  try {
-    j = JSON.parse(text);
-  } catch {
-    console.error("Non-JSON VerifyOtp response:", text);
-    alert("Auth system error");
+  try { j = JSON.parse(text); }
+  catch {
+    console.error("VerifyOtp returned non-JSON:", text);
+    alert("VerifyOtp returned HTML/text. Fix SWA routing.");
     return;
   }
 
   if (j.success) {
+    // lightweight session marker
     const token = btoa(email + "|" + Date.now());
     localStorage.setItem("urja_token", token);
     localStorage.setItem("urja_email", email);
+
     window.location.href = "/";
   } else {
     alert("Verify failed");
