@@ -6,13 +6,11 @@
 </head>
 <body>
 <script>
-  const t = localStorage.getItem("urja_token");
-  if (!t) {
-    // not logged in → go to login
-    window.location.href = "login.html";
+  const token = localStorage.getItem("urja_token");
+  if (!token) {
+    window.location.replace("/login.html");
   } else {
-    // logged in → default landing is meter (can click to other pages)
-    window.location.href = "meter.v2.html";
+    window.location.replace("/meter.v2.html");
   }
 </script>
 </body>
