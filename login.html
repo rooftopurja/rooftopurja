@@ -56,25 +56,41 @@
 </div>
 
 <script>
+const API_BASE = "https://inverterdailysummarytimerapp.azurewebsites.net";
+
+function getEmail() {
+  const e = document.getElementById("email").value.trim();
+  if (!e) {
+    alert("Enter email");
+    throw new Error("email missing");
+  }
+  return e;
+}
+
 async function sendOtp() {
-  const email = emailInput();
-  fetch(`https://<FUNCTION_BASE_URL>/api/SendOtp?email=${encodeURIComponent(email)}`);
+  const email = getEmail();
+
+  const r = await fetch(`${API_BASE}/api/SendOtp?email=${encodeURIComponent(email)}`);
   const j = await r.json();
 
   if (!j.success) {
-    alert("OTP send failed");
+    alert(j.error || "OTP send failed");
     return;
   }
 
-  otp.style.display = "block";
-  verifyBtn.style.display = "block";
+  document.getElementById("otp").style.display = "block";
+  document.getElementById("verifyBtn").style.display = "block";
 }
 
 async function verifyOtp() {
-  const email = emailInput();
-  const code = otp.value.trim();
+  const email = getEmail();
+  const code = document.getElementById("otp").value.trim();
+  if (!code) {
+    alert("Enter OTP");
+    return;
+  }
 
-  const r = await fetch("https://<FUNCTION_BASE_URL>/api/VerifyOtp", {
+  const r = await fetch(`${API_BASE}/api/VerifyOtp`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, otp: code })
@@ -82,26 +98,21 @@ async function verifyOtp() {
 
   const ct = r.headers.get("content-type") || "";
   if (!ct.includes("application/json")) {
-    alert("VerifyOtp returned HTML — routing still wrong");
+    alert("VerifyOtp returned HTML — backend routing error");
     return;
   }
 
   const j = await r.json();
 
   if (j.success) {
-    localStorage.setItem("urja_token", btoa(email + "|" + Date.now()));
+    // simple session marker
+    localStorage.setItem("urja_token", email);
+    localStorage.setItem("urja_email", email);
     window.location.href = "/";
   } else {
-    alert("OTP invalid");
+    alert("OTP invalid or expired");
   }
-}
-
-function emailInput() {
-  const e = email.value.trim();
-  if (!e) throw alert("Enter email");
-  return e;
 }
 </script>
 </body>
 </html>
-
