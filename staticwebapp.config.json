@@ -1,24 +1,20 @@
 {
   "routes": [
     {
-      "route": "/api/SendOtp",
+      "route": "/api/GetMeterData",
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/VerifyOtp",
+      "route": "/api/GetInverterAnalytics",
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/api/*",
+      "route": "/api/GetInverterDataOverview",
       "allowedRoles": ["anonymous"]
     },
     {
-      "route": "/login.html",
+      "route": "/api/PlantDirectory",
       "allowedRoles": ["anonymous"]
     }
-  ],
-  "navigationFallback": {
-    "rewrite": "/index.html",
-    "exclude": ["/api/*"]
-  }
+  ]
 }
