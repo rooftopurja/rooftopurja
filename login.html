@@ -141,17 +141,29 @@ async function verifyOtp() {
   }
 
   const r = await fetch("/api/VerifyOtp", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, otp }),
-    redirect: "follow"
-  });
+  method: "POST",
+  headers: { "Content-Type": "application/json" },
+  body: JSON.stringify({ email, otp })
+});
 
-  if (r.redirected) {
-    window.location.href = "/";
-  } else {
-    alert("Verify failed");
-  }
+const j = await r.json();
+
+if (j.success) {
+if (j.success) {
+  // create simple session token (email + timestamp)
+  const token = btoa(email + "|" + Date.now());
+
+  // store login marker
+  localStorage.setItem("urja_token", token);
+  localStorage.setItem("urja_email", email);
+
+  // redirect to app
+  window.location.href = "/";
+}
+
+} else {
+  alert("Verify failed");
+}
 }
 </script>
 
