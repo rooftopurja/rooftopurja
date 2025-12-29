@@ -52,17 +52,16 @@ button:disabled { opacity: 0.6; }
 </div>
 
 <script>
+const emailInput = document.getElementById("email");
 const btnSend = document.getElementById("btnSendOtp");
-const btnVerify = document.getElementById("btnVerify");
-const otpInput = document.getElementById("otp");
 
 btnSend.addEventListener("click", sendOtp);
-btnVerify.addEventListener("click", verifyOtp);
 
 function startCooldown(seconds) {
   let s = seconds;
   btnSend.disabled = true;
   btnSend.textContent = `Resend in ${s}s`;
+
   const t = setInterval(() => {
     s--;
     if (s <= 0) {
@@ -76,41 +75,39 @@ function startCooldown(seconds) {
 }
 
 async function sendOtp() {
-  const email = emailInput.value.trim();
-  if (!email) return alert("Enter email");
+  try {
+    const email = emailInput.value.trim();
+    if (!email) {
+      alert("Enter email");
+      return;
+    }
 
-  btnSend.disabled = true;
+    btnSend.disabled = true;
 
-  const r = await fetch(`/api/SendOtp?email=${encodeURIComponent(email)}`);
-  const j = await r.json().catch(() => ({}));
+    const r = await fetch(`/api/SendOtp?email=${encodeURIComponent(email)}`);
+    const j = await r.json().catch(() => ({}));
 
-  if (!r.ok || !j.success) {
+    if (!r.ok) {
+      btnSend.disabled = false;
+      alert(j.error || "Send OTP failed");
+      return;
+    }
+
+    if (!j.success) {
+      btnSend.disabled = false;
+      alert(j.error || "Send OTP failed");
+      return;
+    }
+
+    startCooldown(j.cooldownSeconds || 60);
+
+  } catch (err) {
+    console.error(err);
     btnSend.disabled = false;
-    return alert(j.error || "Send OTP failed");
+    alert("Unexpected error. Check console.");
   }
-
-  otpInput.style.display = "block";
-  btnVerify.style.display = "block";
-  startCooldown(j.cooldownSeconds || 60);
-}
-
-async function verifyOtp() {
-  const email = emailInput.value.trim();
-  const otp = otpInput.value.trim();
-
-  const r = await fetch("/api/VerifyOtp", {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ email, otp })
-  });
-
-  const j = await r.json().catch(() => ({}));
-
-  if (!r.ok || !j.success) return alert(j.error || "Verify failed");
-
-  alert("OTP verified successfully");
-  window.location.href = "/";
 }
 </script>
+
 </body>
 </html>
