@@ -129,6 +129,7 @@ async function sendOtp() {
   }, 1000);
 }
 
+<script>
 async function verifyOtp() {
   const email = document.getElementById("email").value.trim();
   const otp = document.getElementById("otp").value.trim();
@@ -144,15 +145,21 @@ async function verifyOtp() {
     body: JSON.stringify({ email, otp })
   });
 
-  const j = await r.json();
+  const text = await r.text(); // 👈 SAFE
+
+  let j;
+  try {
+    j = JSON.parse(text);
+  } catch (e) {
+    console.error("Non-JSON response:", text);
+    alert("Auth system error (HTML returned)");
+    return;
+  }
 
   if (j.success) {
-    // create simple session token
     const token = btoa(email + "|" + Date.now());
-
     localStorage.setItem("urja_token", token);
     localStorage.setItem("urja_email", email);
-
     window.location.href = "/";
   } else {
     alert("Verify failed");
