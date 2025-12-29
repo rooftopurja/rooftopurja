@@ -1,10 +1,6 @@
 {
   "routes": [
     {
-      "route": "/login.html",
-      "allowedRoles": ["anonymous"]
-    },
-    {
       "route": "/api/SendOtp",
       "allowedRoles": ["anonymous"]
     },
@@ -14,6 +10,10 @@
     },
     {
       "route": "/api/*",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/login.html",
       "allowedRoles": ["anonymous"]
     }
   ],
