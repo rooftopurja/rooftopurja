@@ -1,24 +1,12 @@
 {
   "routes": [
     {
-      "route": "/login.html",
-      "allowedRoles": ["anonymous"]
-    },
-    {
-      "route": "/api/SendOtp",
-      "allowedRoles": ["anonymous"]
-    },
-    {
-      "route": "/api/VerifyOtp",
-      "allowedRoles": ["anonymous"]
-    },
-    {
-      "route": "/*",
+      "route": "/api/*",
       "allowedRoles": ["anonymous"]
     }
   ],
   "navigationFallback": {
-    "rewrite": "/login.html",
+    "rewrite": "/index.html",
     "exclude": ["/api/*"]
   }
 }
