@@ -2,60 +2,54 @@
 
 const { TableClient } = require("@azure/data-tables");
 
-const TABLE_NAME = "OtpSessions";
+const tableClient = new TableClient(
+  process.env.TABLE_STORAGE_URL,
+  "OtpSessions",
+  { credential: process.env.TABLE_STORAGE_SAS }
+);
+
 const MAX_ATTEMPTS = 5;
 
 module.exports = async function (context, req) {
   try {
-    const body = typeof req.body === "string" ? JSON.parse(req.body) : req.body;
-    const { email, otp } = body || {};
-
+    const { email, otp } = req.body || {};
     if (!email || !otp) {
-      context.res = { status: 400, body: "Missing email or OTP" };
+      context.res = { status: 400, body: { success: false } };
       return;
     }
-
-    const client = TableClient.fromConnectionString(
-      process.env.TABLES_CONNECTION_STRING,
-      TABLE_NAME
-    );
 
     const pk = email.toLowerCase();
     const rk = "otp";
 
-    let entity;
-    try {
-      entity = await client.getEntity(pk, rk);
-    } catch {
-      context.res = { status: 401, body: "OTP expired or invalid" };
-      return;
-    }
+    const entity = await tableClient.getEntity(pk, rk);
 
     if (Date.now() > entity.expires || entity.attempts >= MAX_ATTEMPTS) {
-      await client.deleteEntity(pk, rk);
-      context.res = { status: 401, body: "OTP expired" };
+      await tableClient.deleteEntity(pk, rk);
+      context.res = { status: 401, body: { success: false } };
       return;
     }
 
     if (entity.otp !== otp) {
-      entity.attempts += 1;
-      await client.updateEntity(entity, "Replace");
-      context.res = { status: 401, body: "Invalid OTP" };
+      entity.attempts++;
+      await tableClient.updateEntity(entity, "Replace");
+      context.res = { status: 401, body: { success: false } };
       return;
     }
 
-    // SUCCESS
-await tableDELETE(url);
+    // OTP valid
+    await tableClient.deleteEntity(pk, rk);
 
-context.res = {
-  status: 302,
-  headers: {
-    Location: "/.auth/login/aad?post_login_redirect_uri=/"
-  }
-};
+    // set auth cookie
+    context.res = {
+      status: 200,
+      headers: {
+        "Set-Cookie": `ru_auth=${Buffer.from(email).toString("base64")}; Path=/; HttpOnly; Secure; SameSite=Lax`
+      },
+      body: { success: true }
+    };
 
   } catch (err) {
     context.log("VerifyOtp ERROR", err);
-    context.res = { status: 500, body: "Verify failed" };
+    context.res = { status: 500, body: { success: false } };
   }
 };
