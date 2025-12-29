@@ -44,15 +44,16 @@ module.exports = async function (context, req) {
       return;
     }
 
-    // ✅ SUCCESS
-    await client.deleteEntity(pk, rk);
+    // SUCCESS
+await tableDELETE(url);
 
-    context.res = {
-      status: 302,
-      headers: {
-        Location: `/.auth/login/custom?email=${encodeURIComponent(email)}`
-      }
-    };
+context.res = {
+  status: 302,
+  headers: {
+    Location: "/.auth/login/aad?post_login_redirect_uri=/"
+  }
+};
+
   } catch (err) {
     context.log("VerifyOtp ERROR", err);
     context.res = { status: 500, body: "Verify failed" };
