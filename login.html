@@ -111,11 +111,9 @@ async function sendOtp() {
     return;
   }
 
-  // SHOW OTP + VERIFY
   document.getElementById("otp").style.display = "block";
   document.getElementById("verifyBtn").style.display = "block";
 
-  // RESEND COUNTDOWN
   resendSeconds = 60;
   btn.innerText = `Resend in ${resendSeconds}s`;
 
@@ -141,29 +139,24 @@ async function verifyOtp() {
   }
 
   const r = await fetch("/api/VerifyOtp", {
-  method: "POST",
-  headers: { "Content-Type": "application/json" },
-  body: JSON.stringify({ email, otp })
-});
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ email, otp })
+  });
 
-const j = await r.json();
+  const j = await r.json();
 
-if (j.success) {
-if (j.success) {
-  // create simple session token (email + timestamp)
-  const token = btoa(email + "|" + Date.now());
+  if (j.success) {
+    // create simple session token
+    const token = btoa(email + "|" + Date.now());
 
-  // store login marker
-  localStorage.setItem("urja_token", token);
-  localStorage.setItem("urja_email", email);
+    localStorage.setItem("urja_token", token);
+    localStorage.setItem("urja_email", email);
 
-  // redirect to app
-  window.location.href = "/";
-}
-
-} else {
-  alert("Verify failed");
-}
+    window.location.href = "/";
+  } else {
+    alert("Verify failed");
+  }
 }
 </script>
 
