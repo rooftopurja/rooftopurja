@@ -6,11 +6,11 @@
 </head>
 <body>
 <script>
-  const token = localStorage.getItem("urja_token");
-  if (!token) {
-    window.location.replace("/login.html");
+  const t = localStorage.getItem("urja_token");
+  if (!t) {
+    location.replace("/login.html");
   } else {
-    window.location.replace("/meter.v2.html");
+    location.replace("/meter.v2.html");
   }
 </script>
 </body>
