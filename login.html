@@ -66,44 +66,80 @@ h3 {
     <h3>Login to Rooftop Urja - Plant Monitoring Portal</h3>
 
     <input type="email" id="email" placeholder="Enter Email" />
-    <button id="btnSendOtp" onclick="sendOtp()">Send OTP</button>
+    <button id="btnSendOtp">Send OTP</button>
 
     <input type="text" id="otp" placeholder="Enter OTP" style="display:none" />
-    <button id="btnVerify" onclick="verifyOtp()">Verify</button>
+    <button id="btnVerify" style="display:none">Verify</button>
 
     <div class="note">By logging in, you consent to secure OTP-based access.</div>
   </div>
 
 
 <script>
-function verifyOtp() {
-  const email = document.getElementById("email").value.trim();
-  const otp = document.getElementById("otp").value.trim();
+const emailInput = document.getElementById("email");
+const otpInput = document.getElementById("otp");
+const sendBtn = document.getElementById("btnSendOtp");
+const verifyBtn = document.getElementById("btnVerify");
 
-  if (!email || !otp) {
-    alert("Missing email or OTP");
+sendBtn.addEventListener("click", sendOtp);
+verifyBtn.addEventListener("click", verifyOtp);
+
+async function sendOtp() {
+  const email = emailInput.value.trim();
+  if (!email) {
+    alert("Enter email");
     return;
   }
 
-  // 🔑 IMPORTANT: full-page navigation, NOT fetch
-  const form = document.createElement("form");
-  form.method = "POST";
-  form.action = "/api/VerifyOtp";
+  sendBtn.disabled = true;
+  sendBtn.textContent = "Sending...";
 
-  const e = document.createElement("input");
-  e.type = "hidden";
-  e.name = "email";
-  e.value = email;
+  try {
+    const r = await fetch(`/api/SendOtp?email=${encodeURIComponent(email)}`);
+    const j = await r.json();
 
-  const o = document.createElement("input");
-  o.type = "hidden";
-  o.name = "otp";
-  o.value = otp;
+    if (!j.success) {
+      alert(j.error || "OTP failed");
+      sendBtn.disabled = false;
+      sendBtn.textContent = "Send OTP";
+      return;
+    }
 
-  form.appendChild(e);
-  form.appendChild(o);
-  document.body.appendChild(form);
-  form.submit();
+    sendBtn.textContent = "OTP Sent";
+    otpInput.style.display = "block";
+    verifyBtn.style.display = "block";
+  } catch (e) {
+    alert("OTP error");
+    sendBtn.disabled = false;
+    sendBtn.textContent = "Send OTP";
+  }
+}
+
+async function verifyOtp() {
+  const email = emailInput.value.trim();
+  const otp = otpInput.value.trim();
+
+  if (!otp) {
+    alert("Enter OTP");
+    return;
+  }
+
+  try {
+    const r = await fetch("/api/VerifyOtp", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ email, otp }),
+      redirect: "follow"
+    });
+
+    if (r.redirected) {
+      window.location.href = r.url;
+    } else {
+      alert("Verify failed");
+    }
+  } catch (e) {
+    alert("Verify error");
+  }
 }
 </script>
 
