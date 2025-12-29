@@ -58,7 +58,7 @@
 <script>
 async function sendOtp() {
   const email = emailInput();
-  const r = await fetch(`/api/SendOtp?email=${encodeURIComponent(email)}`);
+  fetch(`https://<FUNCTION_BASE_URL>/api/SendOtp?email=${encodeURIComponent(email)}`);
   const j = await r.json();
 
   if (!j.success) {
@@ -74,7 +74,7 @@ async function verifyOtp() {
   const email = emailInput();
   const code = otp.value.trim();
 
-  const r = await fetch("/api/VerifyOtp", {
+  const r = await fetch("https://<FUNCTION_BASE_URL>/api/VerifyOtp", {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: JSON.stringify({ email, otp: code })
