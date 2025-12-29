@@ -103,7 +103,17 @@ async function sendOtp() {
   btn.disabled = true;
 
   const r = await fetch(`/api/SendOtp?email=${encodeURIComponent(email)}`);
-  const j = await r.json();
+  const text = await r.text();
+
+  let j;
+  try {
+    j = JSON.parse(text);
+  } catch {
+    console.error("Non-JSON SendOtp response:", text);
+    alert("OTP system error");
+    btn.disabled = false;
+    return;
+  }
 
   if (!j.success) {
     alert(j.error || "OTP send failed");
@@ -129,7 +139,6 @@ async function sendOtp() {
   }, 1000);
 }
 
-<script>
 async function verifyOtp() {
   const email = document.getElementById("email").value.trim();
   const otp = document.getElementById("otp").value.trim();
@@ -145,14 +154,14 @@ async function verifyOtp() {
     body: JSON.stringify({ email, otp })
   });
 
-  const text = await r.text(); // 👈 SAFE
+  const text = await r.text();
 
   let j;
   try {
     j = JSON.parse(text);
-  } catch (e) {
-    console.error("Non-JSON response:", text);
-    alert("Auth system error (HTML returned)");
+  } catch {
+    console.error("Non-JSON VerifyOtp response:", text);
+    alert("Auth system error");
     return;
   }
 
