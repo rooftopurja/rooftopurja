@@ -8,7 +8,17 @@ const TABLE = "OtpSessions";
 
 const MAX_ATTEMPTS = 5;
 
-/* ---------- TABLE HELPERS ---------- */
+/* ---------- HELPERS ---------- */
+
+function parseBody(req) {
+  if (!req.body) return {};
+  if (typeof req.body === "object") return req.body;
+  try {
+    return JSON.parse(req.body);
+  } catch {
+    return {};
+  }
+}
 
 function tableGET(url) {
   return new Promise((resolve, reject) => {
@@ -21,7 +31,7 @@ function tableGET(url) {
         res.on("end", () => {
           if (res.statusCode === 404) return resolve(null);
           if (res.statusCode >= 400)
-            return reject(new Error(`Table GET failed ${res.statusCode}`));
+            return reject(new Error(`GET ${res.statusCode}`));
           resolve(JSON.parse(buf || "{}"));
         });
       }
@@ -39,7 +49,8 @@ function tablePUT(url, entity) {
         headers: {
           Accept: "application/json;odata=nometadata",
           "Content-Type": "application/json",
-          "Content-Length": Buffer.byteLength(body)
+          "Content-Length": Buffer.byteLength(body),
+          "If-Match": "*"
         }
       },
       res => (res.statusCode < 300 ? resolve() : reject())
@@ -51,8 +62,13 @@ function tablePUT(url, entity) {
 
 function tableDELETE(url) {
   return new Promise((resolve, reject) => {
-    const req = https.request(url, { method: "DELETE" }, res =>
-      res.statusCode < 300 ? resolve() : reject()
+    const req = https.request(
+      url,
+      {
+        method: "DELETE",
+        headers: { "If-Match": "*" }
+      },
+      res => (res.statusCode < 300 ? resolve() : reject())
     );
     req.end();
   });
@@ -62,13 +78,14 @@ function tableDELETE(url) {
 
 module.exports = async function (context, req) {
   try {
-    const { email, otp } = req.body || {};
+    const { email, otp } = parseBody(req);
+
     if (!email || !otp) {
       context.res = { status: 400, body: "Missing email or OTP" };
       return;
     }
 
-    const pk = encodeURIComponent(email.toLowerCase()); // 🔑 FIX
+    const pk = encodeURIComponent(email.toLowerCase());
     const rk = "otp";
 
     const url = `${TABLE_ENDPOINT}/${TABLE}(PartitionKey='${pk}',RowKey='${rk}')?${TABLE_SAS}`;
