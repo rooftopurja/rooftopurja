@@ -69,77 +69,44 @@ h3 {
     <button id="btnSendOtp" onclick="sendOtp()">Send OTP</button>
 
     <input type="text" id="otp" placeholder="Enter OTP" style="display:none" />
-    <button id="btnVerify" onclick="verifyOtp()" style="display:none">Verify</button>
+    <button id="btnVerify" onclick="verifyOtp()">Verify</button>
 
     <div class="note">By logging in, you consent to secure OTP-based access.</div>
   </div>
 
 
 <script>
-const emailInput = document.getElementById("email");
-const otpInput = document.getElementById("otp");
-const sendBtn = document.getElementById("btnSendOtp");
-const verifyBtn = document.getElementById("btnVerify");
+function verifyOtp() {
+  const email = document.getElementById("email").value.trim();
+  const otp = document.getElementById("otp").value.trim();
 
-sendBtn.onclick = sendOtp;
-verifyBtn.onclick = verifyOtp;
-
-async function sendOtp() {
-  const email = emailInput.value.trim().toLowerCase();
-  if (!email) {
-    alert("Enter email");
+  if (!email || !otp) {
+    alert("Missing email or OTP");
     return;
   }
 
-  sendBtn.disabled = true;
-  sendBtn.innerText = "Sending OTP...";
+  // 🔑 IMPORTANT: full-page navigation, NOT fetch
+  const form = document.createElement("form");
+  form.method = "POST";
+  form.action = "/api/VerifyOtp";
 
-  try {
-    const r = await fetch(`/api/SendOtp?email=${encodeURIComponent(email)}`);
-    if (!r.ok) throw new Error("Send OTP failed");
+  const e = document.createElement("input");
+  e.type = "hidden";
+  e.name = "email";
+  e.value = email;
 
-    const j = await r.json();
-    if (!j.success) throw new Error(j.error || "OTP error");
+  const o = document.createElement("input");
+  o.type = "hidden";
+  o.name = "otp";
+  o.value = otp;
 
-    otpInput.style.display = "block";
-    verifyBtn.style.display = "block";
-    sendBtn.innerText = "OTP Sent";
-  } catch (err) {
-    alert(err.message || "OTP error. Check logs.");
-    sendBtn.innerText = "Send OTP";
-  } finally {
-    sendBtn.disabled = false;
-  }
-}
-
-async function verifyOtp() {
-  const email = emailInput.value.trim().toLowerCase();
-  const otp = otpInput.value.trim();
-
-  if (!otp) {
-    alert("Enter OTP");
-    return;
-  }
-
-  try {
-    const r = await fetch("/api/VerifyOtp", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ email, otp }),
-      redirect: "follow"
-    });
-
-    if (r.redirected) {
-      location.href = "/";
-    } else {
-      const t = await r.text();
-      throw new Error(t || "Invalid OTP");
-    }
-  } catch (err) {
-    alert(err.message);
-  }
+  form.appendChild(e);
+  form.appendChild(o);
+  document.body.appendChild(form);
+  form.submit();
 }
 </script>
+
 
 
 </body>
