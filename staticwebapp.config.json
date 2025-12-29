@@ -1,17 +1,24 @@
 {
   "routes": [
-    { "route": "/login.html", "allowedRoles": ["anonymous"] },
-    { "route": "/index.html", "allowedRoles": ["anonymous"] },
-    { "route": "/", "allowedRoles": ["anonymous"] },
-
-    { "route": "/*.html", "allowedRoles": ["anonymous"] },
-    { "route": "/assets/*", "allowedRoles": ["anonymous"] },
-
-    { "route": "/api/*", "allowedRoles": ["anonymous"] },
-    { "route": "/.auth/*", "allowedRoles": ["anonymous"] }
+    {
+      "route": "/login.html",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/SendOtp",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/VerifyOtp",
+      "allowedRoles": ["anonymous"]
+    },
+    {
+      "route": "/api/*",
+      "allowedRoles": ["anonymous"]
+    }
   ],
   "navigationFallback": {
     "rewrite": "/index.html",
-    "exclude": ["/api/*", "/.auth/*"]
+    "exclude": ["/api/*"]
   }
 }
