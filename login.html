@@ -92,29 +92,22 @@ async function sendOtp() {
   }
 
   sendBtn.disabled = true;
+  sendBtn.innerText = "Sending OTP...";
 
   try {
     const r = await fetch(`/api/SendOtp?email=${encodeURIComponent(email)}`);
-
-    if (!r.ok) {
-      const t = await r.text();
-      throw new Error(t || "Send OTP failed");
-    }
+    if (!r.ok) throw new Error("Send OTP failed");
 
     const j = await r.json();
-
-    if (!j.success) {
-      alert(j.error || "OTP failed");
-      sendBtn.disabled = false;
-      return;
-    }
+    if (!j.success) throw new Error(j.error || "OTP error");
 
     otpInput.style.display = "block";
     verifyBtn.style.display = "block";
     sendBtn.innerText = "OTP Sent";
   } catch (err) {
-    alert("OTP error. Check logs.");
-    console.error(err);
+    alert(err.message || "OTP error. Check logs.");
+    sendBtn.innerText = "Send OTP";
+  } finally {
     sendBtn.disabled = false;
   }
 }
@@ -138,18 +131,15 @@ async function verifyOtp() {
 
     if (r.redirected) {
       location.href = "/";
-      return;
+    } else {
+      const t = await r.text();
+      throw new Error(t || "Invalid OTP");
     }
-
-    const t = await r.text();
-    alert(t || "Invalid OTP");
   } catch (err) {
-    alert("Verify failed");
-    console.error(err);
+    alert(err.message);
   }
 }
 </script>
-
 
 
 </body>
