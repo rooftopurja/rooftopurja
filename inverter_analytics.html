@@ -445,7 +445,7 @@ fetch("/common/header.v2.html")
 </div><!-- END stage -->
 <script>
 Chart.register(ChartDataLabels);
-const API_BASE = "https://inverterdailysummarytimerapp.azurewebsites.net/api";
+const API_URL = "https://inverterdailysummarytimerapp.azurewebsites.net/api/GetInverterData";
 
 function apiFetch(url) {
   const token = localStorage.getItem("urja_token");
@@ -1053,6 +1053,37 @@ document.getElementById("curveDate").onchange=()=>loadAnalytics();
 document.getElementById("prevTrend").onclick = () => { trendOffset--; loadAnalytics(); };
 document.getElementById("nextTrend").onclick = () => { trendOffset++; loadAnalytics(); };
 
+/* ==========================================================
+   🔐 SWA READY GATE — CRITICAL FOR INVERTER ANALYTICS
+========================================================== */
+
+// Remove auto-start
+// (do NOT call loadDirectory immediately on script load)
+
+document.addEventListener("swa-ready", async () => {
+  console.log("🔐 SWA ready → loading inverter analytics");
+
+  await loadDirectory();
+
+  document.getElementById("curveDate").value =
+    new Date().toISOString().slice(0,10);
+
+  loadAnalytics();
+});
+
+// Safety: if SWA already ready (fast reload / cache)
+if (window.__SWA_READY__) {
+  console.log("🔐 SWA already ready → loading inverter analytics");
+
+  (async () => {
+    await loadDirectory();
+
+    document.getElementById("curveDate").value =
+      new Date().toISOString().slice(0,10);
+
+    loadAnalytics();
+  })();
+}
 
 </script>
 

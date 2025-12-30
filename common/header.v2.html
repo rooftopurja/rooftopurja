@@ -12,11 +12,11 @@
 
     <!-- MENU -->
     <ul class="navbar-menu">
-      <li id="menu-meter"><a href="/meter.v2.html">Meter</a></li>
-      <li id="menu-inverteranalytics"><a href="/inverter_analytics.html">Inverter Analytics</a></li>
-      <li id="menu-inverterdataoverview"><a href="/inverter_data_overview.html">Inverter Data Overview</a></li>
-      <li id="menu-inverterfaults"><a href="/inverter_faults.html">Inverter Faults</a></li>
-      <li id="menu-maintenance"><a href="/maintenance.html">Maintenance</a></li>
+      <li><a href="/meter.v2.html">Meter</a></li>
+      <li><a href="/inverter_analytics.html">Inverter Analytics</a></li>
+      <li><a href="/inverter_data_overview.html">Inverter Data Overview</a></li>
+      <li><a href="/inverter_faults.html">Inverter Faults</a></li>
+      <li><a href="/maintenance.html">Maintenance</a></li>
     </ul>
 
     <!-- ACCOUNT -->
@@ -30,3 +30,29 @@
 
   </div>
 </header>
+
+<script>
+(function () {
+  const logout = document.getElementById("logout-link");
+
+  if (!logout) return;
+
+  logout.addEventListener("click", (e) => {
+    e.preventDefault();
+
+    console.log("🔒 Logging out user");
+
+    // 1️⃣ Clear OTP auth
+    localStorage.removeItem("urja_token");
+
+    // 2️⃣ Clear SWA session (important)
+    fetch("/.auth/logout", { method: "POST" })
+      .catch(() => {}) // ignore errors
+
+      // 3️⃣ Redirect to login
+      .finally(() => {
+        location.replace("/login.html");
+      });
+  });
+})();
+</script>
