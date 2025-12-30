@@ -445,7 +445,7 @@ fetch("/common/header.v2.html")
 </div><!-- END stage -->
 <script>
 Chart.register(ChartDataLabels);
-const API_URL = "https://inverterdailysummarytimerapp.azurewebsites.net/api/GetInverterData";
+const API_BASE = "https://inverterdailysummarytimerapp.azurewebsites.net/api";
 
 function apiFetch(url) {
   const token = localStorage.getItem("urja_token");
