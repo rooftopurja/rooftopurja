@@ -443,20 +443,10 @@ fetch("common/header.v2.html")
 <script>
 console.log("Meter page starting…");
 Chart.register(ChartDataLabels);
-/* 🔐 AUTH FETCH WRAPPER — SINGLE SOURCE */
-function authFetch(url, options = {}) {
-  return fetch(url, {
-    ...options,
-    cache: "no-store",
-    credentials: "same-origin",   // 🔑 REQUIRED FOR SWA
-    headers: {
-      ...(options.headers || {})
-    }
-  });
-}
+/* 🔐 AUTH FETCH WRAPPER — TOKEN BASED (FINAL) */
 
 /* TOKEN-AWARE API CALLER */
-const API_URL = "/api/GetMeterData";
+const API_URL = "https://inverterdailysummarytimerapp.azurewebsites.net/api/GetMeterData";
 
 /* FORMATTER: kWh → MWh / GWh / TWh */
 function fmtUnit(v) {
@@ -666,7 +656,15 @@ if (plantsParam) qs.set("plants", plantsParam);
   const url = `${API_URL}?${qs.toString()}`;
 console.log("FETCH URL =>", url);
 
-const r = await authFetch(url);
+const token = localStorage.getItem("urja_token");
+
+const r = await fetch(url, {
+  cache: "no-store",
+  headers: {
+    "x-urja-token": token
+  }
+});
+
 
 if (!r.ok) {
   console.error("Meter API failed", r.status);
@@ -1068,7 +1066,7 @@ if (period !== "date") {
    INIT
 ====================================================== */
 document.addEventListener("DOMContentLoaded", () => {
-  setTimeout(fetchMeter, 200);
+  
 
   document.getElementById("barPrev").onclick = () => {
     const totalDays = cache?.allDays?.length || 0;
@@ -1094,6 +1092,12 @@ document.addEventListener("DOMContentLoaded", () => {
     e.target.selectedIndex = 0;
   };
 });
+
+document.addEventListener("DOMContentLoaded", () => {
+  console.log("🔐 Page ready → fetching meter data");
+  fetchMeter();
+});
+
 
 function exportTable(format) {
   const rows = cache?.latestReadings || [];

@@ -226,12 +226,15 @@ async function loadPlantDirectory() {
             return;
         }
 
-        const r = await fetch("/api/PlantDirectory", {
-            headers: {
-                "Accept": "application/json",
-                "x-urja-token": token
-            }
-        });
+        const r = await fetch(
+    "https://inverterdailysummarytimerapp.azurewebsites.net/api/PlantDirectory",
+    {
+        headers: {
+            "Accept": "application/json",
+            "x-urja-token": token
+        }
+    }
+);
 
         const ct = r.headers.get("content-type") || "";
         if (!ct.includes("application/json")) {
@@ -285,15 +288,15 @@ async function fetchOverview() {
     try {
         const token = localStorage.getItem("urja_token");
 
-        const r = await fetch(
-            `/api/GetInverterDataOverview?plant=${encodeURIComponent(plant)}&inverter=${encodeURIComponent(inverter)}&date=${date}`,
-            {
-                cache: "no-store",
-                headers: {
-                    "x-urja-token": token
-                }
-            }
-        );
+       const r = await fetch(
+    `https://inverterdailysummarytimerapp.azurewebsites.net/api/GetInverterDataOverview?plant=${encodeURIComponent(plant)}&inverter=${encodeURIComponent(inverter)}&date=${date}`,
+    {
+        cache: "no-store",
+        headers: {
+            "x-urja-token": token
+        }
+    }
+);
 
         const j = await r.json();
 

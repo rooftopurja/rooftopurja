@@ -445,11 +445,15 @@ fetch("/common/header.v2.html")
 </div><!-- END stage -->
 <script>
 Chart.register(ChartDataLabels);
-const API_BASE = "/api";
-function swaFetch(url) {
+const API_BASE = "https://inverterdailysummarytimerapp.azurewebsites.net/api";
+
+function apiFetch(url) {
+  const token = localStorage.getItem("urja_token");
   return fetch(url, {
     cache: "no-store",
-    credentials: "include"   // 🔑 SWA identity
+    headers: {
+      "x-urja-token": token
+    }
   });
 }
 
@@ -476,7 +480,15 @@ let dayCurveLoaded = false;   // 🔑 ensures day curve is fetched once
    LOAD DIRECTORY (plants + inverters)
 ========================================================== */
 async function loadDirectory(){
-  const r = await fetch(`${API_BASE}/PlantDirectory`, { cache: "no-store" });
+  const token = localStorage.getItem("urja_token");
+
+  const r = await fetch(`${API_BASE}/PlantDirectory`, {
+    cache: "no-store",
+    headers: {
+      "x-urja-token": token
+    }
+  });
+
   const j = await r.json();
 
   // ONLY plant + inverter setup — nothing else
@@ -961,7 +973,7 @@ async function loadAnalytics() {
   /* ==============================
      MAIN PERIOD FETCH
   =============================== */
- const mainResp = await swaFetch(
+ const mainResp = await apiFetch(
   `${API_BASE}/GetInverterData?${params.toString()}`
 );
 
@@ -992,10 +1004,9 @@ console.log("POWER CURVE LENGTH:", j.powerCurve?.length);
       date
     });
 
-  const dayResp = await swaFetch(
+ const dayResp = await apiFetch(
   `${API_BASE}/GetInverterData?${dayParams.toString()}`
 ).then(r => r.json());
-
 
 
     if (dayResp.success) {
