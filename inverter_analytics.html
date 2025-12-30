@@ -1053,20 +1053,7 @@ document.getElementById("curveDate").onchange=()=>loadAnalytics();
 document.getElementById("prevTrend").onclick = () => { trendOffset--; loadAnalytics(); };
 document.getElementById("nextTrend").onclick = () => { trendOffset++; loadAnalytics(); };
 
-/* ==========================================================
-   INIT
-========================================================== */
-(async()=>{
-  await loadDirectory();
 
-  document.getElementById("curveDate").value =
-    new Date().toISOString().slice(0,10);
-
-  // 🔥 Give UI time to render before heavy API/Chart load
-  setTimeout(() => {
-    loadAnalytics();
-  }, 50);
-})();
 </script>
 
 <script src="common/loadUser.js"></script>
