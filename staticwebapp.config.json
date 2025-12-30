@@ -1,20 +1,6 @@
 {
-  "routes": [
-    {
-      "route": "/api/GetMeterData",
-      "allowedRoles": ["anonymous"]
-    },
-    {
-      "route": "/api/GetInverterAnalytics",
-      "allowedRoles": ["anonymous"]
-    },
-    {
-      "route": "/api/GetInverterDataOverview",
-      "allowedRoles": ["anonymous"]
-    },
-    {
-      "route": "/api/PlantDirectory",
-      "allowedRoles": ["anonymous"]
-    }
-  ]
+  "navigationFallback": {
+    "rewrite": "/index.html"
+  }
 }
+

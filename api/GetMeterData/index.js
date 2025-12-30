@@ -259,47 +259,45 @@ async function getAllowedPlants(email) {
 module.exports = async function (context, req) {
   try {
 
-   /* ---------------------------------------------
-   🔒 AUTH + USER CONTEXT (SWA — COOKIE BASED)
+/* ---------------------------------------------
+   🔒 AUTH (CUSTOM OTP TOKEN)
 --------------------------------------------- */
 
-// Azure Static Web Apps injects identity here
-const principal = req.headers["x-ms-client-principal"];
 
-if (!principal) {
+const token =
+  req.headers["x-urja-token"] ||
+  req.headers["X-URJA-TOKEN"];
+
+if (!token) {
   context.res = {
     status: 401,
-    body: { success: false, error: "Unauthorized (no SWA principal)" }
+    body: { success: false, error: "Missing auth token" }
   };
   return;
 }
 
-let user;
+// token format = base64(email|timestamp)
+let userEmail = "";
 try {
-  user = JSON.parse(
-    Buffer.from(principal, "base64").toString("utf8")
-  );
-} catch (e) {
+  const decoded = Buffer.from(token, "base64").toString("utf8");
+  userEmail = decoded.split("|")[0]?.toLowerCase();
+} catch {
   context.res = {
     status: 401,
-    body: { success: false, error: "Unauthorized (bad principal)" }
+    body: { success: false, error: "Invalid auth token" }
   };
   return;
 }
-
-const userEmail = String(
-  user.userDetails ||
-  user.claims?.find(c => c.typ === "emails")?.val ||
-  ""
-).toLowerCase();
 
 if (!userEmail) {
   context.res = {
     status: 403,
-    body: { success: false, error: "Forbidden (email missing)" }
+    body: { success: false, error: "Invalid user" }
   };
   return;
 }
+
+context.log("AUTH USER:", userEmail);
 
 // 🔑 USER CONTEXT CONFIRMED
 context.log("SWA user:", userEmail);
