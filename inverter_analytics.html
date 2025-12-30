@@ -1054,36 +1054,19 @@ document.getElementById("prevTrend").onclick = () => { trendOffset--; loadAnalyt
 document.getElementById("nextTrend").onclick = () => { trendOffset++; loadAnalytics(); };
 
 /* ==========================================================
-   🔐 SWA READY GATE — CRITICAL FOR INVERTER ANALYTICS
+   INIT — DIRECT LOAD (NO SWA / NO EASYAUTH)
 ========================================================== */
 
-// Remove auto-start
-// (do NOT call loadDirectory immediately on script load)
-
-document.addEventListener("swa-ready", async () => {
-  console.log("🔐 SWA ready → loading inverter analytics");
+(async () => {
+  console.log("🚀 Initializing inverter analytics");
 
   await loadDirectory();
 
   document.getElementById("curveDate").value =
-    new Date().toISOString().slice(0,10);
+    new Date().toISOString().slice(0, 10);
 
   loadAnalytics();
-});
-
-// Safety: if SWA already ready (fast reload / cache)
-if (window.__SWA_READY__) {
-  console.log("🔐 SWA already ready → loading inverter analytics");
-
-  (async () => {
-    await loadDirectory();
-
-    document.getElementById("curveDate").value =
-      new Date().toISOString().slice(0,10);
-
-    loadAnalytics();
-  })();
-}
+})();
 
 </script>
 
