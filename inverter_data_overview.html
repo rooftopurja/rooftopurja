@@ -241,9 +241,8 @@ async function loadPlantDirectory() {
             return;
         }
 
-        const r = await fetch(
-    "https://inverterdailysummarytimerapp.azurewebsites.net/api/PlantDirectory",
-    { cache: "no-store" }
+        const r = await authFetch(
+    "https://inverterdailysummarytimerapp.azurewebsites.net/api/PlantDirectory"
 );
 
         const ct = r.headers.get("content-type") || "";
