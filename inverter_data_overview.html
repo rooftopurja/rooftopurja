@@ -176,6 +176,21 @@ fetch("/common/header.v2.html")
 let plants = [], plantMap = {};
 let timer = null;
 
+// ----------------------------- AUTH FETCH HELPER --------------------------------
+function authFetch(url, opts = {}) {
+    const token = localStorage.getItem("urja_token");
+    return fetch(url, {
+        ...opts,
+        cache: "no-store",
+        headers: {
+            ...(opts.headers || {}),
+            "x-urja-token": token,
+            "Accept": "application/json"
+        }
+    });
+}
+
+
 // ------------------------------------ INIT --------------------------------------
 document.addEventListener("DOMContentLoaded", async () => {
 
@@ -226,14 +241,8 @@ async function loadPlantDirectory() {
             return;
         }
 
-        const r = await fetch(
-    "https://inverterdailysummarytimerapp.azurewebsites.net/api/PlantDirectory",
-    {
-        headers: {
-            "Accept": "application/json",
-            "x-urja-token": token
-        }
-    }
+        const r = await authFetch(
+    "https://inverterdailysummarytimerapp.azurewebsites.net/api/PlantDirectory"
 );
 
         const ct = r.headers.get("content-type") || "";
