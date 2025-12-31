@@ -210,12 +210,12 @@ document.addEventListener("DOMContentLoaded", async () => {
 
     // Default select
     if (plants.length > 0) {
-        document.getElementById("plantSel").value = plants[0].Plant_Name;
+        document.getElementById("plantSel").value = plants[0].Plant_ID;
         populateInverters();
     }
 
     if (plants.length > 0) {
-    document.getElementById("plantSel").value = plants[0].Plant_Name;
+    document.getElementById("plantSel").value = plants[0].Plant_ID;
     populateInverters();
 
     // ⏱ allow DOM + selects to settle
@@ -258,18 +258,22 @@ async function loadPlantDirectory() {
         plantMap = {};
 
         plants.forEach(p => {
-            let invs = [];
-            if (Array.isArray(p.Inverters)) invs = p.Inverters;
-            else if (typeof p.Inverters === "string") invs = p.Inverters.split(",");
+    const pid = String(p.Plant_ID);
+    let invs = [];
 
-            plantMap[p.Plant_Name] = invs.map(x => x.trim()).filter(Boolean);
-        });
+    if (Array.isArray(p.Inverters)) invs = p.Inverters;
+    else if (typeof p.Inverters === "string") invs = p.Inverters.split(",");
+
+    plantMap[pid] = invs.map(x => x.trim()).filter(Boolean);
+});
+
 
         const ps = document.getElementById("plantSel");
         ps.innerHTML = plants
-            .sort((a, b) => a.Plant_Name.localeCompare(b.Plant_Name))
-            .map(p => `<option value="${p.Plant_Name}">${p.Plant_Name}</option>`)
-            .join("");
+    .sort((a, b) => a.Plant_Name.localeCompare(b.Plant_Name))
+    .map(p => `<option value="${p.Plant_ID}">${p.Plant_Name}</option>`)
+    .join("");
+
 
     } catch (e) {
         console.error("Plant load error", e);
