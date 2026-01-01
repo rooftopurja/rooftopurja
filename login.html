@@ -121,17 +121,18 @@ async function verifyOtp() {
 
   const j = await r.json();
 
-  if (!j.success) {
-    alert("OTP invalid");
-    return;
-  }
+ if (!j.success) {
+  alert("OTP invalid");
+  return;
+}
 
-  // ✅ STORE SESSION
-  localStorage.setItem("urja_token", btoa(email + "|" + Date.now()));
-  localStorage.setItem("urja_email", email);
+// ✅ STORE REAL SESSION TOKEN (FROM BACKEND)
+localStorage.setItem("urja_token", j.token);
+localStorage.setItem("urja_email", email);
 
-  // ✅ REDIRECT
-  window.location.replace("/");
+// ✅ REDIRECT TO DASHBOARD
+window.location.replace("/");
+
 }
 </script>
 </body>
